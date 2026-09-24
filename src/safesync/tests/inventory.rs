@@ -526,3 +526,63 @@ fn numbers_and_ages_format_for_the_table() {
     );
     assert_eq!(drives::date(0).len(), 10);
 }
+
+#[test]
+fn hashing_reports_exact_totals_after_the_walk() {
+    let fixture = Fixture::new();
+    put(&fixture.root(), "a.bin", &[1u8; 3 * 1024 * 1024]);
+    put(&fixture.root(), "b.bin", &[2u8; 1024 * 1024]);
+    put(&fixture.root(), "c.bin", b"tiny");
+    let mut walk_reports = 0;
+    let mut hash_reports: Vec<scan::HashProgress> = Vec::new();
+    let manifest = scan::scan_with_reuse(
+        &fixture.root(),
+        Fixture::volume(),
+        scan::Hashing::Missing,
+        &[],
+        None,
+        |p| match p.hashing {
+            None => {
+                walk_reports += 1;
+                assert!(hash_reports.is_empty(), "walk reports never follow hashing");
+            }
+            Some(h) => hash_reports.push(h),
+        },
+    )
+    .unwrap();
+    assert_eq!(walk_reports, 3);
+    assert!(manifest.header.content_hashed);
+    let total = 4 * 1024 * 1024 + 4;
+    let last = hash_reports.last().unwrap();
+    assert_eq!((last.files_total, last.bytes_total), (3, total));
+    assert_eq!((last.files_done, last.bytes_done), (3, total));
+    assert!(
+        hash_reports
+            .windows(2)
+            .all(|w| w[0].bytes_done <= w[1].bytes_done
+                && w[0].files_done <= w[1].files_done
+                && w[0].bytes_total == w[1].bytes_total),
+        "progress is monotonic and totals are fixed"
+    );
+    assert!(
+        hash_reports.len() > 4,
+        "a multi-megabyte file reports progress within the file, got {}",
+        hash_reports.len()
+    );
+
+    // Known fingerprints are carried over and never re-read: no hashing phase.
+    let mut cache = scan::HashCache::new(&Fixture::volume());
+    cache.add(&manifest);
+    let mut hashed = false;
+    let again = scan::scan_with_reuse(
+        &fixture.root(),
+        Fixture::volume(),
+        scan::Hashing::Missing,
+        &[],
+        Some(&cache),
+        |p| hashed |= p.hashing.is_some_and(|h| h.files_total > 0),
+    )
+    .unwrap();
+    assert!(!hashed);
+    assert_eq!(again.header.reused_hashes, 3);
+}

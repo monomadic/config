@@ -30,6 +30,18 @@ pub struct Progress {
     pub files: usize,
     pub bytes: u64,
     pub reused: u64,
+    /// Set once the walk is over and files are being read for fingerprints.
+    pub hashing: Option<HashProgress>,
+}
+
+/// The second half of a `Hashing::Missing` scan. Totals are exact: the walk
+/// has already found every file without a reusable fingerprint.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct HashProgress {
+    pub files_done: usize,
+    pub files_total: usize,
+    pub bytes_done: u64,
+    pub bytes_total: u64,
 }
 
 // Fingerprints carried over from earlier scans of the same volume, keyed on
@@ -160,6 +172,7 @@ pub fn scan_with_reuse(
     let mut skipped_mounts = 0;
     let mut bytes = 0;
     let mut reused = 0;
+    let mut pending: Vec<usize> = Vec::new();
     while let Some(relative) = queue.pop() {
         let parent = if relative.as_os_str().is_empty() {
             directory.try_clone()?
@@ -192,7 +205,7 @@ pub fn scan_with_reuse(
                 skipped_special += 1;
                 continue;
             }
-            let mut opened = filesystem::open_relative(&directory, &child, device)
+            let opened = filesystem::open_relative(&directory, &child, device)
                 .with_context(|| format!("Cannot read {:?}", child))?;
             let metadata = opened.metadata()?;
             let stamp = Stamp::of(&metadata);
@@ -208,13 +221,11 @@ pub fn scan_with_reuse(
                 } else if let Some(known) = known {
                     reused += 1;
                     Some(known.clone())
-                } else if hashing == Hashing::Known {
-                    None
                 } else {
-                    Some(
-                        filesystem::hash_file(&mut opened, &stamp)
-                            .with_context(|| format!("Cannot fingerprint {:?}", child))?,
-                    )
+                    if hashing == Hashing::Missing {
+                        pending.push(entries.len());
+                    }
+                    None
                 };
                 bytes += stamp.size;
                 entries.push(Entry {
@@ -226,9 +237,43 @@ pub fn scan_with_reuse(
                     files: entries.len(),
                     bytes,
                     reused,
+                    hashing: None,
                 });
             }
         }
+    }
+    let entries_count = entries.len();
+    // Fingerprinting comes after the walk so its total is known up front: the
+    // slow half of a scan can show a real bar, and a spinning disk sees a
+    // metadata pass and then a sequential read pass instead of an alternation.
+    let mut hash = HashProgress {
+        files_total: pending.len(),
+        bytes_total: pending.iter().map(|&i| entries[i].stamp.size).sum(),
+        ..HashProgress::default()
+    };
+    for index in pending {
+        let entry = &mut entries[index];
+        let relative = entry.path()?;
+        let mut opened = filesystem::open_relative(&directory, &relative, device)
+            .with_context(|| format!("Cannot read {:?}", relative))?;
+        let digest = filesystem::hash_file_with(&mut opened, &entry.stamp, |n| {
+            hash.bytes_done += n;
+            progress(Progress {
+                files: entries_count,
+                bytes,
+                reused,
+                hashing: Some(hash),
+            });
+        })
+        .with_context(|| format!("Cannot fingerprint {:?}", relative))?;
+        entry.sha256 = Some(digest);
+        hash.files_done += 1;
+        progress(Progress {
+            files: entries_count,
+            bytes,
+            reused,
+            hashing: Some(hash),
+        });
     }
     // Catch changes during the scan rather than presenting a partial tree as a
     // complete observation. This is not a filesystem snapshot or a write lock.

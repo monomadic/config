@@ -15,10 +15,10 @@ local KINDS = {
 	image = { "jpg", "jpeg", "png", "gif", "webp", "heic", "heif", "tif", "tiff", "bmp", "avif", "icns" },
 }
 
--- Same geometry as the help box (80x25, centred). The title is capped well
--- short of the width so a good run of border stays visible either side.
-local WIDTH, HEIGHT = 80, 25
-local TITLE_MAX = WIDTH - 36
+-- Max box height (width tracks the current column, see M:new).
+local HEIGHT = 25
+-- Group column on the right of each row, 2 chars wider than before.
+local GROUP_W = 18
 
 ---------------------------------------------------------------------- matching
 
@@ -121,22 +121,6 @@ local function filter(rows, query)
 	return out
 end
 
-local function describe(targets)
-	if #targets == 1 then
-		return targets[1].name
-	end
-	for _, k in ipairs { "dir", "video", "audio", "image" } do
-		local all = true
-		for _, t in ipairs(targets) do
-			all = all and is_kind(t, k)
-		end
-		if all then
-			return #targets .. " " .. (k == "dir" and "folders" or k .. "s")
-		end
-	end
-	return #targets .. " items"
-end
-
 ---------------------------------------------------------------------- sync side
 -- The menu lives in the sync context: the ui.Input is a userdata that can't
 -- cross into the async entry, and its events arrive through ps.sub there.
@@ -168,11 +152,11 @@ local function on_input(self, e)
 	end
 end
 
-local open = ya.sync(function(self, all, title)
+local open = ya.sync(function(self, all)
 	if self.children then
 		return
 	end
-	self.all, self.rows, self.cursor, self.query, self.title = all, all, 0, "", title
+	self.all, self.rows, self.cursor, self.query = all, all, 0, ""
 	self.input = ui.Input { realtime = true }
 	ps.sub("input", function(e) on_input(self, e) end)
 	self.children = Modal:children_add(self, 10)
@@ -209,14 +193,44 @@ end)
 
 local M = {}
 
+-- Anchored under the hovered file's row, in the "current" column, rather
+-- than the help box's centred position. Falls back to opening upward when
+-- there isn't room below.
+--
+-- Yazi doesn't hand plugins the current pane's rect, so this rebuilds it the
+-- same way `Root`/`Tab` do (yazi-plugin/preset/components/{root,tab}.lua):
+-- a 1-row header, a tabs row only when there's more than one tab, the body
+-- split horizontally by `rt.mgr.ratio`, and the current column's chunk
+-- padded by 1 column on each side.
 function M:new(area)
-	local w, h = math.min(WIDTH, area.w), math.min(HEIGHT, area.h)
-	self._area = ui.Rect {
-		x = area.x + (area.w - w) // 2,
-		y = area.y + (area.h - h) // 2,
-		w = w,
-		h = h,
-	}
+	local tabs_h = #cx.tabs > 1 and 1 or 0
+	local body = ui.Rect { x = area.x, y = area.y + 1 + tabs_h, w = area.w, h = area.h - 2 - tabs_h }
+
+	local ratio = rt.mgr.ratio
+	local sum = ratio[1] + ratio[2] + ratio[3]
+	local chunks = ui.Layout()
+		:direction(ui.Layout.HORIZONTAL)
+		:constraints {
+			ui.Constraint.Ratio(ratio[1], sum),
+			ui.Constraint.Ratio(ratio[2], sum),
+			ui.Constraint.Ratio(ratio[3], sum),
+		}
+		:split(body)
+	local current = chunks[2]:pad(ui.Pad.x(1))
+
+	local row = cx.active.current.cursor - cx.active.current.offset
+	local row_y = current.y + row
+
+	local below = (body.y + body.h) - (row_y + 1)
+	local h, y
+	if below >= 8 then
+		h, y = math.min(HEIGHT, below), row_y + 1
+	else
+		local above = row_y - body.y
+		h, y = math.min(HEIGHT, above), row_y - math.min(HEIGHT, above)
+	end
+
+	self._area = ui.Rect { x = current.x, y = y, w = current.w, h = h }
 	return self
 end
 
@@ -241,11 +255,20 @@ function M:redraw()
 	local lines = {}
 	for i = offset + 1, math.min(#self.rows, offset + list.h) do
 		local r = self.rows[i]
+		local hovered_row = i == self.cursor + 1
+		-- Same "> " hovered marker the opener uses, group label on the right.
+		local indicator = hovered_row and "> " or "  "
+		-- Pad by hand: string.format's width spec caps out well below a
+		-- full-terminal-width row, so a dynamic "%-Ns" blows up.
+		local desc_w = math.max(0, list.w - #indicator - GROUP_W)
+		local desc = #r.desc < desc_w and r.desc .. string.rep(" ", desc_w - #r.desc) or r.desc
+		local group = #r.group < GROUP_W and string.rep(" ", GROUP_W - #r.group) .. r.group or r.group
 		local line = ui.Line {
-			ui.Span(" " .. string.format("%-16s", r.group)):style(th.help.chord),
-			ui.Span(r.desc .. string.rep(" ", list.w)):style(th.help.action),
+			ui.Span(indicator):style(th.help.chord),
+			ui.Span(desc):style(th.help.action),
+			ui.Span(group):style(th.help.chord),
 		}
-		lines[#lines + 1] = i == self.cursor + 1 and line:style(th.help.hovered) or line
+		lines[#lines + 1] = hovered_row and line:style(th.help.hovered) or line
 	end
 	if #self.rows == 0 then
 		lines[1] = ui.Line(" no matching actions"):style(ui.Style():dim())
@@ -262,7 +285,7 @@ function M:redraw()
 			:area(area)
 			:type(ui.Border.ROUNDED)
 			:style(th.help.border)
-			:title(ui.Line(" " .. self.title .. " "):align(ui.Align.CENTER)),
+			:title(ui.Line(" Actions: "):align(ui.Align.LEFT)),
 		self.input:area(input):focus(true),
 		ui.Text(rule()):area(divider),
 		ui.List(lines):area(list),
@@ -305,8 +328,7 @@ function M:entry(job)
 		return ya.notify { title = "Actions", content = "Nothing applies to this selection", timeout = 3 }
 	end
 
-	local what = #targets == 1 and ui.truncate(targets[1].name, { max = TITLE_MAX }) or describe(targets)
-	open(all, "actions · " .. what)
+	open(all)
 end
 
 return M

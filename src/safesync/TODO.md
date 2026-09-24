@@ -9,11 +9,6 @@ for the version that tried to be.
 - [ ] Replace `rclone-tower-safe` / `rclone-tower-ui` once a few syncs have gone well.
 - [ ] Drives screen: `--file` fingerprint search (today: name search only), and changing a role
       once there is a story for what happens to the old sentinel and index.
-- [ ] Scan progress: split the walk from fingerprinting so the slow half has a known total.
-      Walk = bar against the previous index's file count (held at 99% until done; spinner
-      with a running count when there is no prior index). Hash = bytes bar with a time
-      estimate from the copy screen's Speed/eta helpers, since the file list and byte total
-      are exact once the walk finishes. Same for `--rehash`.
 - [ ] `--pause` (SIGSTOP-style) in the TUI; currently only stop-after-current-file.
 - [ ] Rename detection by fingerprint when mtime was touched (needs `--hash` on both sides today).
 - [ ] History pruning: `safesync history --prune 30d` for `.safesync/history/`.

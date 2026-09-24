@@ -105,6 +105,10 @@ safesync scan /Volumes/Tower --hash    # also reads files that have no fingerpri
 safesync scan /Volumes/Tower --hash --rehash   # audit: read everything again
 ```
 
+A scan walks first and reads afterwards. The walk shows a bar against the
+previous index's file count; fingerprinting then has an exact total, so it
+shows bytes done, throughput and time left, updating within each file.
+
 A fingerprint is reused when the file ID, size and mtime are unchanged, so a
 renamed video is not read again. `sync` fingerprints everything it copies (it
 read the bytes anyway), so after one full sync both indexes are fully hashed

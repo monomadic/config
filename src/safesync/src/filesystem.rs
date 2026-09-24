@@ -183,6 +183,16 @@ pub fn hex(bytes: &[u8]) -> String {
 }
 
 pub fn hash_file(file: &mut File, expected: &Stamp) -> Result<String> {
+    hash_file_with(file, expected, |_| {})
+}
+
+/// `hash_file`, calling `on_read` with each chunk's length so a caller can
+/// show progress through a multi-gigabyte file.
+pub fn hash_file_with(
+    file: &mut File,
+    expected: &Stamp,
+    mut on_read: impl FnMut(u64),
+) -> Result<String> {
     ensure!(file.metadata()?.is_file(), "Not a regular file");
     ensure!(
         Stamp::of(&file.metadata()?) == *expected,
@@ -198,6 +208,7 @@ pub fn hash_file(file: &mut File, expected: &Stamp) -> Result<String> {
         }
         read += n as u64;
         hash.update(&buffer[..n]);
+        on_read(n as u64);
     }
     ensure!(
         read == expected.size && Stamp::of(&file.metadata()?) == *expected,

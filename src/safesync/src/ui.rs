@@ -1,7 +1,10 @@
 //! The screen for `sync` and `fill`: drive names and direction always visible,
 //! a review list to approve, one row per drive while copying, then a summary.
 //! Falls back to plain lines when stdout is not a terminal.
-use crate::engine::{Control, Event, Kind, Overview, Phase, Summary, human};
+use crate::{
+    engine::{Control, Event, Kind, Overview, Phase, Summary, human},
+    scan::HashProgress,
+};
 use anyhow::Result;
 use crossterm::event::{self, Event as Input, KeyCode, KeyEventKind, KeyModifiers};
 use ratatui::{
@@ -108,6 +111,11 @@ struct ScanRow {
     files: usize,
     bytes: u64,
     reused: u64,
+    /// The previous index's file count, the walk's likely destination.
+    expected: Option<usize>,
+    hashing: Option<HashProgress>,
+    hash_speed: Speed,
+    hash_started: Option<Instant>,
 }
 
 struct Model {
@@ -183,13 +191,28 @@ impl Model {
                 files,
                 bytes,
                 reused,
+                expected,
+                hashing,
             } => {
                 if let Some(row) = self.scans.get_mut(drive) {
-                    *row = ScanRow {
-                        files,
-                        bytes,
-                        reused,
-                    };
+                    row.files = files;
+                    row.bytes = bytes;
+                    row.reused = reused;
+                    if expected.is_some() {
+                        row.expected = expected;
+                    }
+                    if let Some(progress) = hashing {
+                        let now = Instant::now();
+                        row.hash_started.get_or_insert(now);
+                        row.hash_speed.sample(now, progress.bytes_done);
+                        row.hashing = Some(progress);
+                    } else if row.hashing.is_some() {
+                        // The final Scan event after a hashed scan: leave the bar full.
+                        if let Some(h) = &mut row.hashing {
+                            h.bytes_done = h.bytes_total;
+                            h.files_done = h.files_total;
+                        }
+                    }
                 }
             }
             Event::Planned(overview) => {
@@ -337,7 +360,7 @@ fn draw(frame: &mut Frame, model: &mut Model) {
     .split(area);
     draw_header(frame, rows[0], model);
     match model.phase {
-        Phase::Scanning => draw_scanning(frame, rows[1], model),
+        Phase::Scanning => draw_scanning(frame, rows[1], model, width),
         Phase::Review => draw_review(frame, rows[1], model, width),
         Phase::Transfer | Phase::Indexing => draw_transfer(frame, rows[1], model, width),
         Phase::Done => draw_done(frame, rows[1], model, width),
@@ -378,8 +401,10 @@ fn draw_header(frame: &mut Frame, area: Rect, model: &Model) {
     frame.render_widget(Paragraph::new(Line::from(spans)), area);
 }
 
-fn draw_scanning(frame: &mut Frame, area: Rect, model: &Model) {
+fn draw_scanning(frame: &mut Frame, area: Rect, model: &Model, width: usize) {
     let mut lines = Vec::new();
+    let finished = model.phase != Phase::Scanning;
+    let bar_width = width.saturating_sub(4).clamp(10, 80);
     for (name, row) in model.sources.iter().zip(&model.scans) {
         lines.push(Line::from(vec![
             Span::styled(format!("{name:<18}"), Style::default().fg(NAME)),
@@ -400,14 +425,74 @@ fn draw_scanning(frame: &mut Frame, area: Rect, model: &Model) {
                 Style::default().fg(DIM),
             ),
         ]));
+        match &row.hashing {
+            Some(h) => {
+                // The slow half: exact totals, so a real bar and an estimate.
+                let ratio = if h.bytes_total == 0 {
+                    1.0
+                } else {
+                    h.bytes_done as f64 / h.bytes_total as f64
+                };
+                let speed = row.hash_speed.ewma;
+                let remaining = h.bytes_total.saturating_sub(h.bytes_done);
+                let eta = if finished || remaining == 0 {
+                    "done".into()
+                } else if speed > 0.0 {
+                    duration(remaining as f64 / speed)
+                } else {
+                    "—".into()
+                };
+                let mut spans = vec![Span::raw("  ")];
+                spans.extend(bar(bar_width, ratio, &COPY_STOPS));
+                lines.push(Line::from(spans));
+                lines.push(Line::from(vec![
+                    Span::styled("  fingerprinting  ", Style::default().fg(LABEL)),
+                    Span::styled(
+                        format!("{} / {}", human(h.bytes_done), human(h.bytes_total)),
+                        Style::default().fg(PCT),
+                    ),
+                    Span::styled(
+                        format!("   {} of {} files", h.files_done, h.files_total),
+                        Style::default().fg(LABEL),
+                    ),
+                    Span::styled(
+                        if finished || remaining == 0 {
+                            String::new()
+                        } else {
+                            format!("   {}", rate(speed))
+                        },
+                        Style::default().fg(SPEED),
+                    ),
+                    Span::styled(format!("   {eta} left"), Style::default().fg(DIM)),
+                ]));
+            }
+            None => {
+                // The walk: no total until it ends, but the last index is a good guess.
+                let (ratio, note) = match row.expected {
+                    _ if finished => (1.0, "walk complete".to_string()),
+                    Some(expected) if expected > 0 => (
+                        (row.files as f64 / expected as f64).min(0.99),
+                        format!("walking, ~{expected} files last time"),
+                    ),
+                    _ => (0.0, "walking, first index of this drive".to_string()),
+                };
+                let mut spans = vec![Span::raw("  ")];
+                spans.extend(bar(bar_width, ratio, &DISK_STOPS));
+                lines.push(Line::from(spans));
+                lines.push(Line::from(Span::styled(
+                    format!("  {note}"),
+                    Style::default().fg(DIM),
+                )));
+            }
+        }
+        lines.push(Line::default());
     }
-    if model.sources.len() == 1 {
+    if model.sources.len() == 1 && model.destination != "index" {
         lines.push(Line::from(Span::styled(
             format!("{:<18}reading its index", model.destination),
             Style::default().fg(DIM),
         )));
     }
-    lines.push(Line::default());
     lines.push(Line::from(Span::styled(
         "Only new or changed files are read; everything else comes from the last index.",
         Style::default().fg(DIM),
@@ -831,15 +916,22 @@ fn run_plain(model: &mut Model, events: Receiver<Event>, confirm: Sender<bool>, 
                 drive,
                 files,
                 bytes,
+                hashing,
                 ..
             } => {
                 if last.elapsed() >= Duration::from_secs(1) {
                     last = Instant::now();
-                    eprintln!(
-                        "  {}: {files} files, {}",
-                        model.sources.get(*drive).cloned().unwrap_or_default(),
-                        human(*bytes)
-                    );
+                    let name = model.sources.get(*drive).cloned().unwrap_or_default();
+                    match hashing {
+                        Some(h) => eprintln!(
+                            "  {name}: fingerprinting {} / {} ({} of {} files)",
+                            human(h.bytes_done),
+                            human(h.bytes_total),
+                            h.files_done,
+                            h.files_total
+                        ),
+                        None => eprintln!("  {name}: {files} files, {}", human(*bytes)),
+                    }
                 }
             }
             Event::Planned(overview) => {

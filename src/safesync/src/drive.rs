@@ -200,6 +200,16 @@ impl Drive {
         )
     }
 
+    /// The newest readable index, with nothing printed: for code drawing a
+    /// raw-mode screen, where `index()`'s stderr notes would land on the display.
+    pub fn index_quiet(&self) -> Option<Manifest> {
+        self.generations().iter().rev().find_map(|path| {
+            Manifest::load(path)
+                .ok()
+                .filter(|m| m.header.volume.uuid == self.volume.uuid)
+        })
+    }
+
     /// Fingerprints from this drive's earlier indexes and the local copies of them.
     pub fn hash_cache(&self) -> Result<HashCache> {
         let mut cache = HashCache::new(&self.volume);

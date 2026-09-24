@@ -73,6 +73,9 @@ pub enum Event {
         files: usize,
         bytes: u64,
         reused: u64,
+        /// The previous index's file count: what the walk is probably heading for.
+        expected: Option<usize>,
+        hashing: Option<scan::HashProgress>,
     },
     Planned(Overview),
     Start {
@@ -159,6 +162,7 @@ pub fn scan_drive(
     };
     let mut exclude = drive.sentinel.exclude.clone();
     exclude.extend_from_slice(extra_excludes);
+    let expected = drive.index_quiet().map(|m| m.entries.len());
     let events = control.events.clone();
     let mut last = Instant::now();
     scan::scan_with_reuse(
@@ -175,6 +179,8 @@ pub fn scan_drive(
                     files: p.files,
                     bytes: p.bytes,
                     reused: p.reused,
+                    expected,
+                    hashing: p.hashing,
                 });
             }
         },
@@ -188,6 +194,8 @@ fn scanned(control: &Control, drive: usize, manifest: &Manifest) {
         files: manifest.entries.len(),
         bytes: manifest.entries.iter().map(|e| e.stamp.size).sum(),
         reused: manifest.header.reused_hashes,
+        expected: None,
+        hashing: None,
     });
 }
 
