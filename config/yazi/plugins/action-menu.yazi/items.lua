@@ -50,6 +50,7 @@ return { groups = {
 	{
 		group = "Repair",
 		when = { kind = "video" },
+		{ desc = "Check Duplicate Frames", run = kitty("--window --hold", "check duplicate frames", BIN .. "ffmpeg-check-fps %s"), orphan = true },
 		{ desc = "Remove Duplicate Frames (Output: ProRes)", run = kitty("--window --hold", "discard duplicate frames", BIN .. "ffmpeg-discard-duplicate-frames %s"), orphan = true },
 		{ desc = "Remove Duplicate Frames (Output: HEVC)", run = kitty("--window --hold", "discard duplicate frames", BIN .. "ffmpeg-discard-duplicate-frames --hevc %s"), orphan = true },
 		{ desc = "Trim Intro", run = kitty("--window", "trim intro", BIN .. "ffmpeg-lossless-cut %s"), orphan = true },
