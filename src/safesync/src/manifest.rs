@@ -27,12 +27,23 @@ pub enum Role {
     OfflineSnapshot,
 }
 
+/// Historical display metadata only. Write permissions always come from the
+/// live, UUID-checked sentinel, never from an index.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct RecordedDrive {
+    pub role: crate::drive::Role,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub source_uuid: Option<String>,
+}
+
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Header {
     pub schema: u32,
     pub generation: String,
     pub role: Role,
     pub volume: Volume,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub drive: Option<RecordedDrive>,
     pub root_base64: String,
     pub root_file_id: u64,
     pub started_unix: u64,

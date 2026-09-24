@@ -3,6 +3,7 @@
 use crate::{
     copy::{self, Copied},
     drive::{self, Drive, Role},
+    filesystem::{Root, Stamp},
     manifest::{Entry, Manifest, encode_path, generation, now},
     plan::{self, Action},
     scan::{self, Hashing},
@@ -217,22 +218,6 @@ impl Index {
     }
 }
 
-fn remove_empty_parents(root: &Path, relative: &Path) {
-    let mut current = relative.parent();
-    while let Some(directory) = current.filter(|d| !d.as_os_str().is_empty()) {
-        if fs::remove_dir(root.join(directory)).is_err() {
-            break;
-        }
-        current = directory.parent();
-    }
-}
-
-fn move_aside(root: &Path, relative: &Path, history: &Path) -> Result<()> {
-    let target = history.join(relative);
-    fs::create_dir_all(target.parent().context("History path has no parent")?)?;
-    copy::rename_exclusive(&root.join(relative), &target)
-}
-
 /// Index one drive and publish. No review step: nothing but metadata is written.
 pub fn index_drive(root: PathBuf, hashing: Hashing, rehash: bool, control: Control) {
     let result = (|| -> Result<()> {
@@ -244,10 +229,10 @@ pub fn index_drive(root: PathBuf, hashing: Hashing, rehash: bool, control: Contr
         });
         control.send(Event::Phase(Phase::Scanning));
         let started = Instant::now();
-        let manifest = scan_drive(&drive, 0, hashing, rehash, &[], &control)?;
+        let mut manifest = scan_drive(&drive, 0, hashing, rehash, &[], &control)?;
         scanned(&control, 0, &manifest);
         control.send(Event::Phase(Phase::Indexing));
-        let path = drive.publish(&manifest)?;
+        let path = drive.publish(&mut manifest)?;
         control.send(Event::Log(format!(
             "{} files indexed, {} fingerprints reused → {}",
             manifest.entries.len(),
@@ -277,6 +262,8 @@ fn run_sync(options: SyncOptions, control: &Control) -> Result<()> {
     let source = Drive::open(&options.source)?;
     let backup = Drive::open(&options.backup)?;
     drive::check_sync(&source, &backup)?;
+    let source_root = Root::open(&source.root)?;
+    let backup_root = Root::open(&backup.root)?;
     control.send(Event::Drives {
         sources: vec![source.sentinel.name.clone()],
         destination: backup.sentinel.name.clone(),
@@ -376,8 +363,7 @@ fn run_sync(options: SyncOptions, control: &Control) -> Result<()> {
         return Ok(());
     } else {
         control.send(Event::Phase(Phase::Transfer));
-        let history = backup
-            .metadata_dir()
+        let history = PathBuf::from(drive::METADATA_DIR)
             .join("history")
             .join(&source_index.manifest.header.generation);
         for action in &plan.actions {
@@ -399,8 +385,8 @@ fn run_sync(options: SyncOptions, control: &Control) -> Result<()> {
             });
             let result = apply(
                 action,
-                &source,
-                &backup,
+                &source_root,
+                &backup_root,
                 &history,
                 &mut source_index,
                 &mut backup_index,
@@ -422,18 +408,44 @@ fn run_sync(options: SyncOptions, control: &Control) -> Result<()> {
     }
 
     control.send(Event::Phase(Phase::Indexing));
-    source.publish(&source_index.finish())?;
-    backup.publish(&backup_index.finish())?;
+    source.publish(&mut source_index.finish())?;
+    backup.publish(&mut backup_index.finish())?;
     summary.seconds = started.elapsed().as_secs_f64();
     control.send(Event::Done(summary));
     Ok(())
 }
 
+fn checked_file(root: &Root, path: &Path, entry: &Entry) -> Result<std::fs::File> {
+    let file = root.file(path, false)?.open()?;
+    ensure!(
+        Stamp::of(&file.metadata()?) == entry.stamp,
+        "File changed since scan: {path:?}; scan again"
+    );
+    Ok(file)
+}
+
+// A move changes ctime but must not change the file object, bytes or mtime.
+fn unchanged_by_move(before: &Stamp, after: &Stamp) -> bool {
+    (
+        before.device,
+        before.file_id,
+        before.size,
+        before.mtime_seconds,
+        before.mtime_nanos,
+    ) == (
+        after.device,
+        after.file_id,
+        after.size,
+        after.mtime_seconds,
+        after.mtime_nanos,
+    )
+}
+
 #[allow(clippy::too_many_arguments)]
 fn apply(
     action: &Action,
-    source: &Drive,
-    backup: &Drive,
+    source: &Root,
+    backup: &Root,
     history: &Path,
     source_index: &mut Index,
     backup_index: &mut Index,
@@ -442,51 +454,97 @@ fn apply(
 ) -> Result<()> {
     match action {
         Action::Rename { from, to, .. } => {
-            let target = backup.root.join(to);
-            fs::create_dir_all(target.parent().context("No parent")?)?;
-            copy::rename_exclusive(&backup.root.join(from), &target)?;
-            remove_empty_parents(&backup.root, from);
+            let expected_source = source_index
+                .entries
+                .get(to)
+                .context("Missing source entry")?;
+            let source_file = checked_file(source, to, expected_source)?;
             let mut entry = backup_index
                 .entries
-                .remove(from)
-                .context("Renamed file is missing from the index")?;
+                .get(from)
+                .context("Missing backup entry")?
+                .clone();
+            checked_file(backup, from, &entry)?;
+            let origin = backup.file(from, false)?;
+            let target = backup.file(to, true)?;
+            // Recheck after preparing the destination, immediately before moving.
+            checked_file(source, to, expected_source)?;
+            checked_file(backup, from, &entry)?;
+            origin.rename_to(&target)?;
+            backup_index.entries.remove(from);
             entry.path_base64 = encode_path(to);
-            // A rename moves ctime, which the index records.
-            entry.stamp = crate::filesystem::Stamp::of(&fs::symlink_metadata(&target)?);
+            // Never associate an old fingerprint with changed content metadata.
+            let after = Stamp::of(&target.open()?.metadata()?);
+            let unchanged = unchanged_by_move(&entry.stamp, &after);
+            entry.stamp = after;
+            if !unchanged {
+                entry.sha256 = None;
+            }
             backup_index.entries.insert(to.clone(), entry);
+            backup.remove_empty_parents(from);
+            ensure!(unchanged, "Backup changed during rename; scan again");
+            ensure!(
+                Stamp::of(&source_file.metadata()?) == expected_source.stamp,
+                "Source changed during rename; scan again"
+            );
         }
         Action::Retire { path, .. } => {
-            move_aside(&backup.root, path, history)?;
-            remove_empty_parents(&backup.root, path);
+            let entry = backup_index
+                .entries
+                .get(path)
+                .context("Missing backup entry")?;
+            checked_file(backup, path, entry)?;
+            backup
+                .file(path, false)?
+                .rename_to(&backup.file(&history.join(path), true)?)?;
+            backup.remove_empty_parents(path);
             backup_index.entries.remove(path);
         }
         Action::Copy { path, .. } | Action::Replace { path, .. } => {
-            let replacing = matches!(action, Action::Replace { .. });
-            if replacing {
-                move_aside(&backup.root, path, history)?;
+            let target = backup.file(path, true)?;
+            let previous = if matches!(action, Action::Replace { .. }) {
+                let entry = backup_index
+                    .entries
+                    .get(path)
+                    .context("Missing backup entry")?
+                    .clone();
+                checked_file(backup, path, &entry)?;
+                let saved = backup.file(&history.join(path), true)?;
+                target.rename_to(&saved)?;
                 backup_index.entries.remove(path);
-            }
+                Some((saved, entry))
+            } else {
+                None
+            };
             let expected = source_index.entries.get(path).cloned();
-            let copied = copy::copy_file(
-                &source.root.join(path),
-                &backup.root.join(path),
-                expected.as_ref(),
-                verify,
-                &control.cancel,
-                |bytes| control.send(Event::Progress { worker: 0, bytes }),
-            );
+            // Include opening the source in rollback handling too.
+            let copied = (|| {
+                copy::copy_file(
+                    &source.file(path, false)?,
+                    &target,
+                    expected.as_ref(),
+                    verify,
+                    &control.cancel,
+                    |bytes| control.send(Event::Progress { worker: 0, bytes }),
+                )
+            })();
             let Copied { sha256, stamp } = match copied {
                 Ok(copied) => copied,
                 Err(error) => {
-                    if replacing {
-                        // Put the previous version back rather than leave a hole.
-                        copy::rename_exclusive(&history.join(path), &backup.root.join(path))
+                    if let Some((saved, mut entry)) = previous {
+                        saved
+                            .rename_to(&target)
                             .context("and the previous version is still in history")?;
+                        let stamp = Stamp::of(&target.open()?.metadata()?);
+                        if !unchanged_by_move(&entry.stamp, &stamp) {
+                            entry.sha256 = None;
+                        }
+                        entry.stamp = stamp;
+                        backup_index.entries.insert(path.clone(), entry);
                     }
                     return Err(error);
                 }
             };
-            // The copy read every byte, so the source learns its fingerprint too.
             if let Some(entry) = source_index.entries.get_mut(path) {
                 entry.sha256 = Some(sha256.clone());
             }
@@ -537,6 +595,11 @@ fn run_fill(options: FillOptions, control: &Control) -> Result<()> {
     fs::create_dir_all(&options.destination)?;
     drive::check_fill_destination(&options.destination)?;
     let destination = options.destination.canonicalize()?;
+    let destination_root = Root::open(&destination)?;
+    let source_roots = drives
+        .iter()
+        .map(|d| Root::open(&d.root))
+        .collect::<Result<Vec<_>>>()?;
     control.send(Event::Drives {
         sources: drives.iter().map(|d| d.sentinel.name.clone()).collect(),
         destination: display(&destination),
@@ -660,8 +723,8 @@ fn run_fill(options: FillOptions, control: &Control) -> Result<()> {
     let queue = Mutex::new(queue);
     let totals = Mutex::new(&mut summary);
     std::thread::scope(|scope| {
-        for (worker, drive) in drives.iter().enumerate() {
-            let (queue, totals, destination) = (&queue, &totals, &destination);
+        for (worker, source_root) in source_roots.iter().enumerate() {
+            let (queue, totals, destination_root) = (&queue, &totals, &destination_root);
             scope.spawn(move || {
                 loop {
                     if control.cancelled() {
@@ -692,14 +755,16 @@ fn run_fill(options: FillOptions, control: &Control) -> Result<()> {
                         path: display(&path),
                         size: entry.stamp.size,
                     });
-                    let result = copy::copy_file(
-                        &drive.root.join(&path),
-                        &destination.join(&path),
-                        Some(&entry),
-                        options.verify,
-                        &control.cancel,
-                        |bytes| control.send(Event::Progress { worker, bytes }),
-                    );
+                    let result = (|| {
+                        copy::copy_file(
+                            &source_root.file(&path, false)?,
+                            &destination_root.file(&path, true)?,
+                            Some(&entry),
+                            options.verify,
+                            &control.cancel,
+                            |bytes| control.send(Event::Progress { worker, bytes }),
+                        )
+                    })();
                     let mut totals = totals.lock().expect("summary lock");
                     match &result {
                         Ok(_) => {

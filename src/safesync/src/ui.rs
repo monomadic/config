@@ -22,19 +22,22 @@ use std::{
     time::{Duration, Instant},
 };
 
-const DIM: Color = Color::Rgb(0x6B, 0x72, 0x80);
-const LABEL: Color = Color::Rgb(0x9A, 0xA4, 0xB2);
-const NAME: Color = Color::Rgb(0xE8, 0xEC, 0xF4);
-const OK: Color = Color::Rgb(0x3B, 0xE3, 0x8B);
-const WARN: Color = Color::Rgb(0xFF, 0xC2, 0x4B);
-const ERR: Color = Color::Rgb(0xFF, 0x5C, 0x7A);
-const PCT: Color = Color::Rgb(0x1E, 0xE6, 0xFF);
-const FREE: Color = Color::Rgb(0xFF, 0x6F, 0xB5);
-const SPEED: Color = Color::Rgb(0x8A, 0x5C, 0xFF);
-const EMPTY: Color = Color::Rgb(0x2A, 0x2E, 0x3A);
+// Match tagform's synthwave palette; leave the terminal background unpainted.
+pub(crate) const DIM: Color = Color::Rgb(0x9D, 0x8E, 0xCB);
+pub(crate) const LABEL: Color = Color::Rgb(0xA9, 0x9B, 0xD0);
+pub(crate) const NAME: Color = Color::Rgb(0xF0, 0xE6, 0xFF);
+pub(crate) const OK: Color = Color::Rgb(0x72, 0xF1, 0xB8);
+pub(crate) const WARN: Color = Color::Rgb(0xFF, 0x8B, 0x39);
+pub(crate) const ERR: Color = Color::Rgb(0xFE, 0x6C, 0x77);
+pub(crate) const PCT: Color = Color::Rgb(0x36, 0xF9, 0xF6);
+pub(crate) const FREE: Color = Color::Rgb(0xFF, 0x7E, 0xDB);
+pub(crate) const SPEED: Color = Color::Rgb(0xB0, 0xA2, 0xD8);
+pub(crate) const EMPTY: Color = Color::Rgb(0x3D, 0x2D, 0x63);
 // Neon stops: copying runs hot-pink → violet → cyan; a nearly full disk reads warm.
-const COPY_STOPS: [(u8, u8, u8); 3] = [(0xFF, 0x2E, 0xC0), (0x8A, 0x5C, 0xFF), (0x1E, 0xE6, 0xFF)];
-const DISK_STOPS: [(u8, u8, u8); 3] = [(0x22, 0xF5, 0xC8), (0x4F, 0x9C, 0xFF), (0xFF, 0x3C, 0x8A)];
+pub(crate) const COPY_STOPS: [(u8, u8, u8); 3] =
+    [(0xFF, 0x2E, 0xC0), (0x8A, 0x5C, 0xFF), (0x1E, 0xE6, 0xFF)];
+pub(crate) const DISK_STOPS: [(u8, u8, u8); 3] =
+    [(0x22, 0xF5, 0xC8), (0x4F, 0x9C, 0xFF), (0xFF, 0x3C, 0x8A)];
 
 fn gradient(stops: &[(u8, u8, u8)], t: f64) -> Color {
     let t = t.clamp(0.0, 1.0) * (stops.len() - 1) as f64;
@@ -45,7 +48,7 @@ fn gradient(stops: &[(u8, u8, u8)], t: f64) -> Color {
     Color::Rgb(mix(a.0, b.0), mix(a.1, b.1), mix(a.2, b.2))
 }
 
-fn bar(width: usize, ratio: f64, stops: &[(u8, u8, u8)]) -> Vec<Span<'static>> {
+pub(crate) fn bar(width: usize, ratio: f64, stops: &[(u8, u8, u8)]) -> Vec<Span<'static>> {
     let width = width.max(1);
     let filled = ((ratio.clamp(0.0, 1.0) * width as f64).round() as usize).min(width);
     let mut spans = Vec::with_capacity(width);
@@ -314,7 +317,7 @@ fn kind_span(kind: Kind) -> Span<'static> {
     Span::styled(text, Style::default().fg(color))
 }
 
-fn truncate(s: &str, n: usize) -> String {
+pub(crate) fn truncate(s: &str, n: usize) -> String {
     let count = s.chars().count();
     if count <= n || n < 2 {
         return s.into();
@@ -752,6 +755,12 @@ fn run_screen(
 ) -> Result<()> {
     let mut terminal = ratatui::init();
     let result = (|| -> Result<()> {
+        // A previous screen may have left its frame in the alternate buffer;
+        // a fresh Terminal only paints non-blank cells, so wipe it first.
+        crossterm::execute!(
+            std::io::stdout(),
+            crossterm::terminal::Clear(crossterm::terminal::ClearType::All)
+        )?;
         let mut answered = false;
         loop {
             while let Ok(event) = events.try_recv() {

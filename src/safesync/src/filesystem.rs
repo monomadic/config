@@ -12,7 +12,7 @@ use std::{
             fs::{MetadataExt, OpenOptionsExt},
         },
     },
-    path::{Component, Path},
+    path::{Component, Path, PathBuf},
     process::{Command, Stdio},
 };
 
@@ -75,6 +75,78 @@ pub fn volume_for(root: &Path) -> Result<Volume> {
             .into(),
         filesystem: info["FilesystemType"].as_str().unwrap_or("unknown").into(),
     })
+}
+
+/// A mounted filesystem as `drives` lists it: every child of `/Volumes` that is
+/// a real mount point, plus the boot volume. Volumes without a stable UUID
+/// (network mounts, some disk images) come back with no `volume`.
+#[derive(Clone, Debug)]
+pub struct Mount {
+    pub path: PathBuf,
+    pub volume: Option<Volume>,
+    pub filesystem: String,
+    pub total: u64,
+    pub free: u64,
+    pub writable: bool,
+    pub boot: bool,
+}
+
+pub fn mounts() -> Vec<Mount> {
+    let mut paths = vec![PathBuf::from("/")];
+    let root_device = fs::metadata("/Volumes").map(|m| m.dev()).ok();
+    if let Ok(entries) = fs::read_dir("/Volumes") {
+        let mut children: Vec<PathBuf> = entries
+            .flatten()
+            .filter(|e| e.file_type().is_ok_and(|t| t.is_dir() && !t.is_symlink()))
+            .map(|e| e.path())
+            // A plain directory under /Volumes shares its device; a mount does not.
+            .filter(|p| {
+                fs::metadata(p)
+                    .map(|m| Some(m.dev()) != root_device)
+                    .unwrap_or(false)
+            })
+            .collect();
+        children.sort();
+        paths.extend(children);
+    }
+    paths
+        .into_iter()
+        .filter_map(|path| {
+            let (free, total) = crate::copy::space(&path).ok()?;
+            let info = disk_info(&path).ok();
+            let str_key = |key: &str| {
+                info.as_ref()
+                    .and_then(|i| i[key].as_str())
+                    .map(str::to_owned)
+            };
+            let name = str_key("VolumeName")
+                .or_else(|| path.file_name().map(|n| n.to_string_lossy().into_owned()))
+                .unwrap_or_else(|| "/".into());
+            let filesystem = str_key("FilesystemType")
+                .or_else(|| str_key("FilesystemUserVisibleName"))
+                .unwrap_or_else(|| "unknown".into());
+            let volume = str_key("VolumeUUID")
+                .filter(|uuid| !uuid.is_empty())
+                .map(|uuid| Volume {
+                    uuid,
+                    name: name.clone(),
+                    filesystem: filesystem.clone(),
+                });
+            let writable = info
+                .as_ref()
+                .and_then(|i| i["WritableVolume"].as_bool())
+                .unwrap_or(true);
+            Some(Mount {
+                boot: path == Path::new("/"),
+                path,
+                volume,
+                filesystem,
+                total,
+                free,
+                writable,
+            })
+        })
+        .collect()
 }
 
 pub(crate) fn disk_info(path: &Path) -> Result<serde_json::Value> {
@@ -149,6 +221,192 @@ pub fn hash_path(path: &Path) -> Result<(Stamp, String)> {
 // redirect a scan to unrelated files. No writes are exposed by this interface.
 pub fn open_relative(root: &File, relative: &Path, device: u64) -> Result<File> {
     open_relative_optional(root, relative, device)?.context("Relative path does not exist")
+}
+
+/// An opened media root. Every descendant is resolved without following links
+/// or crossing mounts, including directories created for a copy or history.
+pub struct Root {
+    directory: File,
+    device: u64,
+}
+
+pub struct FilePath {
+    parent: File,
+    name: CString,
+    device: u64,
+}
+
+impl Root {
+    pub fn open(path: &Path) -> Result<Self> {
+        let directory = fs::OpenOptions::new()
+            .read(true)
+            .custom_flags(libc::O_DIRECTORY | libc::O_NOFOLLOW | libc::O_CLOEXEC)
+            .open(path)?;
+        let device = directory.metadata()?.dev();
+        Ok(Self { directory, device })
+    }
+
+    pub fn file(&self, relative: &Path, create_parents: bool) -> Result<FilePath> {
+        let parts: Vec<_> = relative.components().collect();
+        ensure!(
+            !parts.is_empty() && parts.iter().all(|p| matches!(p, Component::Normal(_))),
+            "Unsafe relative file path"
+        );
+        let mut parent = self.directory.try_clone()?;
+        for component in &parts[..parts.len() - 1] {
+            let name = CString::new(component.as_os_str().as_bytes())?;
+            let flags = libc::O_RDONLY | libc::O_DIRECTORY | libc::O_NOFOLLOW | libc::O_CLOEXEC;
+            let mut fd = unsafe { libc::openat(parent.as_raw_fd(), name.as_ptr(), flags) };
+            if fd < 0
+                && create_parents
+                && std::io::Error::last_os_error().raw_os_error() == Some(libc::ENOENT)
+            {
+                let result = unsafe { libc::mkdirat(parent.as_raw_fd(), name.as_ptr(), 0o755) };
+                ensure!(
+                    result == 0
+                        || std::io::Error::last_os_error().raw_os_error() == Some(libc::EEXIST),
+                    "Cannot create directory: {}",
+                    std::io::Error::last_os_error()
+                );
+                fd = unsafe { libc::openat(parent.as_raw_fd(), name.as_ptr(), flags) };
+            }
+            ensure!(
+                fd >= 0,
+                "Cannot safely open parent of {relative:?}: {}",
+                std::io::Error::last_os_error()
+            );
+            let next = unsafe { File::from_raw_fd(fd) };
+            ensure!(
+                next.metadata()?.dev() == self.device,
+                "Path crossed into another mounted filesystem"
+            );
+            parent = next;
+        }
+        Ok(FilePath {
+            parent,
+            name: CString::new(parts.last().unwrap().as_os_str().as_bytes())?,
+            device: self.device,
+        })
+    }
+
+    pub fn remove_empty_parents(&self, relative: &Path) {
+        let mut current = relative.parent();
+        while let Some(path) = current.filter(|p| !p.as_os_str().is_empty()) {
+            let Ok(directory) = self.file(path, false) else {
+                break;
+            };
+            if directory.unlink(libc::AT_REMOVEDIR).is_err() {
+                break;
+            }
+            current = path.parent();
+        }
+    }
+}
+
+impl FilePath {
+    pub fn open(&self) -> Result<File> {
+        let fd = unsafe {
+            libc::openat(
+                self.parent.as_raw_fd(),
+                self.name.as_ptr(),
+                libc::O_RDONLY | libc::O_NOFOLLOW | libc::O_NONBLOCK | libc::O_CLOEXEC,
+            )
+        };
+        ensure!(
+            fd >= 0,
+            "Cannot safely open file: {}",
+            std::io::Error::last_os_error()
+        );
+        let file = unsafe { File::from_raw_fd(fd) };
+        let metadata = file.metadata()?;
+        ensure!(metadata.is_file(), "Not a regular file");
+        ensure!(
+            metadata.dev() == self.device,
+            "File crossed into another mounted filesystem"
+        );
+        Ok(file)
+    }
+
+    pub fn ensure_absent(&self) -> Result<()> {
+        let mut stat = std::mem::MaybeUninit::<libc::stat>::uninit();
+        let result = unsafe {
+            libc::fstatat(
+                self.parent.as_raw_fd(),
+                self.name.as_ptr(),
+                stat.as_mut_ptr(),
+                libc::AT_SYMLINK_NOFOLLOW,
+            )
+        };
+        ensure!(result != 0, "Destination already exists");
+        ensure!(
+            std::io::Error::last_os_error().raw_os_error() == Some(libc::ENOENT),
+            "Cannot inspect destination: {}",
+            std::io::Error::last_os_error()
+        );
+        Ok(())
+    }
+
+    pub fn temporary(&self) -> Result<(Self, File)> {
+        let temp = Self {
+            parent: self.parent.try_clone()?,
+            name: CString::new(format!(
+                "{}{}",
+                crate::copy::PARTIAL_PREFIX,
+                crate::manifest::generation()
+            ))?,
+            device: self.device,
+        };
+        let fd = unsafe {
+            libc::openat(
+                temp.parent.as_raw_fd(),
+                temp.name.as_ptr(),
+                libc::O_RDWR | libc::O_CREAT | libc::O_EXCL | libc::O_NOFOLLOW | libc::O_CLOEXEC,
+                0o600,
+            )
+        };
+        ensure!(
+            fd >= 0,
+            "Cannot create partial file: {}",
+            std::io::Error::last_os_error()
+        );
+        Ok((temp, unsafe { File::from_raw_fd(fd) }))
+    }
+
+    pub fn rename_to(&self, destination: &Self) -> Result<()> {
+        ensure!(
+            self.device == destination.device,
+            "Cannot move between filesystems"
+        );
+        let result = unsafe {
+            libc::renameatx_np(
+                self.parent.as_raw_fd(),
+                self.name.as_ptr(),
+                destination.parent.as_raw_fd(),
+                destination.name.as_ptr(),
+                libc::RENAME_EXCL,
+            )
+        };
+        ensure!(
+            result == 0,
+            "Cannot move file (existing destinations are never overwritten): {}",
+            std::io::Error::last_os_error()
+        );
+        Ok(())
+    }
+
+    fn unlink(&self, flags: i32) -> Result<()> {
+        let result = unsafe { libc::unlinkat(self.parent.as_raw_fd(), self.name.as_ptr(), flags) };
+        ensure!(
+            result == 0,
+            "Cannot remove entry: {}",
+            std::io::Error::last_os_error()
+        );
+        Ok(())
+    }
+
+    pub fn remove(&self) -> Result<()> {
+        self.unlink(0)
+    }
 }
 
 // Only ENOENT means absent. Symlinks, permission errors and non-directory parents

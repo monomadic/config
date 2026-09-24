@@ -72,6 +72,22 @@ pub struct Drive {
     pub sentinel: Sentinel,
 }
 
+impl Sentinel {
+    /// The sentinel under `root`, if there is one. `Ok(None)` is an unmarked
+    /// disk; `Err` is a file that exists but does not parse.
+    pub fn read(root: &Path) -> Result<Option<Self>> {
+        let path = root.join(METADATA_DIR).join(SENTINEL);
+        let text = match fs::read_to_string(&path) {
+            Ok(text) => text,
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(None),
+            Err(error) => return Err(error).with_context(|| format!("Cannot read {path:?}")),
+        };
+        let sentinel =
+            toml::from_str(&text).with_context(|| format!("Invalid sentinel {path:?}"))?;
+        Ok(Some(sentinel))
+    }
+}
+
 pub fn library() -> Result<PathBuf> {
     Ok(
         PathBuf::from(std::env::var_os("HOME").context("HOME is not set")?)
@@ -137,11 +153,9 @@ impl Drive {
     pub fn open(root: &Path) -> Result<Self> {
         let root = root.canonicalize().context("Cannot resolve drive root")?;
         let path = root.join(METADATA_DIR).join(SENTINEL);
-        let text = fs::read_to_string(&path).with_context(|| {
+        let sentinel = Sentinel::read(&root)?.with_context(|| {
             format!("{root:?} has no sentinel; run `safesync init {root:?} --role ...` first")
         })?;
-        let sentinel: Sentinel =
-            toml::from_str(&text).with_context(|| format!("Invalid sentinel {path:?}"))?;
         let volume = filesystem::volume_for(&root)?;
         ensure!(
             sentinel.volume_uuid == volume.uuid,
@@ -161,7 +175,8 @@ impl Drive {
         self.root.join(METADATA_DIR)
     }
 
-    fn generations(&self) -> Vec<PathBuf> {
+    /// Every index generation on the drive, oldest first.
+    pub fn generations(&self) -> Vec<PathBuf> {
         listing(&self.metadata_dir(), |name| {
             name.starts_with("index-") && name.ends_with(".jsonl")
         })
@@ -195,11 +210,15 @@ impl Drive {
 
     /// Write the index onto the drive, keep a copy on this Mac for offline
     /// lookup, and drop generations beyond the last few in both places.
-    pub fn publish(&self, manifest: &Manifest) -> Result<PathBuf> {
+    pub fn publish(&self, manifest: &mut Manifest) -> Result<PathBuf> {
         ensure!(
             manifest.header.volume.uuid == self.volume.uuid,
             "Index belongs to another volume"
         );
+        manifest.header.drive = Some(crate::manifest::RecordedDrive {
+            role: self.sentinel.role,
+            source_uuid: self.sentinel.source_uuid.clone(),
+        });
         let generation = &manifest.header.generation;
         let path = self
             .metadata_dir()
@@ -228,7 +247,8 @@ impl Drive {
     }
 }
 
-fn listing(directory: &Path, keep: impl Fn(&str) -> bool) -> Vec<PathBuf> {
+/// Files in `directory` whose name passes `keep`, oldest generation first.
+pub fn listing(directory: &Path, keep: impl Fn(&str) -> bool) -> Vec<PathBuf> {
     let mut paths: Vec<_> = fs::read_dir(directory)
         .into_iter()
         .flatten()

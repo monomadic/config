@@ -7,8 +7,27 @@ for the version that tried to be.
 - [ ] First real run: `init` on Tower and Tower Backup, `scan --hash` on both
       (the one full read), then `sync`. Compare the plan with `rclone-tower-safe --dry-run`.
 - [ ] Replace `rclone-tower-safe` / `rclone-tower-ui` once a few syncs have gone well.
+- [ ] Drives screen: `--file` fingerprint search (today: name search only), and changing a role
+      once there is a story for what happens to the old sentinel and index.
 - [ ] `--pause` (SIGSTOP-style) in the TUI; currently only stop-after-current-file.
 - [ ] Rename detection by fingerprint when mtime was touched (needs `--hash` on both sides today).
 - [ ] History pruning: `safesync history --prune 30d` for `.safesync/history/`.
-- [ ] `fill` capacity policy: stop-at-first-non-fitting vs skip-and-continue.
+- [ ] Standing fill: a `[fill]` table on the scratch sentinel so `safesync fill ROOT` with no
+      arguments tops the drive up from whichever library drives are mounted.
+      `from` = library UUIDs in priority order: the first one mounted is the authority whose
+      index builds the wanted set, the rest are extra readers for the parallel copy (so a
+      drive can follow a backup instead of the source by listing it first). `select` = paths, `order` = newest | largest | path (decides what
+      makes the cut; transfer order stays largest-first for the two readers),
+      `when_full` = stop | skip, `retire` = bool, `keep` = paths fill never writes or removes.
+      Retire works without indexing the scratch drive: walk it with stat, and a file is
+      *disposable* only if a library index records the same path, size and mtime — fill never
+      deletes the only copy. Copy list = wanted − present. Deletion is lazy: on ENOSPC at
+      preallocation, remove disposables (inverse of `order`, oldest first for `newest`) until
+      the file fits, then retry. Review screen shows copy / would-remove / not-on-any-library
+      before Enter; drives screen shows "holds 812 of 1 204 wanted · 3 not in any library".
+- [ ] Single-copy report: list every file that exists on exactly one known drive, across all
+      saved indexes (mounted or not), matched by fingerprint where available and by size+mtime
+      otherwise. Surface it in the drives screen's search view (a filter or a `!single` mode)
+      and as `safesync lookup --single`. The same "is this recorded elsewhere?" check is what
+      standing fill uses to decide what is disposable, so build it once.
 - [ ] Disk-image power-loss test of index publication (fsync + hard-link ordering).

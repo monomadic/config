@@ -3,6 +3,8 @@ use clap::{CommandFactory, Parser, Subcommand};
 use clap_complete::Shell;
 use safesync::{
     drive::{self, Drive, Role},
+    drives::Inventory,
+    drives_ui::{self, Action},
     engine::{self, FillOptions, SyncOptions},
     lookup::{self, Query},
     manifest::Manifest,
@@ -12,7 +14,7 @@ use safesync::{
 use std::{
     ffi::OsString,
     fs,
-    io::Read,
+    io::{IsTerminal, Read},
     path::{Path, PathBuf},
 };
 
@@ -22,11 +24,18 @@ use std::{
     about = "Indexed one-way media sync between sentinel-marked drives."
 )]
 struct Cli {
+    /// Hide icons in the interactive drives screen.
+    #[arg(long, global = true)]
+    no_icons: bool,
+    /// With no subcommand: the drives screen.
     #[command(subcommand)]
-    command: Command,
+    command: Option<Command>,
 }
 #[derive(Subcommand)]
 enum Command {
+    /// Every disk on this Mac with its role and index state; assign roles, start
+    /// scans, and search every saved index. The default when no subcommand is given.
+    Drives,
     /// Write a drive's sentinel: its role, and for a backup, the source it mirrors.
     Init {
         root: PathBuf,
@@ -131,8 +140,37 @@ fn safe_display(path: &Path) -> String {
     format!("{:?}", path.as_os_str())
 }
 
+/// The drives screen, handing off to the scan screen and back until the user quits.
+fn drives(icons: bool) -> Result<i32> {
+    if !(std::io::stdout().is_terminal() && std::io::stdin().is_terminal()) {
+        drives_ui::print(&Inventory::load());
+        return Ok(0);
+    }
+    let mut focus: Option<PathBuf> = None;
+    loop {
+        match drives_ui::run(focus.as_deref(), icons)? {
+            Action::Quit => return Ok(0),
+            Action::Scan { root, hash } => {
+                focus = Some(root.clone());
+                let hashing = if hash {
+                    Hashing::Missing
+                } else {
+                    Hashing::Known
+                };
+                ui::run("scan", true, move |control| {
+                    engine::index_drive(root, hashing, false, control)
+                })?;
+            }
+        }
+    }
+}
+
 fn run(cli: Cli) -> Result<i32> {
-    match cli.command {
+    let Some(command) = cli.command else {
+        return drives(!cli.no_icons);
+    };
+    match command {
+        Command::Drives => return drives(!cli.no_icons),
         Command::Init { root, role, source } => {
             let source = source.as_deref().map(Drive::open).transpose()?;
             let drive = Drive::init(&root, role, source.as_ref())?;
@@ -301,7 +339,12 @@ fn run(cli: Cli) -> Result<i32> {
             }
         }
         Command::Completions { shell } => {
-            clap_complete::generate(shell, &mut Cli::command(), "safesync", &mut std::io::stdout());
+            clap_complete::generate(
+                shell,
+                &mut Cli::command(),
+                "safesync",
+                &mut std::io::stdout(),
+            );
         }
     }
     Ok(0)
@@ -312,6 +355,23 @@ fn main() {
         Err(error) => {
             eprintln!("safesync: {error:#}");
             std::process::exit(2);
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn icons_default_on_and_can_be_disabled_before_or_after_drives() {
+        assert!(!Cli::try_parse_from(["safesync"]).unwrap().no_icons);
+        for args in [
+            vec!["safesync", "--no-icons"],
+            vec!["safesync", "--no-icons", "drives"],
+            vec!["safesync", "drives", "--no-icons"],
+        ] {
+            assert!(Cli::try_parse_from(args).unwrap().no_icons);
         }
     }
 }

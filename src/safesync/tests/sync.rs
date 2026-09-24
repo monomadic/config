@@ -3,6 +3,7 @@
 use safesync::{
     copy,
     drive::{self, Drive, Extras, Role},
+    drives::{self, Marking, Relation},
     engine::{self, Control, Event, FillOptions, SyncOptions},
     manifest::Manifest,
     plan::{Action, plan},
@@ -260,9 +261,10 @@ fn copy_never_overwrites_and_aborts_on_a_changed_source() {
     ));
     write(&tmp, "src.bin", &vec![7u8; 3 << 20]);
     let cancel = AtomicBool::new(false);
+    let root = safesync::filesystem::Root::open(&tmp).unwrap();
     let copied = copy::copy_file(
-        &tmp.join("src.bin"),
-        &tmp.join("out/dst.bin"),
+        &root.file(Path::new("src.bin"), true).unwrap(),
+        &root.file(Path::new("out/dst.bin"), true).unwrap(),
         None,
         true,
         &cancel,
@@ -286,8 +288,8 @@ fn copy_never_overwrites_and_aborts_on_a_changed_source() {
         "mtime is preserved"
     );
     let again = copy::copy_file(
-        &tmp.join("src.bin"),
-        &tmp.join("out/dst.bin"),
+        &root.file(Path::new("src.bin"), true).unwrap(),
+        &root.file(Path::new("out/dst.bin"), true).unwrap(),
         None,
         false,
         &cancel,
@@ -302,8 +304,8 @@ fn copy_never_overwrites_and_aborts_on_a_changed_source() {
     };
     entry.stamp.size += 1;
     let stale = copy::copy_file(
-        &tmp.join("src.bin"),
-        &tmp.join("out/two.bin"),
+        &root.file(Path::new("src.bin"), true).unwrap(),
+        &root.file(Path::new("out/two.bin"), true).unwrap(),
         Some(&entry),
         false,
         &cancel,
@@ -314,8 +316,8 @@ fn copy_never_overwrites_and_aborts_on_a_changed_source() {
     entry.stamp.size -= 1;
     entry.sha256 = Some("0".repeat(64));
     let bad = copy::copy_file(
-        &tmp.join("src.bin"),
-        &tmp.join("out/three.bin"),
+        &root.file(Path::new("src.bin"), true).unwrap(),
+        &root.file(Path::new("out/three.bin"), true).unwrap(),
         Some(&entry),
         false,
         &cancel,
@@ -486,4 +488,427 @@ fn manifests_written_by_sync_load_as_ordinary_indexes() {
     m.save_new(&path).unwrap();
     assert_eq!(Manifest::load(&path).unwrap().entries.len(), 1);
     let _ = fs::remove_dir_all(&tmp);
+}
+
+#[test]
+fn drives_inventory_lists_mounted_volumes_with_roles_and_index_state() {
+    let _guard = HOME.lock().unwrap_or_else(|p| p.into_inner());
+    let home = home();
+    // SAFETY: tests holding HOME serialise on the mutex above.
+    unsafe { std::env::set_var("HOME", &home) };
+    let a = RamDisk::new("inv-src");
+    let b = RamDisk::new("inv-bak");
+    let c = RamDisk::new("inv-plain");
+    write(&a.root, "clips/one.mov", b"one");
+    write(&a.root, "clips/two.mov", b"two");
+    let source = Drive::init(&a.root, Role::Source, None).unwrap();
+    let backup_uuid = Drive::init(&b.root, Role::Backup, Some(&source))
+        .unwrap()
+        .volume
+        .uuid;
+    scan(&a.root);
+    scan(&b.root);
+
+    let inventory = drives::Inventory::load();
+    let row = |root: &Path| {
+        inventory
+            .rows
+            .iter()
+            .find(|r| r.path.as_deref() == Some(root))
+            .unwrap_or_else(|| panic!("{root:?} missing from {:?}", inventory.rows))
+    };
+    let boot = inventory
+        .rows
+        .iter()
+        .find(|r| r.path.as_deref() == Some(Path::new("/")))
+        .expect("boot volume listed");
+    assert!(matches!(boot.marking, Marking::Boot));
+    assert!(boot.assign_refusal().is_some());
+
+    let src = row(&a.root);
+    assert_eq!(src.role(), Some(Role::Source));
+    assert!(src.total > 0 && src.free > 0);
+    let index = src.index.as_ref().expect("source has an index");
+    assert_eq!(index.files, 2);
+    assert_eq!(index.bytes, 6);
+    assert_eq!(index.generations, 1);
+    assert!(index.saved_locally, "a copy landed under $HOME");
+    assert!(src.scan_refusal().is_none());
+    assert!(
+        src.assign_refusal().is_some(),
+        "roles are never changed from the screen"
+    );
+    assert!(
+        matches!(&src.relation, Relation::Source { backups } if backups == &[b.root.file_name().unwrap().to_string_lossy().to_string()])
+    );
+
+    let bak = row(&b.root);
+    assert_eq!(bak.role(), Some(Role::Backup));
+    match &bak.relation {
+        Relation::Backup {
+            source_name,
+            source_online,
+            behind,
+            ..
+        } => {
+            assert_eq!(source_name.as_deref(), Some(src.name.as_str()));
+            assert!(source_online);
+            assert_eq!(*behind, Some(2), "nothing has been synced yet");
+        }
+        other => panic!("{other:?}"),
+    }
+    assert_eq!(
+        bak.state(inventory.loaded_unix).0,
+        "2 missing or size-changed files (saved indexes)"
+    );
+
+    let plain = row(&c.root);
+    assert!(matches!(plain.marking, Marking::Unmarked));
+    assert!(plain.assign_refusal().is_none());
+    assert!(plain.scan_refusal().is_some());
+    assert!(plain.index.is_none());
+    let source_row = inventory
+        .rows
+        .iter()
+        .position(|r| r.path.as_deref() == Some(a.root.as_path()))
+        .unwrap();
+    assert!(inventory.sources().contains(&source_row));
+    let plain_row = inventory
+        .rows
+        .iter()
+        .position(|r| r.path.as_deref() == Some(c.root.as_path()))
+        .unwrap();
+    assert!(!inventory.sources().contains(&plain_row));
+
+    // The catalog covers every indexed file; search finds them by any part of the path.
+    let mine = |inventory: &drives::Inventory, query: &str| {
+        inventory
+            .catalog
+            .search(query, 100_000)
+            .into_iter()
+            .filter(|r| {
+                let uuid = inventory.rows[r.row].uuid.as_deref();
+                uuid == Some(source.volume.uuid.as_str()) || uuid == Some(backup_uuid.as_str())
+            })
+            .count()
+    };
+    assert_eq!(mine(&inventory, "clips/"), 2);
+
+    // A copied sentinel is shown as refused, never as a role.
+    fs::create_dir_all(c.root.join(".safesync")).unwrap();
+    fs::copy(
+        a.root.join(".safesync/drive.toml"),
+        c.root.join(".safesync/drive.toml"),
+    )
+    .unwrap();
+    let inventory = drives::Inventory::load();
+    let copied = inventory
+        .rows
+        .iter()
+        .find(|r| r.path.as_deref() == Some(c.root.as_path()))
+        .unwrap();
+    assert!(matches!(copied.marking, Marking::Copied(_)));
+    assert_eq!(copied.role(), None);
+    assert!(copied.assign_refusal().is_some());
+
+    // Unmounted: the saved index stands in for the drive.
+    let uuid = source.volume.uuid.clone();
+    drop(a);
+    let inventory = drives::Inventory::load();
+    let offline = inventory
+        .rows
+        .iter()
+        .find(|r| r.uuid.as_deref() == Some(uuid.as_str()))
+        .expect("offline drive listed from its saved index");
+    assert!(!offline.online());
+    assert!(matches!(offline.marking, Marking::Offline));
+    assert_eq!(offline.role(), Some(Role::Source));
+    assert!(offline.scan_refusal().is_some());
+    assert_eq!(offline.index.as_ref().unwrap().files, 2);
+    // The backup was never synced, so only the ejected source's saved index holds the file.
+    assert_eq!(
+        mine(&inventory, "two.mov"),
+        1,
+        "an unplugged drive is still searchable"
+    );
+    let hit = inventory.catalog.search("clips/two.mov", 100_000);
+    assert!(hit.iter().any(|r| !inventory.rows[r.row].online()));
+    let bak = inventory
+        .rows
+        .iter()
+        .find(|r| r.path.as_deref() == Some(b.root.as_path()))
+        .unwrap();
+    assert!(matches!(
+        &bak.relation,
+        Relation::Backup {
+            source_online: false,
+            behind: Some(2),
+            ..
+        }
+    ));
+    // Both ends stay grouped after unplugging, using metadata in their saved
+    // indexes. It remains historical data, not a live sentinel.
+    drop(b);
+    let inventory = drives::Inventory::load();
+    let section = inventory
+        .sections()
+        .into_iter()
+        .find(|s| s.key == format!("source:{uuid}"))
+        .unwrap();
+    assert_eq!(section.rows.len(), 2);
+    assert_eq!(
+        inventory.rows[section.rows[0]].uuid.as_deref(),
+        Some(uuid.as_str())
+    );
+    let backup = &inventory.rows[section.rows[1]];
+    assert_eq!(backup.uuid.as_deref(), Some(backup_uuid.as_str()));
+    assert_eq!(backup.role(), Some(Role::Backup));
+    assert_eq!(backup.source_uuid(), Some(uuid.as_str()));
+    assert!(backup.sentinel().is_none());
+    assert!(backup.scan_refusal().is_some());
+    assert!(matches!(
+        backup.relation,
+        Relation::Backup {
+            behind: Some(2),
+            source_online: false,
+            ..
+        }
+    ));
+    let _ = fs::remove_dir_all(&home);
+}
+
+fn review_sync(source: &Path, backup: &Path, mutate: impl FnOnce()) -> Harness {
+    let options = SyncOptions {
+        source: source.into(),
+        backup: backup.into(),
+        hashing: Hashing::Known,
+        rehash: false,
+        verify: true,
+        exclude: vec![],
+    };
+    let (events_tx, events_rx) = mpsc::channel();
+    let (confirm_tx, confirm_rx) = mpsc::channel();
+    let control = Control {
+        events: events_tx,
+        confirm: Mutex::new(confirm_rx),
+        cancel: Arc::new(AtomicBool::new(false)),
+    };
+    let handle = std::thread::spawn(move || engine::sync(options, control));
+    let mut mutate = Some(mutate);
+    let mut events = Vec::new();
+    for event in events_rx {
+        if let Event::Phase(engine::Phase::Review) = event {
+            mutate.take().unwrap()();
+            confirm_tx.send(true).unwrap();
+        }
+        events.push(event);
+    }
+    handle.join().unwrap();
+    Harness { events }
+}
+
+#[test]
+fn sync_and_fill_reject_symlinked_destination_parents() {
+    let _guard = HOME.lock().unwrap_or_else(|p| p.into_inner());
+    let home = home();
+    unsafe { std::env::set_var("HOME", &home) };
+    let a = RamDisk::new("review-src");
+    let b = RamDisk::new("review-bak");
+    let source = Drive::init(&a.root, Role::Source, None).unwrap();
+    Drive::init(&b.root, Role::Backup, Some(&source)).unwrap();
+    write(&a.root, "clips/one.mov", b"source media");
+    fs::create_dir_all(a.root.join("unrelated")).unwrap();
+    std::os::unix::fs::symlink(a.root.join("unrelated"), b.root.join("clips")).unwrap();
+    let result = sync(&a.root, &b.root, true);
+    assert_eq!(result.failure(), None);
+    assert_eq!(result.summary().failed, 1, "{:?}", result.errors());
+    assert!(!a.root.join("unrelated/one.mov").exists());
+    let destination = home.join("dump");
+    fs::create_dir_all(&destination).unwrap();
+    std::os::unix::fs::symlink(a.root.join("unrelated"), destination.join("clips")).unwrap();
+    let options = FillOptions {
+        from: vec![a.root.clone()],
+        destination,
+        select: vec![],
+        verify: true,
+    };
+    let filled = drive_work(move |c| engine::fill(options, c), true);
+    assert_eq!(filled.failure(), None);
+    assert_eq!(filled.summary().failed, 1);
+    assert!(!a.root.join("unrelated/one.mov").exists());
+    // The rename optimization must reject the same redirected destination.
+    write(&b.root, "old.mov", b"source media");
+    let mtime = fs::metadata(a.root.join("clips/one.mov"))
+        .unwrap()
+        .modified()
+        .unwrap();
+    fs::File::open(b.root.join("old.mov"))
+        .unwrap()
+        .set_modified(mtime)
+        .unwrap();
+    let renamed = sync(&a.root, &b.root, true);
+    assert_eq!(renamed.failure(), None);
+    assert_eq!(renamed.summary().failed, 1);
+    assert!(b.root.join("old.mov").exists());
+    assert!(!a.root.join("unrelated/one.mov").exists());
+    fs::remove_dir_all(home).unwrap();
+}
+
+#[test]
+fn failed_replacement_restores_file_and_index_entry() {
+    let _guard = HOME.lock().unwrap_or_else(|p| p.into_inner());
+    let home = home();
+    unsafe { std::env::set_var("HOME", &home) };
+    let a = RamDisk::new("review-src");
+    let b = RamDisk::new("review-bak");
+    let source = Drive::init(&a.root, Role::Source, None).unwrap();
+    Drive::init(&b.root, Role::Backup, Some(&source)).unwrap();
+    write(&a.root, "clip.mov", b"new version");
+    write(&b.root, "clip.mov", b"old");
+    let result = review_sync(&a.root, &b.root, || {
+        write(&a.root, "clip.mov", b"changed after scan")
+    });
+    assert_eq!(result.failure(), None);
+    assert_eq!(result.summary().failed, 1);
+    assert_eq!(fs::read(b.root.join("clip.mov")).unwrap(), b"old");
+    let index = Drive::open(&b.root).unwrap().index().unwrap();
+    assert_eq!(index.entries.len(), 1);
+    assert_eq!(index.entries[0].path().unwrap(), Path::new("clip.mov"));
+    assert_eq!(
+        index.entries[0].stamp,
+        safesync::filesystem::Stamp::of(&fs::metadata(b.root.join("clip.mov")).unwrap())
+    );
+    // fill relies on the published index, so the restored old version remains usable.
+    let destination = home.join("restored");
+    let options = FillOptions {
+        from: vec![b.root.clone()],
+        destination: destination.clone(),
+        select: vec![],
+        verify: true,
+    };
+    let filled = drive_work(move |c| engine::fill(options, c), true);
+    assert_eq!(filled.failure(), None);
+    assert_eq!(filled.summary().done, 1);
+    assert_eq!(fs::read(destination.join("clip.mov")).unwrap(), b"old");
+    // A later successful replacement keeps the old bytes in history.
+    let replaced = sync(&a.root, &b.root, true);
+    assert_eq!(replaced.failure(), None);
+    assert_eq!(replaced.summary().failed, 0);
+    assert_eq!(replaced.summary().done, 1);
+    assert_eq!(
+        fs::read(b.root.join("clip.mov")).unwrap(),
+        b"changed after scan"
+    );
+    assert!(
+        fs::read_dir(b.root.join(".safesync/history"))
+            .unwrap()
+            .any(|e| {
+                fs::read(e.unwrap().path().join("clip.mov")).is_ok_and(|bytes| bytes == b"old")
+            })
+    );
+    assert_eq!(sync(&a.root, &b.root, true).summary().done, 0);
+    fs::remove_dir_all(home).unwrap();
+}
+
+#[test]
+fn rename_rejects_changes_during_review_without_poisoning_hash_cache() {
+    let _guard = HOME.lock().unwrap_or_else(|p| p.into_inner());
+    let home = home();
+    unsafe { std::env::set_var("HOME", &home) };
+    let a = RamDisk::new("review-src");
+    let b = RamDisk::new("review-bak");
+    let source = Drive::init(&a.root, Role::Source, None).unwrap();
+    Drive::init(&b.root, Role::Backup, Some(&source)).unwrap();
+    write(&a.root, "new.mov", b"original");
+    write(&b.root, "old.mov", b"original");
+    let mtime = fs::metadata(a.root.join("new.mov"))
+        .unwrap()
+        .modified()
+        .unwrap();
+    fs::File::open(b.root.join("old.mov"))
+        .unwrap()
+        .set_modified(mtime)
+        .unwrap();
+    scan(&a.root);
+    scan(&b.root);
+    let result = review_sync(&a.root, &b.root, || write(&b.root, "old.mov", b"modified"));
+    assert_eq!(result.failure(), None);
+    assert_eq!(result.summary().failed, 1);
+    assert_eq!(result.summary().done, 0);
+    assert!(!b.root.join("new.mov").exists());
+    assert_eq!(fs::read(b.root.join("old.mov")).unwrap(), b"modified");
+    let subsequent = sync(&a.root, &b.root, true);
+    assert_eq!(subsequent.summary().failed, 0);
+    assert_eq!(subsequent.summary().done, 1);
+    assert_eq!(fs::read(b.root.join("new.mov")).unwrap(), b"original");
+    // The source half of a planned rename must also still match the scan.
+    fs::rename(a.root.join("new.mov"), a.root.join("next.mov")).unwrap();
+    let changed_source = review_sync(&a.root, &b.root, || {
+        write(&a.root, "next.mov", b"different")
+    });
+    assert_eq!(changed_source.failure(), None);
+    assert_eq!(changed_source.summary().failed, 1);
+    assert!(b.root.join("new.mov").exists());
+    assert!(!b.root.join("next.mov").exists());
+    fs::remove_dir_all(home).unwrap();
+}
+
+#[test]
+fn copy_and_cleanup_stay_anchored_when_parent_is_replaced() {
+    use safesync::filesystem::Root;
+    use std::sync::atomic::Ordering;
+    let tmp = home();
+    write(&tmp, "source.bin", &vec![7; 20 << 20]);
+    let root = Root::open(&tmp).unwrap();
+    for cancel_copy in [false, true] {
+        let base = if cancel_copy {
+            "cancelled"
+        } else {
+            "completed"
+        };
+        let parent = tmp.join(base);
+        let parked = tmp.join(format!("{base}-parked"));
+        let outside = tmp.join(format!("{base}-outside"));
+        fs::create_dir_all(&outside).unwrap();
+        let target = root.file(&Path::new(base).join("file.bin"), true).unwrap();
+        let cancel = AtomicBool::new(false);
+        let mut switched = false;
+        let result = copy::copy_file(
+            &root.file(Path::new("source.bin"), false).unwrap(),
+            &target,
+            None,
+            true,
+            &cancel,
+            |_| {
+                if !switched {
+                    fs::rename(&parent, &parked).unwrap();
+                    std::os::unix::fs::symlink(&outside, &parent).unwrap();
+                    cancel.store(cancel_copy, Ordering::Relaxed);
+                    switched = true;
+                }
+            },
+        );
+        assert!(switched);
+        assert_eq!(result.is_err(), cancel_copy);
+        assert_eq!(fs::read_dir(&outside).unwrap().count(), 0);
+        assert!(fs::read_dir(&parked).unwrap().all(|e| {
+            !e.unwrap()
+                .file_name()
+                .to_string_lossy()
+                .starts_with(copy::PARTIAL_PREFIX)
+        }));
+        if !cancel_copy {
+            assert_eq!(
+                fs::read(parked.join("file.bin")).unwrap(),
+                fs::read(tmp.join("source.bin")).unwrap()
+            );
+        }
+        // A newly resolved path must refuse the replacement symlink.
+        assert!(
+            root.file(&Path::new(base).join("another.bin"), true)
+                .is_err()
+        );
+    }
+    assert!(root.file(Path::new("../escape.bin"), true).is_err());
+    fs::remove_dir_all(tmp).unwrap();
 }

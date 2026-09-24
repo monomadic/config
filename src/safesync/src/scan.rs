@@ -263,6 +263,7 @@ pub fn scan_with_reuse(
             generation: generation(),
             role: Role::Inventory,
             volume,
+            drive: None,
             root_base64: encode_path(&root),
             root_file_id: root_metadata.ino(),
             started_unix: started,

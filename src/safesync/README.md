@@ -8,6 +8,64 @@ pulling a selection off both onto an SSD at the speed of two drives.
 scripts/install/install-safesync.sh     # → ~/.local/bin/safesync
 ```
 
+## The drives screen
+
+```sh
+safesync                 # same as `safesync drives`
+safesync --no-icons      # also accepts `safesync drives --no-icons`
+```
+
+Drives are grouped by source volume, with the source first and its backups
+underneath. Groups use the sentinel's UUID links, never matching names.
+Unassigned drives, scratch drives, and drives needing attention have separate
+sections; the ignored system volume starts collapsed. Each row shows its role,
+last scan and free/capacity figures. The selected drive's summary shows its
+relationship, index coverage and location. From the table:
+
+- `↑↓` / `j k` selects a drive or section; `←→` / `h l` collapses or expands
+  its section. Enter toggles a section or opens a drive's index details.
+- `d` opens scrollable index details (UUID, generations, scan exclusions and
+  fingerprints reused); `?` opens help and inventory warnings. Esc returns.
+- `r` assigns a role to an unmarked disk (a backup then picks the mounted
+  source it mirrors). Roles are never *changed* from here; that stays a
+  deliberate edit of `drive.toml`.
+- `s` scans the selected drive (`S` also fingerprints files that have none),
+  then returns to the table.
+- `/` searches every saved index by any part of a path, mounted or not, and
+  Enter jumps to the drive that holds the file.
+- `R` reloads volumes and indexes, keeping the selected drive by UUID.
+
+Backup status counts source paths missing from the backup's saved index or
+recorded at a different size. It is **not** a current-content verification or
+a sync plan; both scan ages are shown in the summary. Fingerprint coverage is
+reported separately from that comparison.
+
+The interface uses tagform's synthwave colours: a pink safesync badge, purple
+header and shortcut bars, and lavender text over the terminal's own background.
+Icons have extra trailing space for wide glyphs. Icons are enabled by default:
+
+- 􀤂 — ordinary drive, also used for offline records whose current state is unknown.
+- 􁘧 — needs attention: invalid configuration, missing index, pending backup
+  changes, read-only volume, missing backup, or insufficient space.
+- 􀩐 — a mounted backup with its source mounted and no pending changes in the
+  saved indexes. This is not a fresh content verification.
+- 􀩎 — an unassigned drive that can be given a role.
+
+Space warnings use a sync estimate from the saved indexes, including recorded
+timestamps and fingerprints: renames need no copy space, while replacements
+need space for the new content because the old version is kept in history.
+The estimate can change after a fresh scan. `--no-icons` removes the drive
+symbols throughout the interface; piped output is always plain text without
+icons.
+
+Drives in a drawer remain in their group using display metadata recorded in
+indexes published by a scan or sync. Older indexes without that metadata stay
+searchable but may show under “Offline drives · role unknown” until the next
+scan while mounted. Saved roles never authorize writes: live sentinels still
+control every operation.
+
+Without a TTY it prints the table as plain text.
+
 ## The sentinel
 
 Every participating drive carries `ROOT/.safesync/drive.toml`. It is both the
@@ -72,8 +130,12 @@ it would do, and waits for Enter:
 The source is never written except for its own `.safesync/index`. Each file is
 copied uncached (`F_NOCACHE`), preallocated, read and written on separate
 threads, hashed on the way through, given the source's mtime and xattrs, and
-published under its real name with `renamex_np(RENAME_EXCL)` — a name that is
-already taken is an error, never an overwrite. `--verify` reads each file back
+published under its real name with `renameatx_np(RENAME_EXCL)` — a name that is
+already taken is an error, never an overwrite. Media paths are resolved through
+opened directory handles: symlinked parents and nested mounts are refused for
+copies, renames and history moves. Planned renames recheck both files against
+the scan before moving. If a replacement fails, the previous file and its index
+entry are restored. `--verify` reads each file back
 after the copy. Esc stops after the current file. Both indexes are updated in
 memory as files land and republished at the end.
 

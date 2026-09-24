@@ -1,4 +1,5 @@
 use safesync::{
+    drives,
     filesystem::{self, Volume},
     lookup::{self, Query},
     manifest::{Manifest, Role, generation},
@@ -441,4 +442,87 @@ fn cache_ignores_other_volumes_metadata_only_scans_and_disagreement() {
         )
         .is_err()
     );
+}
+
+fn put(root: &Path, relative: &str, content: &[u8]) {
+    let path = root.join(relative);
+    fs::create_dir_all(path.parent().unwrap()).unwrap();
+    fs::write(path, content).unwrap();
+}
+
+#[test]
+fn catalog_search_is_case_insensitive_and_word_wise() {
+    let fixture = Fixture::new();
+    put(&fixture.root(), "Clips/2026/Holiday Beach.mov", b"aaaa");
+    put(&fixture.root(), "Clips/2025/holiday-city.MOV", b"bb");
+    put(&fixture.root(), "Stills/beach.jpg", b"c");
+    let manifest = fixture.scan(false);
+    let mut catalog = drives::Catalog::new();
+    catalog.add(3, &manifest);
+    assert_eq!(catalog.len(), 3);
+
+    let hits = catalog.search("HOLIDAY", 10);
+    assert_eq!(hits.len(), 2);
+    assert!(hits.iter().all(|r| r.row == 3 && !r.hashed));
+    // Every word must appear somewhere in the relative path.
+    let hits = catalog.search("beach 2026", 10);
+    assert_eq!(hits.len(), 1);
+    assert_eq!(hits[0].path, "Clips/2026/Holiday Beach.mov");
+    assert_eq!(hits[0].size, 4);
+    assert!(catalog.search("   ", 10).is_empty());
+    assert!(catalog.search("nothing", 10).is_empty());
+    assert_eq!(catalog.search("o", 2).len(), 2, "limit is honoured");
+}
+
+#[test]
+fn behind_counts_paths_the_backup_lacks_or_holds_at_another_size() {
+    let source = Fixture::new();
+    put(&source.root(), "a.mov", b"1234");
+    put(&source.root(), "b.mov", b"12");
+    put(&source.root(), "c.mov", b"1");
+    let backup = Fixture::new();
+    put(&backup.root(), "a.mov", b"1234"); // same
+    put(&backup.root(), "b.mov", b"123"); // other size
+    put(&backup.root(), "extra.mov", b"x"); // backup-only never counts
+    let ahead = drives::behind(&source.scan(false), &backup.scan(false));
+    assert_eq!(ahead, 2);
+    assert_eq!(drives::behind(&source.scan(false), &source.scan(false)), 0);
+}
+
+#[test]
+fn saved_sync_estimate_counts_replacements_but_not_renames_as_transfer() {
+    use safesync::{drive::Extras, drives::SyncEstimate, manifest::encode_path};
+    let fixture = Fixture::new();
+    put(&fixture.root(), "clip.mov", b"1234");
+    let source = fixture.scan(true);
+    let mut backup = source.clone();
+    let current = SyncEstimate::from_indexes(&source, &backup, Extras::Keep).unwrap();
+    assert_eq!((current.actions, current.transfer_bytes), (0, 0));
+    backup.entries[0].path_base64 = encode_path(Path::new("old.mov"));
+    let rename = SyncEstimate::from_indexes(&source, &backup, Extras::Keep).unwrap();
+    assert_eq!((rename.actions, rename.transfer_bytes), (1, 0));
+    backup = source.clone();
+    backup.entries[0].sha256 = Some("0".repeat(64));
+    assert_eq!(drives::behind(&source, &backup), 0, "same path and size");
+    let replace = SyncEstimate::from_indexes(&source, &backup, Extras::Keep).unwrap();
+    assert_eq!((replace.actions, replace.transfer_bytes), (1, 4));
+}
+
+#[test]
+fn numbers_and_ages_format_for_the_table() {
+    assert_eq!(drives::group(0), "0");
+    assert_eq!(drives::group(999), "999");
+    assert_eq!(drives::group(1000), "1 000");
+    assert_eq!(drives::group(48210), "48 210");
+    assert_eq!(drives::group(1_234_567), "1 234 567");
+    assert_eq!(drives::ago(100, 130), "just now");
+    assert_eq!(drives::ago(100, 100 + 5 * 60), "5m ago");
+    assert_eq!(drives::ago(100, 100 + 3 * 3600), "3h ago");
+    assert_eq!(drives::ago(100, 100 + 9 * 86_400), "9d ago");
+    assert_eq!(
+        drives::ago(200, 100),
+        "just now",
+        "clock skew is not negative"
+    );
+    assert_eq!(drives::date(0).len(), 10);
 }

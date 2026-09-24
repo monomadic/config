@@ -2,19 +2,16 @@
 //! read and written on separate threads, hashed on the way through, published
 //! under its real name only once it is complete. Never overwrites.
 use crate::{
-    filesystem::{Stamp, hex},
+    filesystem::{FilePath, Stamp, hex},
     manifest::Entry,
 };
-use anyhow::{Context, Result, bail, ensure};
+use anyhow::{Result, bail, ensure};
 use sha2::{Digest, Sha256};
 use std::{
     ffi::CString,
-    fs::{self, File, OpenOptions},
+    fs::File,
     io::{Read, Write},
-    os::{
-        fd::AsRawFd,
-        unix::{ffi::OsStrExt, fs::OpenOptionsExt},
-    },
+    os::{fd::AsRawFd, unix::ffi::OsStrExt},
     path::Path,
     sync::{
         atomic::{AtomicBool, Ordering},
@@ -85,41 +82,19 @@ fn c_path(path: &Path) -> Result<CString> {
     Ok(CString::new(path.as_os_str().as_bytes())?)
 }
 
-/// Rename that fails instead of replacing whatever is at `to`.
-pub fn rename_exclusive(from: &Path, to: &Path) -> Result<()> {
-    let result = unsafe {
-        libc::renamex_np(
-            c_path(from)?.as_ptr(),
-            c_path(to)?.as_ptr(),
-            libc::RENAME_EXCL,
-        )
-    };
-    ensure!(
-        result == 0,
-        "Cannot move {:?} to {:?}: {}",
-        from,
-        to,
-        std::io::Error::last_os_error()
-    );
-    Ok(())
-}
-
 /// Copies `source` to `destination`, which must not exist. `expected` is the
 /// source's index entry: a file whose size or mtime has moved on is not copied,
 /// and one that no longer reads back as its recorded fingerprint is not published. `progress` receives cumulative bytes written.
 pub fn copy_file(
-    source: &Path,
-    destination: &Path,
+    source: &FilePath,
+    destination: &FilePath,
     expected: Option<&Entry>,
     verify: bool,
     cancel: &AtomicBool,
     mut progress: impl FnMut(u64),
 ) -> Result<Copied> {
-    let mut input = OpenOptions::new()
-        .read(true)
-        .custom_flags(libc::O_NOFOLLOW)
-        .open(source)
-        .with_context(|| format!("Cannot open {source:?}"))?;
+    let mut input = source.open()?;
+    let source_fd = input.try_clone()?;
     let before = Stamp::of(&input.metadata()?);
     ensure!(input.metadata()?.is_file(), "Not a regular file");
     if let Some(Entry {
@@ -132,19 +107,8 @@ pub fn copy_file(
             "Changed since it was indexed; scan again"
         );
     }
-    ensure!(
-        fs::symlink_metadata(destination).is_err(),
-        "Destination already exists"
-    );
-    let parent = destination.parent().context("Destination has no parent")?;
-    fs::create_dir_all(parent)?;
-    let partial = parent.join(format!("{PARTIAL_PREFIX}{}", crate::manifest::generation()));
-    let mut output = OpenOptions::new()
-        .write(true)
-        .read(true)
-        .create_new(true)
-        .mode(0o600)
-        .open(&partial)?;
+    destination.ensure_absent()?;
+    let (partial, mut output) = destination.temporary()?;
 
     let result = (|| -> Result<Copied> {
         no_cache(&input);
@@ -222,7 +186,10 @@ pub fn copy_file(
         output.set_len(before.size)?;
         // Finder tags and other xattrs, ACLs, flags, mode and timestamps. The
         // mtime matters most: it is how later scans recognise this file.
-        let source_fd = File::open(source)?;
+        ensure!(
+            Stamp::of(&source_fd.metadata()?) == before,
+            "Source changed before metadata was copied"
+        );
         let copied = unsafe {
             libc::fcopyfile(
                 source_fd.as_raw_fd(),
@@ -235,6 +202,10 @@ pub fn copy_file(
             copied == 0,
             "Cannot copy metadata: {}",
             std::io::Error::last_os_error()
+        );
+        ensure!(
+            Stamp::of(&source_fd.metadata()?) == before,
+            "Source changed while metadata was copied"
         );
         output.sync_all()?;
         if verify {
@@ -257,14 +228,14 @@ pub fn copy_file(
                 "Verification failed: the destination does not read back as written"
             );
         }
-        rename_exclusive(&partial, destination)?;
+        partial.rename_to(destination)?;
         Ok(Copied {
             sha256: digest,
-            stamp: Stamp::of(&fs::symlink_metadata(destination)?),
+            stamp: Stamp::of(&output.metadata()?),
         })
     })();
     if result.is_err() {
-        let _ = fs::remove_file(&partial);
+        let _ = partial.remove();
     }
     result
 }
