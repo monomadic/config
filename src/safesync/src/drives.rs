@@ -9,12 +9,13 @@ use crate::{
     drive::{self, Drive, Extras, Role, Sentinel},
     engine::human,
     filesystem,
-    manifest::{self, Manifest, RecordedDrive},
+    manifest::{self, Manifest, RecordedDrive, Summary},
     plan,
 };
 use std::{
     collections::{HashMap, HashSet},
     path::PathBuf,
+    sync::mpsc,
 };
 
 /// What the sentinel check found on a volume.
@@ -39,7 +40,8 @@ pub enum Marking {
 pub struct IndexStats {
     pub generation: String,
     pub files: usize,
-    pub bytes: u64,
+    /// `None` until the full index has been read, for footers that predate the total.
+    pub bytes: Option<u64>,
     pub started_unix: u64,
     pub finished_unix: u64,
     pub content_hashed: bool,
@@ -436,12 +438,29 @@ impl Inventory {
         sections
     }
 
+    /// Everything at once: the summaries and then the full indexes, on the
+    /// calling thread. For a pipe, a script or a test; the screen uses `start`.
     pub fn load() -> Self {
+        let (mut inventory, pending) = Self::start();
+        if let Ok(details) = pending.recv() {
+            inventory.absorb(details);
+        }
+        inventory
+    }
+
+    /// The screen's entry point. Returns immediately with every row filled
+    /// from index *summaries* (header and footer: date, file count, byte
+    /// total), and a receiver that delivers the parts needing every entry —
+    /// the search catalog and the backup comparisons — once a background
+    /// thread has parsed the indexes. Until `absorb` runs, `catalog` is empty
+    /// and every backup's `behind`/`estimate` is `None`.
+    pub fn start() -> (Self, mpsc::Receiver<Details>) {
         let now = manifest::now();
         let mut warnings = Vec::new();
-        let library = library_manifests(&mut warnings);
+        let library = library_summaries(&mut warnings);
         let mut rows = Vec::new();
-        let mut manifests: Vec<Option<Manifest>> = Vec::new();
+        // The index behind each row, to be parsed in full off-thread.
+        let mut sources: Vec<Option<PathBuf>> = Vec::new();
 
         for mount in filesystem::mounts() {
             let uuid = mount.volume.as_ref().map(|v| v.uuid.clone());
@@ -477,7 +496,7 @@ impl Inventory {
                 }
             };
             let mut index = None;
-            let mut manifest = None;
+            let mut source = None;
             if let (Marking::Valid(sentinel), Some(volume)) = (&marking, &mount.volume) {
                 let drive = Drive {
                     root: mount.path.clone(),
@@ -486,9 +505,14 @@ impl Inventory {
                 };
                 let generations = drive.generations();
                 for path in generations.iter().rev() {
-                    match Manifest::load(path) {
-                        Ok(m) if m.header.volume.uuid == volume.uuid => {
-                            manifest = Some(m);
+                    match Manifest::summary(path) {
+                        Ok(s) if s.header.volume.uuid == volume.uuid => {
+                            index = Some(stats(
+                                &s,
+                                generations.len(),
+                                library.contains_key(&volume.uuid),
+                            ));
+                            source = Some(path.clone());
                             break;
                         }
                         Ok(_) => warnings.push(format!("{name}: {path:?} indexes another volume")),
@@ -497,9 +521,6 @@ impl Inventory {
                         }
                     }
                 }
-                index = manifest
-                    .as_ref()
-                    .map(|m| stats(m, generations.len(), library.contains_key(&volume.uuid)));
             }
             rows.push(Row {
                 name,
@@ -514,79 +535,54 @@ impl Inventory {
                 index,
                 relation: Relation::None,
             });
-            manifests.push(manifest);
+            sources.push(source);
         }
 
         // Drives in a drawer: their newest saved index stands in for them.
         let mounted: HashSet<String> = rows.iter().filter_map(|r| r.uuid.clone()).collect();
-        let mut offline: Vec<(String, Manifest)> = library
+        let mut offline: Vec<(String, (PathBuf, Summary))> = library
             .into_iter()
             .filter(|(uuid, _)| !mounted.contains(uuid))
             .collect();
-        offline.sort_by(|a, b| a.1.header.volume.name.cmp(&b.1.header.volume.name));
-        for (uuid, manifest) in offline {
+        offline.sort_by(|a, b| a.1.1.header.volume.name.cmp(&b.1.1.header.volume.name));
+        for (uuid, (path, summary)) in offline {
             rows.push(Row {
-                name: manifest.header.volume.name.clone(),
+                name: summary.header.volume.name.clone(),
                 path: None,
                 uuid: Some(uuid),
-                filesystem: manifest.header.volume.filesystem.clone(),
+                filesystem: summary.header.volume.filesystem.clone(),
                 total: 0,
                 free: 0,
                 writable: false,
                 marking: Marking::Offline,
-                recorded: manifest.header.drive.clone(),
-                index: Some(stats(&manifest, 0, true)),
+                recorded: summary.header.drive.clone(),
+                index: Some(stats(&summary, 0, true)),
                 relation: Relation::None,
             });
-            manifests.push(Some(manifest));
+            sources.push(Some(path));
         }
 
-        // Relations need every row present, so they come last.
+        // Who mirrors whom needs no entries, so it is known before the thread
+        // reports; `behind` and `estimate` arrive with the details.
         let by_uuid: HashMap<String, usize> = rows
             .iter()
             .enumerate()
             .filter_map(|(i, r)| r.uuid.clone().map(|u| (u, i)))
             .collect();
         for i in 0..rows.len() {
-            let Some(role) = rows[i].role() else {
-                continue;
-            };
-            rows[i].relation = match role {
-                Role::Backup => {
+            rows[i].relation = match rows[i].role() {
+                Some(Role::Backup) => {
                     let source = rows[i]
                         .source_uuid()
                         .and_then(|uuid| by_uuid.get(uuid).copied());
-                    let behind = match (source.and_then(|s| manifests[s].as_ref()), &manifests[i]) {
-                        (Some(source), Some(backup)) => Some(behind(source, backup)),
-                        _ => None,
-                    };
-                    let estimate = match (
-                        source.and_then(|s| manifests[s].as_ref()),
-                        &manifests[i],
-                        rows[i].sentinel(),
-                    ) {
-                        (Some(source), Some(backup), Some(sentinel)) => {
-                            match SyncEstimate::from_indexes(source, backup, sentinel.extras) {
-                                Ok(estimate) => Some(estimate),
-                                Err(error) => {
-                                    warnings.push(format!(
-                                        "{}: cannot estimate sync: {error:#}",
-                                        rows[i].name
-                                    ));
-                                    None
-                                }
-                            }
-                        }
-                        _ => None,
-                    };
                     Relation::Backup {
                         source_name: source.map(|s| rows[s].name.clone()),
                         source_online: source.is_some_and(|s| rows[s].online()),
-                        behind,
-                        estimate,
+                        behind: None,
+                        estimate: None,
                     }
                 }
-                Role::Source => Relation::Source {
+                Some(Role::Source) => Relation::Source {
                     backups: rows
                         .iter()
                         .filter(|r| {
@@ -596,21 +592,45 @@ impl Inventory {
                         .map(|r| r.name.clone())
                         .collect(),
                 },
-                Role::Scratch => Relation::None,
+                Some(Role::Scratch) | None => Relation::None,
             };
         }
 
-        let mut catalog = Catalog::new();
-        for (i, manifest) in manifests.iter().enumerate() {
-            if let Some(manifest) = manifest {
-                catalog.add(i, manifest);
-            }
-        }
-        Self {
+        let (sender, receiver) = mpsc::channel();
+        let snapshot = rows.clone();
+        std::thread::spawn(move || {
+            let _ = sender.send(Details::compute(&snapshot, &sources, &by_uuid));
+        });
+        let inventory = Self {
             rows,
-            catalog,
+            catalog: Catalog::new(),
             loaded_unix: now,
             warnings,
+        };
+        (inventory, receiver)
+    }
+
+    /// Fold in what the background thread parsed: the catalog, the byte
+    /// totals older footers lack, and every backup's comparison.
+    pub fn absorb(&mut self, details: Details) {
+        self.catalog = details.catalog;
+        self.warnings.extend(details.warnings);
+        for (row, bytes) in self.rows.iter_mut().zip(details.bytes) {
+            if let (Some(index), Some(bytes)) = (&mut row.index, bytes) {
+                index.bytes = Some(bytes);
+            }
+        }
+        for (row, comparison) in self.rows.iter_mut().zip(details.comparisons) {
+            if let (
+                Relation::Backup {
+                    behind, estimate, ..
+                },
+                Some(comparison),
+            ) = (&mut row.relation, comparison)
+            {
+                *behind = Some(comparison.behind);
+                *estimate = comparison.estimate;
+            }
         }
     }
 
@@ -634,7 +654,7 @@ impl Inventory {
             .iter()
             .map(|row| {
                 let (index_date, files, bytes) = match &row.index {
-                    Some(i) => (date(i.finished_unix), group(i.files as u64), human(i.bytes)),
+                    Some(i) => (date(i.finished_unix), group(i.files as u64), size(i.bytes)),
                     None => ("—".into(), "—".into(), "—".into()),
                 };
                 let (size, free) = if row.online() {
@@ -659,12 +679,95 @@ impl Inventory {
     }
 }
 
-fn stats(manifest: &Manifest, generations: usize, saved_locally: bool) -> IndexStats {
-    let h = &manifest.header;
+/// A backup measured against its source's index.
+pub struct Comparison {
+    pub behind: usize,
+    pub estimate: Option<SyncEstimate>,
+}
+
+/// What only the full indexes can tell. Produced off-thread by `Inventory::start`,
+/// folded into the rows by `Inventory::absorb`. Vectors are indexed like `rows`.
+pub struct Details {
+    pub catalog: Catalog,
+    /// Byte total per row, for footers written before it was recorded there.
+    pub bytes: Vec<Option<u64>>,
+    pub comparisons: Vec<Option<Comparison>>,
+    pub warnings: Vec<String>,
+}
+
+impl Details {
+    fn compute(
+        rows: &[Row],
+        sources: &[Option<PathBuf>],
+        by_uuid: &HashMap<String, usize>,
+    ) -> Self {
+        let mut warnings = Vec::new();
+        let manifests: Vec<Option<Manifest>> = sources
+            .iter()
+            .zip(rows)
+            .map(|(path, row)| {
+                let path = path.as_ref()?;
+                match Manifest::load(path) {
+                    Ok(manifest) => Some(manifest),
+                    Err(error) => {
+                        warnings.push(format!("{}: damaged index {path:?}: {error:#}", row.name));
+                        None
+                    }
+                }
+            })
+            .collect();
+        let bytes = manifests
+            .iter()
+            .map(|m| m.as_ref().map(|m| manifest::total_bytes(&m.entries)))
+            .collect();
+        let comparisons =
+            rows.iter()
+                .enumerate()
+                .map(|(i, row)| {
+                    if row.role() != Some(Role::Backup) {
+                        return None;
+                    }
+                    let source = row
+                        .source_uuid()
+                        .and_then(|uuid| by_uuid.get(uuid).copied())?;
+                    let (source, backup) = (manifests[source].as_ref()?, manifests[i].as_ref()?);
+                    let estimate = row.sentinel().and_then(|sentinel| {
+                        match SyncEstimate::from_indexes(source, backup, sentinel.extras) {
+                            Ok(estimate) => Some(estimate),
+                            Err(error) => {
+                                warnings
+                                    .push(format!("{}: cannot estimate sync: {error:#}", row.name));
+                                None
+                            }
+                        }
+                    });
+                    Some(Comparison {
+                        behind: behind(source, backup),
+                        estimate,
+                    })
+                })
+                .collect();
+        let mut catalog = Catalog::new();
+        for (i, manifest) in manifests.iter().enumerate() {
+            if let Some(manifest) = manifest {
+                catalog.add(i, manifest);
+            }
+        }
+        Self {
+            catalog,
+            bytes,
+            comparisons,
+            warnings,
+        }
+    }
+}
+
+fn stats(summary: &Summary, generations: usize, saved_locally: bool) -> IndexStats {
+    let h = &summary.header;
     IndexStats {
         generation: h.generation.clone(),
-        files: manifest.entries.len(),
-        bytes: manifest.entries.iter().map(|e| e.stamp.size).sum(),
+        files: summary.files,
+        bytes: summary.bytes,
         started_unix: h.started_unix,
         finished_unix: h.finished_unix,
         content_hashed: h.content_hashed,
@@ -678,21 +781,21 @@ fn stats(manifest: &Manifest, generations: usize, saved_locally: bool) -> IndexS
     }
 }
 
-/// The newest saved index per volume UUID.
-fn library_manifests(warnings: &mut Vec<String>) -> HashMap<String, Manifest> {
-    let mut newest: HashMap<String, Manifest> = HashMap::new();
+/// The newest saved index per volume UUID, by its summary.
+fn library_summaries(warnings: &mut Vec<String>) -> HashMap<String, (PathBuf, Summary)> {
+    let mut newest: HashMap<String, (PathBuf, Summary)> = HashMap::new();
     let Ok(directory) = drive::library() else {
         return newest;
     };
     for path in drive::listing(&directory, |name| name.ends_with(".jsonl")) {
-        match Manifest::load(&path) {
-            Ok(manifest) => {
-                let uuid = manifest.header.volume.uuid.clone();
-                let replace = newest
-                    .get(&uuid)
-                    .is_none_or(|old| old.header.finished_unix <= manifest.header.finished_unix);
+        match Manifest::summary(&path) {
+            Ok(summary) => {
+                let uuid = summary.header.volume.uuid.clone();
+                let replace = newest.get(&uuid).is_none_or(|(_, old)| {
+                    old.header.finished_unix <= summary.header.finished_unix
+                });
                 if replace {
-                    newest.insert(uuid, manifest);
+                    newest.insert(uuid, (path, summary));
                 }
             }
             Err(error) => warnings.push(format!("saved index {path:?}: {error:#}")),
@@ -714,6 +817,11 @@ pub fn behind(source: &Manifest, backup: &Manifest) -> usize {
         .iter()
         .filter(|e| sizes.get(e.path_base64.as_str()) != Some(&e.stamp.size))
         .count()
+}
+
+/// A byte total, or the placeholder shown while it is still being read.
+pub fn size(bytes: Option<u64>) -> String {
+    bytes.map(human).unwrap_or_else(|| "…".into())
 }
 
 /// Thousands separated by a space: `48 210`.

@@ -140,7 +140,7 @@ fn safe_display(path: &Path) -> String {
     format!("{:?}", path.as_os_str())
 }
 
-/// The drives screen, handing off to the scan screen and back until the user quits.
+/// The drives screen, handing off to scan/sync and back until the user quits.
 fn drives(icons: bool) -> Result<i32> {
     if !(std::io::stdout().is_terminal() && std::io::stdin().is_terminal()) {
         drives_ui::print(&Inventory::load());
@@ -160,6 +160,18 @@ fn drives(icons: bool) -> Result<i32> {
                 ui::run("scan", true, move |control| {
                     engine::index_drive(root, hashing, false, control)
                 })?;
+            }
+            Action::Sync { source, backup } => {
+                focus = Some(backup.clone());
+                let options = SyncOptions {
+                    source,
+                    backup,
+                    hashing: Hashing::Known,
+                    rehash: false,
+                    verify: false,
+                    exclude: Vec::new(),
+                };
+                ui::run("sync", false, move |control| engine::sync(options, control))?;
             }
         }
     }

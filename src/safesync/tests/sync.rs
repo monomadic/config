@@ -530,7 +530,7 @@ fn drives_inventory_lists_mounted_volumes_with_roles_and_index_state() {
     assert!(src.total > 0 && src.free > 0);
     let index = src.index.as_ref().expect("source has an index");
     assert_eq!(index.files, 2);
-    assert_eq!(index.bytes, 6);
+    assert_eq!(index.bytes, Some(6));
     assert_eq!(index.generations, 1);
     assert!(index.saved_locally, "a copy landed under $HOME");
     assert!(src.scan_refusal().is_none());

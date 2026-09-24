@@ -129,6 +129,40 @@ fn manifest_detects_truncation_and_valid_json_tampering() {
     assert!(Manifest::load(&bad).is_err());
 }
 #[test]
+fn summary_reads_only_the_edges_and_matches_the_full_load() {
+    let f = Fixture::new();
+    fs::write(f.root().join("a"), b"abc").unwrap();
+    fs::write(f.root().join("b"), b"defgh").unwrap();
+    let path = f.0.join("full.jsonl");
+    f.scan(true).save_new(&path).unwrap();
+    let full = Manifest::load(&path).unwrap();
+    let summary = Manifest::summary(&path).unwrap();
+    assert_eq!(summary.header.generation, full.header.generation);
+    assert_eq!(summary.files, 2);
+    assert_eq!(summary.bytes, Some(8));
+
+    // A footer from before the byte total was recorded: the count is still
+    // there, the total is left for the full read.
+    let text = fs::read_to_string(&path).unwrap();
+    let (body, footer) = text.trim_end().rsplit_once('\n').unwrap();
+    let mut footer: serde_json::Value = serde_json::from_str(footer).unwrap();
+    footer.as_object_mut().unwrap().remove("bytes");
+    let legacy = f.0.join("legacy.jsonl");
+    fs::write(&legacy, format!("{body}\n{footer}\n")).unwrap();
+    assert_eq!(Manifest::load(&legacy).unwrap().entries.len(), 2);
+    let summary = Manifest::summary(&legacy).unwrap();
+    assert_eq!((summary.files, summary.bytes), (2, None));
+
+    // No committed footer: the summary refuses, like the full load.
+    let short = f.0.join("short.jsonl");
+    fs::write(&short, body).unwrap();
+    assert!(Manifest::summary(&short).is_err());
+    assert!(Manifest::load(&short).is_err());
+    let empty = f.0.join("empty.jsonl");
+    fs::write(&empty, b"").unwrap();
+    assert!(Manifest::summary(&empty).is_err());
+}
+#[test]
 fn publication_never_overwrites_an_existing_file() {
     let f = Fixture::new();
     let path = f.0.join("keep.mov");

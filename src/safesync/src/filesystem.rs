@@ -109,11 +109,22 @@ pub fn mounts() -> Vec<Mount> {
         children.sort();
         paths.extend(children);
     }
+    // `diskutil info` takes about 150 ms a volume; ask about them all at once.
+    let infos: Vec<_> = std::thread::scope(|scope| {
+        let handles: Vec<_> = paths
+            .iter()
+            .map(|path| scope.spawn(move || disk_info(path).ok()))
+            .collect();
+        handles
+            .into_iter()
+            .map(|h| h.join().unwrap_or_default())
+            .collect()
+    });
     paths
         .into_iter()
-        .filter_map(|path| {
+        .zip(infos)
+        .filter_map(|(path, info)| {
             let (free, total) = crate::copy::space(&path).ok()?;
-            let info = disk_info(&path).ok();
             let str_key = |key: &str| {
                 info.as_ref()
                     .and_then(|i| i[key].as_str())

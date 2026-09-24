@@ -2,12 +2,13 @@
 //! index; assign a role to an unmarked disk, start a scan, or search every
 //! saved index for a file while the drives are in a drawer.
 //!
-//! The screen never writes media. Its only writes are a new sentinel (`r`, on
-//! an unmarked disk) and, through `Action::Scan`, an index published by the
-//! ordinary scan screen.
+//! Role setup writes a sentinel; scanning and syncing hand off to the engine.
+//! Sync always opens the ordinary preview and requires confirmation to copy.
 use crate::{
     drive::{Drive, Role},
-    drives::{Inventory, Marking, Relation, Row, Section, Tone, ago, date, group, time},
+    drives::{
+        Details, Inventory, Marking, Relation, Row, Section, Tone, ago, date, group, size, time,
+    },
     engine::human,
     ui::{DIM, ERR, FREE, LABEL, NAME, OK, PCT, SPEED, WARN},
 };
@@ -23,6 +24,7 @@ use ratatui::{
 use std::{
     collections::HashSet,
     path::{Path, PathBuf},
+    sync::mpsc,
     time::Duration,
 };
 
@@ -33,6 +35,10 @@ pub enum Action {
     Scan {
         root: PathBuf,
         hash: bool,
+    },
+    Sync {
+        source: PathBuf,
+        backup: PathBuf,
     },
 }
 
@@ -114,6 +120,8 @@ enum Focus {
 struct Screen {
     icons: bool,
     inventory: Inventory,
+    /// The full indexes, still being parsed on a background thread.
+    pending: Option<mpsc::Receiver<Details>>,
     sections: Vec<Section>,
     collapsed: HashSet<String>,
     selected: Focus,
@@ -125,13 +133,17 @@ struct Screen {
 
 impl Screen {
     fn new() -> Self {
-        Self::from_inventory(Inventory::load())
+        let (inventory, pending) = Inventory::start();
+        let mut screen = Self::from_inventory(inventory);
+        screen.pending = Some(pending);
+        screen
     }
     fn from_inventory(inventory: Inventory) -> Self {
         let mut screen = Self {
             icons: true,
             sections: inventory.sections(),
             inventory,
+            pending: None,
             collapsed: HashSet::from(["system".into()]),
             selected: Focus::Drive(0),
             mode: Mode::Table,
@@ -204,7 +216,34 @@ impl Screen {
         }
     }
     fn reload(&mut self) {
-        self.replace_inventory(Inventory::load());
+        let (inventory, pending) = Inventory::start();
+        self.replace_inventory(inventory);
+        self.pending = Some(pending);
+    }
+    /// Fold in the background thread's result once it arrives. Returns
+    /// whether anything changed.
+    fn poll_details(&mut self) -> bool {
+        let Some(pending) = &self.pending else {
+            return false;
+        };
+        match pending.try_recv() {
+            Ok(details) => {
+                self.inventory.absorb(details);
+                self.pending = None;
+                true
+            }
+            Err(mpsc::TryRecvError::Empty) => false,
+            Err(mpsc::TryRecvError::Disconnected) => {
+                self.pending = None;
+                self.inventory
+                    .warnings
+                    .push("Index loading stopped before completion; press R to retry.".into());
+                true
+            }
+        }
+    }
+    fn reading(&self) -> bool {
+        self.pending.is_some()
     }
     fn replace_inventory(&mut self, inventory: Inventory) {
         let uuid = self.row().and_then(|r| r.uuid.clone());
@@ -229,6 +268,76 @@ impl Screen {
         match self.selected {
             Focus::Drive(i) => Some(i),
             Focus::Section(_) => None,
+        }
+    }
+    fn sync_context(&self) -> bool {
+        match &self.selected {
+            Focus::Drive(_) => self
+                .row()
+                .is_some_and(|r| matches!(r.role(), Some(Role::Source | Role::Backup))),
+            Focus::Section(key) => key.starts_with("source:"),
+        }
+    }
+    /// Resolve only sentinel-linked drives, never names or saved comparisons.
+    /// The engine reopens both live sentinels before planning any writes.
+    fn sync_pair(&self) -> std::result::Result<(&Row, &Row), String> {
+        let rows = &self.inventory.rows;
+        let selected_backup = self.row().filter(|r| r.role() == Some(Role::Backup));
+        let source_uuid = match &self.selected {
+            Focus::Drive(_) => self.row().and_then(|r| match r.role() {
+                Some(Role::Source) => r.uuid.as_deref(),
+                Some(Role::Backup) => r.source_uuid(),
+                _ => None,
+            }),
+            Focus::Section(key) => key.strip_prefix("source:"),
+        }
+        .ok_or_else(|| "Select a source, backup, or sync group first.".to_string())?;
+        let source = rows
+            .iter()
+            .find(|r| r.uuid.as_deref() == Some(source_uuid) && r.role() == Some(Role::Source))
+            .ok_or_else(|| {
+                "Connect the linked source drive, then press R to reload.".to_string()
+            })?;
+        let backup = if let Some(backup) = selected_backup {
+            backup
+        } else {
+            let backups: Vec<_> = rows
+                .iter()
+                .filter(|r| r.role() == Some(Role::Backup) && r.source_uuid() == Some(source_uuid))
+                .collect();
+            match backups.as_slice() {
+                [] => return Err(
+                    "Assign a backup to this source first: select an unassigned drive and press r."
+                        .into(),
+                ),
+                [backup] => *backup,
+                _ => {
+                    return Err(
+                        "Select a backup in this group, then press y to check / sync.".into(),
+                    );
+                }
+            }
+        };
+        for row in [source, backup] {
+            if !row.online() {
+                return Err(format!("Connect {}, then press R to reload.", row.name));
+            }
+            if row.sentinel().is_none() || !row.writable {
+                return Err(format!(
+                    "{} cannot be used for sync; press d for details.",
+                    row.name
+                ));
+            }
+        }
+        Ok((source, backup))
+    }
+    fn sync_hint(&self) -> String {
+        match self.sync_pair() {
+            Ok((source, backup)) => format!(
+                "y Check / sync: {} → {} · review before copying",
+                source.name, backup.name
+            ),
+            Err(why) => why,
         }
     }
     fn scroll_limit(&self) -> u16 {
@@ -306,6 +415,15 @@ impl Screen {
                     self.mode = Mode::Details { scroll: 0 }
                 }
                 KeyCode::Char('?') => self.mode = Mode::Help { scroll: 0 },
+                KeyCode::Char('y') => match self.sync_pair() {
+                    Ok((source, backup)) => {
+                        return Some(Action::Sync {
+                            source: source.path.clone().unwrap(),
+                            backup: backup.path.clone().unwrap(),
+                        });
+                    }
+                    Err(why) => self.say(false, why),
+                },
                 KeyCode::Char('r') => {
                     if let Some(row) = self.row() {
                         match row.assign_refusal() {
@@ -340,7 +458,9 @@ impl Screen {
                     }
                 }
                 KeyCode::Char('/') => {
-                    if self.inventory.catalog.is_empty() {
+                    if self.inventory.catalog.is_empty() && self.reading() {
+                        self.say(false, "Still reading the indexes; try again in a moment.");
+                    } else if self.inventory.catalog.is_empty() {
                         self.say(false, "No indexes to search yet; scan a drive first.");
                     } else {
                         self.mode = Mode::Search {
@@ -581,6 +701,9 @@ fn draw_header(frame: &mut Frame, area: Rect, screen: &Screen) {
     if offline > 0 {
         summary.push_str(&format!(" · {offline} offline"));
     }
+    if screen.reading() {
+        summary.push_str(" · reading indexes…");
+    }
     if !screen.inventory.warnings.is_empty() {
         summary.push_str(&format!(
             " · {} warnings (? to read)",
@@ -638,7 +761,7 @@ fn highlight(mut line: Line<'static>, selected: bool, width: usize) -> Line<'sta
     line.style(selection_style(selected))
 }
 
-fn backup_status(row: &Row) -> Option<(String, Color)> {
+fn backup_status(row: &Row, reading: bool) -> Option<(String, Color)> {
     let Relation::Backup {
         behind,
         source_name,
@@ -653,6 +776,9 @@ fn backup_status(row: &Row) -> Option<(String, Color)> {
     }
     if row.online() && !row.writable {
         return Some(("Read-only volume".into(), WARN));
+    }
+    if behind.is_none() && estimate.is_none() && reading {
+        return Some(("Loading comparison…".into(), LABEL));
     }
     if let Some(estimate) = estimate {
         if estimate.actions == 0 {
@@ -677,8 +803,21 @@ fn backup_status(row: &Row) -> Option<(String, Color)> {
             if *n == 0 { LABEL } else { WARN },
         ),
         None if source_name.is_none() => ("Source unknown · comparison unavailable".into(), WARN),
-        None => ("Index missing · comparison unavailable".into(), WARN),
+        None => ("No saved comparison · y Check / sync".into(), LABEL),
     })
+}
+
+fn index_status(screen: &Screen, row: &Row) -> String {
+    match &row.index {
+        Some(_) if screen.reading() => "Loading…".into(),
+        Some(index) => format!(
+            "Indexed {}",
+            ago(index.finished_unix, screen.inventory.loaded_unix)
+        ),
+        None if row.role() == Some(Role::Backup) => "No saved index".into(),
+        None if row.role().is_some() => "Not indexed".into(),
+        None => "—".into(),
+    }
 }
 
 fn draw_table(frame: &mut Frame, area: Rect, screen: &Screen, width: usize) {
@@ -698,7 +837,7 @@ fn draw_table(frame: &mut Frame, area: Rect, screen: &Screen, width: usize) {
     let role = width >= 48;
     let age = width >= 36;
     let reserved =
-        4 + if role { 11 } else { 0 } + if age { 14 } else { 0 } + if capacity { 23 } else { 0 };
+        4 + if role { 11 } else { 0 } + if age { 20 } else { 0 } + if capacity { 23 } else { 0 };
     let preferred_name_width = screen
         .inventory
         .rows
@@ -715,7 +854,7 @@ fn draw_table(frame: &mut Frame, area: Rect, screen: &Screen, width: usize) {
         heading.push_str("  ROLE     ");
     }
     if age {
-        heading.push_str("  LAST SCAN   ");
+        heading.push_str(&format!("  {}", pad("INDEX STATUS", 18)));
     }
     if capacity {
         heading.push_str(&right("FREE / CAPACITY", 23));
@@ -786,16 +925,7 @@ fn draw_table(frame: &mut Frame, area: Rect, screen: &Screen, width: usize) {
                 ));
             }
             if age {
-                spans.push(label(&format!(
-                    "  {}",
-                    pad(
-                        &row.index
-                            .as_ref()
-                            .map(|i| ago(i.finished_unix, screen.inventory.loaded_unix))
-                            .unwrap_or_else(|| "never".into()),
-                        12
-                    )
-                )));
+                spans.push(label(&format!("  {}", pad(&index_status(screen, row), 18))));
             }
             if capacity {
                 spans.push(label(&right(
@@ -809,7 +939,8 @@ fn draw_table(frame: &mut Frame, area: Rect, screen: &Screen, width: usize) {
             }
             lines.push(highlight(Line::from(spans), selected, width));
             let status = if !row.online() {
-                let (text, color) = backup_status(row).unwrap_or_else(|| (String::new(), LABEL));
+                let (text, color) =
+                    backup_status(row, screen.reading()).unwrap_or_else(|| (String::new(), LABEL));
                 Some((
                     format!(
                         "Offline · saved index{}",
@@ -821,7 +952,7 @@ fn draw_table(frame: &mut Frame, area: Rect, screen: &Screen, width: usize) {
                     ),
                     color,
                 ))
-            } else if let Some(status) = backup_status(row) {
+            } else if let Some(status) = backup_status(row, screen.reading()) {
                 Some(status)
             } else if !row.writable
                 || matches!(
@@ -919,7 +1050,7 @@ fn summary_lines(screen: &Screen, row: &Row) -> Vec<Line<'static>> {
         value(screen.name(row), NAME),
         label(&relation),
     ])];
-    if let Some((status, color)) = backup_status(row) {
+    if let Some((status, color)) = backup_status(row, screen.reading()) {
         lines.push(Line::from(value(status, color)));
         lines.push(Line::from(label(
             "Live content not compared; using saved indexes.",
@@ -965,7 +1096,7 @@ fn summary_lines(screen: &Screen, row: &Row) -> Vec<Line<'static>> {
         lines.push(Line::from(label(&format!(
             "{} indexed files · {} · {}",
             group(index.files as u64),
-            human(index.bytes),
+            size(index.bytes),
             if index.content_hashed {
                 "all fingerprinted"
             } else {
@@ -1098,6 +1229,12 @@ fn help_lines(screen: &Screen) -> Vec<Line<'static>> {
         Line::from(label("↑↓ / j k   Select a drive or section")),
         Line::from(label("←→ / h l   Collapse / expand a section")),
         Line::from(label("Enter      Toggle a section or open drive details")),
+        Line::from(label(
+            "y          Check / sync the selected backup or sync group",
+        )),
+        Line::from(label(
+            "           Checks both drives, then asks before copying; no manual indexing needed",
+        )),
         Line::from(label(
             "s          Scan metadata and reuse known fingerprints",
         )),
@@ -1241,7 +1378,7 @@ fn draw_source(
             Some(index) => spans.push(label(&format!(
                 "{} files   {}   index {}",
                 group(index.files as u64),
-                human(index.bytes),
+                size(index.bytes),
                 date(index.finished_unix)
             ))),
             None => spans.push(dim("no index yet")),
@@ -1354,8 +1491,13 @@ fn draw_footer(frame: &mut Frame, area: Rect, screen: &Screen, width: usize) {
         Mode::Table => {
             let action = match screen.row() {
                 Some(row) if row.assign_refusal().is_none() => "r Assign role · d Details",
+                Some(row) if row.role() == Some(Role::Backup) => "y Check / sync · d Details",
+                Some(row) if row.role() == Some(Role::Source) => {
+                    "y Check / sync · s Scan · d Details"
+                }
                 Some(row) if row.scan_refusal().is_none() => "s Scan · S Fingerprint · d Details",
                 Some(_) => "d Details",
+                None if screen.sync_context() => "y Check / sync · Enter Expand/collapse",
                 None => "Enter Expand/collapse",
             };
             format!("{action}   / Search   ? Help   q Quit")
@@ -1368,6 +1510,9 @@ fn draw_footer(frame: &mut Frame, area: Rect, screen: &Screen, width: usize) {
     };
     let first = match &screen.status {
         Some((ok, text)) => value(shorten(text, width), if *ok { OK } else { ERR }),
+        None if matches!(screen.mode, Mode::Table) && screen.sync_context() => {
+            value(shorten(&screen.sync_hint(), width), FREE)
+        }
         None => dim(if matches!(screen.mode, Mode::Table) {
             "↑↓ Select   ←→ Fold   R Reload".into()
         } else {
@@ -1382,6 +1527,8 @@ fn draw_footer(frame: &mut Frame, area: Rect, screen: &Screen, width: usize) {
             Mode::Table => unreachable!(),
         }
         .to_owned()
+    } else if matches!(screen.mode, Mode::Table) && screen.sync_context() && width < 76 {
+        "y Check/sync  ? Help  q Quit".to_owned()
     } else if matches!(screen.mode, Mode::Table) && width < 40 {
         "? Help  q Quit".to_owned()
     } else if matches!(screen.mode, Mode::Table) && width < 76 {
@@ -1403,6 +1550,7 @@ fn draw_footer(frame: &mut Frame, area: Rect, screen: &Screen, width: usize) {
                 let shortcut = matches!(
                     part.trim(),
                     "s" | "S"
+                        | "y"
                         | "d"
                         | "r"
                         | "R"
@@ -1435,7 +1583,7 @@ fn draw_footer(frame: &mut Frame, area: Rect, screen: &Screen, width: usize) {
     }
 }
 
-/// The interactive screen. Returns when the user quits or asks for a scan.
+/// The interactive screen. Returns when the user quits or asks for a scan/sync.
 /// `focus` is the mount point to select first, when it is still there.
 pub fn run(focus: Option<&Path>, icons: bool) -> Result<Action> {
     let mut screen = Screen::new();
@@ -1459,6 +1607,7 @@ pub fn run(focus: Option<&Path>, icons: bool) -> Result<Action> {
         )?;
         loop {
             terminal.draw(|frame| draw(frame, &mut screen))?;
+            screen.poll_details();
             if event::poll(Duration::from_millis(250))?
                 && let Input::Key(key) = event::read()?
                 && key.kind == KeyEventKind::Press
@@ -1547,7 +1696,7 @@ mod tests {
             index: role.map(|_| IndexStats {
                 generation: "123-1-1".into(),
                 files: 7,
-                bytes: 285_200_000,
+                bytes: Some(285_200_000),
                 started_unix: 100,
                 finished_unix: 200,
                 content_hashed: true,
@@ -1597,6 +1746,116 @@ mod tests {
     }
 
     #[test]
+    fn loading_comparison_is_not_reported_as_a_missing_index() {
+        let mut screen = Screen::from_inventory(inventory());
+        screen.focus_row(1);
+        if let Relation::Backup {
+            behind, estimate, ..
+        } = &mut screen.inventory.rows[1].relation
+        {
+            *behind = None;
+            *estimate = None;
+        }
+        let (sender, receiver) = mpsc::channel();
+        screen.pending = Some(receiver);
+        let (text, _) = render(&mut screen, 100, 30);
+        assert!(text.contains("Loading comparison…"), "{text}");
+        assert!(text.contains("INDEX STATUS"), "{text}");
+        assert!(!text.contains("Index missing"), "{text}");
+        assert!(!text.contains("No saved comparison"), "{text}");
+        sender
+            .send(Details {
+                catalog: Catalog::new(),
+                bytes: vec![None; 5],
+                comparisons: vec![
+                    None,
+                    Some(crate::drives::Comparison {
+                        behind: 0,
+                        estimate: Some(crate::drives::SyncEstimate {
+                            actions: 0,
+                            transfer_bytes: 0,
+                        }),
+                    }),
+                    None,
+                    None,
+                    None,
+                ],
+                warnings: vec![],
+            })
+            .unwrap();
+        assert!(screen.poll_details());
+        let (text, _) = render(&mut screen, 100, 30);
+        assert!(!text.contains("Loading"), "{text}");
+        assert!(text.contains("Indexed 15h ago"), "{text}");
+        assert!(text.contains("No pending changes"), "{text}");
+    }
+
+    #[test]
+    fn sync_from_backup_source_or_group_needs_no_saved_indexes() {
+        let mut inv = inventory();
+        inv.rows[1].index = None;
+        inv.rows[2].index = None;
+        let mut screen = Screen::from_inventory(inv);
+        for focus in [
+            Focus::Drive(1),
+            Focus::Drive(2),
+            Focus::Section("source:source".into()),
+        ] {
+            screen.selected = focus;
+            assert!(matches!(screen.key(KeyCode::Char('y'), KeyModifiers::NONE),
+                Some(Action::Sync { source, backup })
+                if source == PathBuf::from("/Volumes/DemoTower") && backup == PathBuf::from("/Volumes/DemoBackup")));
+            for (width, height) in [(100, 30), (60, 18), (40, 12)] {
+                let (text, _) = render(&mut screen, width, height);
+                assert!(text.contains("y Check"), "{width}x{height}\n{text}");
+            }
+        }
+    }
+
+    #[test]
+    fn sync_requires_an_explicit_backup_when_multiple_are_linked() {
+        let mut inv = inventory();
+        inv.rows.push(drive(
+            "Second",
+            "second",
+            Some(Role::Backup),
+            Some("source"),
+        ));
+        let mut screen = Screen::from_inventory(inv);
+        screen.focus_row(2);
+        assert!(screen.key(KeyCode::Char('y'), KeyModifiers::NONE).is_none());
+        assert!(
+            screen
+                .status
+                .as_ref()
+                .unwrap()
+                .1
+                .contains("Select a backup")
+        );
+        screen.focus_row(5);
+        assert!(matches!(screen.key(KeyCode::Char('y'), KeyModifiers::NONE),
+            Some(Action::Sync { backup, .. }) if backup.ends_with("Second")));
+    }
+
+    #[test]
+    fn sync_refuses_offline_read_only_and_invalid_drives() {
+        for index in [1, 2] {
+            for kind in 0..3 {
+                let mut inv = inventory();
+                match kind {
+                    0 => inv.rows[index].path = None,
+                    1 => inv.rows[index].writable = false,
+                    _ => inv.rows[index].marking = Marking::Invalid("bad sentinel".into()),
+                }
+                let mut screen = Screen::from_inventory(inv);
+                screen.focus_row(1);
+                assert!(screen.key(KeyCode::Char('y'), KeyModifiers::NONE).is_none());
+                assert!(screen.status.is_some());
+            }
+        }
+    }
+
+    #[test]
     fn icons_prioritize_alerts_and_never_treat_offline_or_unknown_state_as_current() {
         let mut inv = inventory();
         let now = inv.loaded_unix;
@@ -1615,7 +1874,7 @@ mod tests {
         }
         assert_eq!(drive_icon(backup, now), DRIVE_ALERT);
         assert!(
-            backup_status(backup)
+            backup_status(backup, false)
                 .unwrap()
                 .0
                 .contains("Not enough space")
@@ -1624,7 +1883,12 @@ mod tests {
         // or timestamp difference still requires a replacement.
         backup.free = u64::MAX;
         assert_eq!(drive_icon(backup, now), DRIVE_ALERT);
-        assert!(backup_status(backup).unwrap().0.contains("pending changes"));
+        assert!(
+            backup_status(backup, false)
+                .unwrap()
+                .0
+                .contains("pending changes")
+        );
         backup.path = None;
         backup.marking = Marking::Offline;
         assert_eq!(drive_icon(backup, now), DRIVE_LOCAL);

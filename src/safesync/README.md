@@ -19,13 +19,20 @@ Drives are grouped by source volume, with the source first and its backups
 underneath. Groups use the sentinel's UUID links, never matching names.
 Unassigned drives, scratch drives, and drives needing attention have separate
 sections; the ignored system volume starts collapsed. Each row shows its role,
-last scan and free/capacity figures. The selected drive's summary shows its
+index status and free/capacity figures. Indexes being read show “Loading…”;
+pending comparisons show “Loading comparison…” rather than a missing-index warning.
+The selected drive's summary shows its
 relationship, index coverage and location. From the table:
 
 - `↑↓` / `j k` selects a drive or section; `←→` / `h l` collapses or expands
   its section. Enter toggles a section or opens a drive's index details.
 - `d` opens scrollable index details (UUID, generations, scan exclusions and
   fingerprints reused); `?` opens help and inventory warnings. Esc returns.
+- `y` **Check / sync** checks the selected backup against its linked source,
+  previews the changes, and asks for confirmation before copying. No manual
+  indexing is required first. It also works from the source or group heading
+  when there is one linked backup; with several, select the intended backup.
+  Both drives must be mounted. After syncing or cancelling, the drive list returns.
 - `r` assigns a role to an unmarked disk (a backup then picks the mounted
   source it mirrors). Roles are never *changed* from here; that stays a
   deliberate edit of `drive.toml`.
@@ -98,6 +105,12 @@ regular file with size, nanosecond mtime, file ID and — once known — a SHA-2
 fingerprint. The last three generations are kept on the drive, and a copy of
 each lands in `~/Library/Application Support/safesync/manifests/` so you can
 search a drive that is in a drawer.
+
+The file is a header line, one line per file, and a footer with the count,
+the byte total and a checksum. The drives screen reads only the header and the
+footer, so it opens at once however large the index is; the entries are
+parsed on a background thread for search and the backup comparison, and the
+screen says `reading indexes…` until they are in.
 
 ```sh
 safesync scan /Volumes/Tower           # metadata; carries over known fingerprints

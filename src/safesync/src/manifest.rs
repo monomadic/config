@@ -6,7 +6,7 @@ use sha2::{Digest, Sha256};
 use std::{
     collections::HashSet,
     fs::{self, File, OpenOptions},
-    io::{BufRead, BufReader, BufWriter, Read, Write},
+    io::{BufRead, BufReader, BufWriter, Read, Seek, SeekFrom, Write},
     os::{
         fd::AsRawFd,
         unix::{
@@ -74,13 +74,33 @@ pub struct Manifest {
     pub header: Header,
     pub entries: Vec<Entry>,
 }
+/// The header, the file count and the byte total: everything the drives
+/// screen shows about an index, read from the first and last lines only.
+/// `bytes` is `None` for an index written before the footer recorded it.
+#[derive(Clone, Debug)]
+pub struct Summary {
+    pub header: Header,
+    pub files: usize,
+    pub bytes: Option<u64>,
+}
+
 #[derive(Serialize, Deserialize)]
 #[serde(tag = "record", rename_all = "snake_case")]
 enum Record {
     Header(Header),
     File(Entry),
-    End { files: usize, sha256: String },
+    End {
+        files: usize,
+        sha256: String,
+        /// Sum of every entry's size, so a reader can show it without the entries.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        bytes: Option<u64>,
+    },
 }
+
+/// The longest line `summary` will read at either end of the file: the
+/// header (with its exclusion list) and the footer are both far shorter.
+const EDGE_LINE: u64 = 1024 * 1024;
 
 pub fn now() -> u64 {
     SystemTime::now()
@@ -169,6 +189,56 @@ impl Manifest {
         Self::read_from(file)
     }
 
+    /// Header and footer only: O(1) in the number of entries, so the drives
+    /// screen can open on a half-gigabyte index without parsing it. Checks the
+    /// header and that a committed footer exists, but not the checksum or the
+    /// entries; `load` does that when the entries are wanted.
+    pub fn summary(path: &Path) -> Result<Summary> {
+        let mut file =
+            File::open(path).with_context(|| format!("Cannot read manifest {:?}", path))?;
+        let mut first = Vec::new();
+        BufReader::new(&mut file)
+            .take(EDGE_LINE)
+            .read_until(b'\n', &mut first)?;
+        ensure!(
+            first.last() == Some(&b'\n'),
+            "Truncated or oversized manifest header"
+        );
+        let Record::Header(header) =
+            serde_json::from_slice(&first).context("Invalid manifest header")?
+        else {
+            bail!("Missing manifest header");
+        };
+        validate(&header, &[])?;
+
+        let len = file.metadata()?.len();
+        let tail_start = len.saturating_sub(EDGE_LINE);
+        file.seek(SeekFrom::Start(tail_start))?;
+        let mut tail = Vec::new();
+        file.read_to_end(&mut tail)?;
+        ensure!(
+            tail.last() == Some(&b'\n'),
+            "Incomplete manifest: missing committed footer"
+        );
+        let body = &tail[..tail.len() - 1];
+        let last = match body.iter().rposition(|b| *b == b'\n') {
+            Some(i) => &body[i + 1..],
+            // The whole tail is one line: only acceptable if it is the whole file.
+            None if tail_start == 0 => body,
+            None => bail!("Oversized manifest footer"),
+        };
+        let Record::End { files, bytes, .. } =
+            serde_json::from_slice(last).context("Invalid manifest footer")?
+        else {
+            bail!("Incomplete manifest: missing committed footer");
+        };
+        Ok(Summary {
+            header,
+            files,
+            bytes,
+        })
+    }
+
     pub(crate) fn read_from(file: File) -> Result<Self> {
         let mut reader = BufReader::new(file);
         let mut hash = Sha256::new();
@@ -203,10 +273,18 @@ impl Manifest {
                     ensure!(header.is_some(), "Missing manifest header");
                     entries.push(e);
                 }
-                Record::End { files, sha256 } => {
+                Record::End {
+                    files,
+                    sha256,
+                    bytes,
+                } => {
                     ensure!(
                         files == entries.len() && sha256 == hex(&hash.clone().finalize()),
                         "Manifest checksum/count mismatch"
+                    );
+                    ensure!(
+                        bytes.is_none_or(|b| b == total_bytes(&entries)),
+                        "Manifest byte total mismatch"
                     );
                     ended = true;
                     continue;
@@ -268,6 +346,7 @@ impl Manifest {
         let end = Record::End {
             files: self.entries.len(),
             sha256: hex(&digest.finalize()),
+            bytes: Some(total_bytes(&self.entries)),
         };
         serde_json::to_writer(&mut writer, &end)?;
         writer.write_all(b"\n")?;
@@ -279,6 +358,9 @@ impl Manifest {
         snapshot.header.role = Role::OfflineSnapshot;
         snapshot.save_new(output)
     }
+}
+pub fn total_bytes(entries: &[Entry]) -> u64 {
+    entries.iter().map(|e| e.stamp.size).sum()
 }
 pub(crate) fn full_sync(file: &File) -> Result<()> {
     file.sync_all()?;
