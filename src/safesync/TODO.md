@@ -17,12 +17,29 @@ backup manifest was the cheapest way to feed it. Nothing else needs it.
 - [ ] Sync = refresh the source index (reuse unchanged fingerprints), then walk
       the backup live and answer, per file, "is this on the source?":
       same path, same size+mtime → unchanged; same path, different stamp →
-      replace; no path but a source file with the same stamp or fingerprint →
-      rename; nothing matching → extra, kept or moved to history per the
-      sentinel. Then copy every source file the backup lacks. Prune history
-      in the same pass. Keep the sentinel checks and the preview before copying.
+      replace. After resolving same-path matches, pair backup-only files with
+      source paths still missing from the backup by stamp or fingerprint →
+      rename. Require an unambiguous one-to-one pairing, consuming each candidate
+      once; never rename onto an existing path. Ambiguous matches fall back to
+      copying the missing source files and treating the leftovers as extras,
+      kept or moved to history per the sentinel. Preserve the current planner's
+      ambiguity guards when replacing its two-manifest input with a live walk.
+      Then copy every source file the backup still lacks. Keep the sentinel
+      checks and the preview before copying. History pruning is manual only.
       The backup walk is the existing scanner without publish; nothing about
       the backup is written except media and history.
+- [ ] Space handling: most of it exists. Preflight refuses a plan larger than
+      free space (`engine.rs`, replacements at full size, renames and history
+      moves at zero); ENOSPC at preallocation fails cleanly and removes the
+      partial file; a failed replacement is restored from history. Two gaps:
+      the refusal happens before the preview, so show the required bytes and
+      free space in the preview and refuse at confirmation instead; and the
+      action loop keeps going after a failure, so on a full disk every
+      remaining copy fails in turn and every remaining replace moves its old
+      version to history, fails, and restores it. Distinguish ENOSPC from other
+      per-file failures and stop scheduling after the first. Completed files
+      stay, the run reports incomplete, and a rerun plans the remainder from a
+      fresh walk. Never prune history automatically to make room.
 - [ ] Rename candidates with no stamp match may be hashed live. Only the backup
       file is read (the source fingerprint is in its index), and only for files
       that match nothing by size+mtime, so it is normally zero files. Show
@@ -66,6 +83,8 @@ backup manifest was the cheapest way to feed it. Nothing else needs it.
       once there is a story for what happens to the old sentinel and any source or legacy index.
 - [ ] `--pause` (SIGSTOP-style) in the TUI; currently only stop-after-current-file.
 - [ ] History pruning: `safesync history --prune 30d` for `.safesync/history/`.
+      Explicit manual operation, with a preview and confirmation; never part
+      of sync or an automatic response to running out of space.
 - [ ] Standing fill: a `[fill]` table on the scratch sentinel so `safesync fill ROOT`
       with no arguments tops the drive up. Fill needs only the **source** mounted:
       the source index says what exists, the sentinel's rules say what is wanted.
@@ -163,6 +182,8 @@ appears that needs an ad-hoc query.
       its existence or current ownership is not established by this output.
       Preserve raw path bytes, including tabs and newlines. No separate drive field,
       sizes, escaping, headings or other stdout content: just `FULL_PATH\0` repeated.
+      Keep ordinary fzf use this simple: no required wrapper, identity fields,
+      or extra selection steps for the user.
       It is the search interface: the TUI runs no search of its own any more.
       In the drives screen `/` restores the
       terminal, runs `fzf --read0 --print0 --exact`, then re-enters the screen
@@ -186,6 +207,9 @@ appears that needs an ad-hoc query.
       publication and destinations with no saved index, separately from codec tests.
       Cover backups with different exclusions without shrinking the source catalog;
       source-excluded backup files staying untouched even with `extras = history`;
+      preflight refusal of an oversized plan, stopping after the first ENOSPC
+      mid-run, and a rerun completing the remainder (rename ambiguity and
+      replacement rollback are already covered);
       offline backup rows surviving legacy-index retirement and generation pruning;
       same-name volumes being distinguished by UUID; fill with only the source
       mounted, and with a backup reader that lacks any index. Codec/export tests cover truncated
