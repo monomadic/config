@@ -97,7 +97,8 @@ New menu bar widgets go in Rust, against `objc2` directly — `battery-widget` a
 vendored fork, no `.app` bundle, except where macOS permissions require one.
 `job-monitor` needs a bundle for notifications, so its installer *generates* the
 `.app` into `~/Applications`. `wifi-widget` needs a bundle for Location access:
-`src/wifi-widget/bundle.sh` generates `target/release/WiFi Widget.app`, opened
+`src/wifi-widget/bundle.sh` generates `target/release/WiFi Widget.app` and
+`scripts/install/install-wifi-widget.sh` copies it to `~/Applications`, opened
 through LaunchServices, with Open at Login instead of a LaunchAgent. Nothing
 bundled is ever checked in.
 

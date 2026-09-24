@@ -240,3 +240,120 @@ fn render_panel(content: Content, directory: &Path, mtm: MainThreadMarker) -> Re
     }
     Ok(())
 }
+
+/// Draw the menu bar chip in each style on a light and a dark bar, so layout
+/// changes can be judged without touching the real status item.
+pub fn render_chips(directory: &Path) -> Result<(), String> {
+    use crate::bar::{BarFill, Chip, Tint};
+    use objc2_app_kit::*;
+    let mtm = MainThreadMarker::new().ok_or("Main thread required")?;
+    NSApplication::sharedApplication(mtm)
+        .setActivationPolicy(NSApplicationActivationPolicy::Accessory);
+    std::fs::create_dir_all(directory).map_err(|e| e.to_string())?;
+    let r = |x, y, width, height| NSRect {
+        origin: NSPoint { x, y },
+        size: NSSize { width, height },
+    };
+    // style label, stacked?, and whether the style shows the meter and text
+    let styles: [(&str, bool, bool); 3] = [
+        ("Smart Bar", false, true),
+        ("Icon", false, false),
+        ("Stacked", true, true),
+    ];
+    // scenario label, symbol, segments, text, tint
+    let cases: [(&str, &str, u8, &str, Tint); 4] = [
+        ("healthy 6GHz", "wifi", 4, "6GHz", Tint::Normal),
+        ("2.4GHz fallback", "wifi.exclamationmark", 3, "2.4GHz", Tint::Orange),
+        ("weak", "wifi.exclamationmark", 1, "\u{2212}81 dB", Tint::Red),
+        ("hotspot", "personalhotspot", 4, "212 MB", Tint::Orange),
+    ];
+    let bar_h = NSStatusBar::systemStatusBar().thickness();
+    let row_h = bar_h + 26.;
+    let width = 900.;
+    let height = row_h * (styles.len() * cases.len()) as f64 + 20.;
+    let canvas = NSView::new(mtm);
+    canvas.setFrame(r(0., 0., width, height));
+    let background = NSBox::new(mtm);
+    background.setFrame(canvas.bounds());
+    background.setBoxType(NSBoxType::Custom);
+    background.setBorderWidth(0.);
+    background.setFillColor(&NSColor::windowBackgroundColor());
+    canvas.addSubview(&background);
+
+    let mut y = height - row_h;
+    for (style_name, stacked, detail) in styles {
+        for (case_name, symbol, segments, text, tint) in cases.iter().copied() {
+            let label = NSTextField::labelWithString(&NSString::from_str(&format!(
+                "{style_name} · {case_name}"
+            )), mtm);
+            label.setFont(Some(&NSFont::systemFontOfSize(11.)));
+            label.setFrame(r(12., y + 4., 190., 18.));
+            canvas.addSubview(&label);
+            // light bar on the left, dark bar on the right
+            for (index, (bg, ink)) in [
+                (NSColor::colorWithWhite_alpha(0.93, 1.), NSColor::blackColor()),
+                (NSColor::colorWithWhite_alpha(0.16, 1.), NSColor::whiteColor()),
+            ]
+            .into_iter()
+            .enumerate()
+            {
+                let x = 220. + index as f64 * 330.;
+                let strip = NSBox::new(mtm);
+                strip.setFrame(r(x, y, 300., bar_h));
+                strip.setBoxType(NSBoxType::Custom);
+                strip.setBorderWidth(0.);
+                strip.setFillColor(&bg);
+                canvas.addSubview(&strip);
+                let chip = Chip {
+                    symbol,
+                    variable: f64::from(segments) / 4.0,
+                    bar: (detail && tint != Tint::Normal || detail).then_some(BarFill {
+                        segments,
+                        dim: false,
+                    }),
+                    text: detail.then(|| text.to_string()),
+                    tint,
+                    stacked,
+                };
+                let image = crate::bar::chip_image(chip);
+                // Template images carry no colour: flood them with the bar's ink.
+                let view = NSImageView::new(mtm);
+                let size = image.size();
+                view.setFrame(r(x + 12., y, size.width, bar_h));
+                view.setImage(Some(&image));
+                if image.isTemplate() {
+                    view.setContentTintColor(Some(&ink));
+                }
+                canvas.addSubview(&view);
+            }
+            y -= row_h;
+        }
+    }
+    let window = unsafe {
+        NSWindow::initWithContentRect_styleMask_backing_defer(
+            NSWindow::alloc(mtm),
+            r(-3000., -3000., width, height),
+            NSWindowStyleMask::Borderless,
+            NSBackingStoreType::Buffered,
+            false,
+        )
+    };
+    window.setAppearance(
+        NSAppearance::appearanceNamed(unsafe { NSAppearanceNameDarkAqua }).as_deref(),
+    );
+    window.setContentView(Some(&canvas));
+    let bitmap = canvas
+        .bitmapImageRepForCachingDisplayInRect(canvas.bounds())
+        .ok_or("Chip bitmap failed")?;
+    canvas.cacheDisplayInRect_toBitmapImageRep(canvas.bounds(), &bitmap);
+    let data = unsafe {
+        bitmap.representationUsingType_properties(NSBitmapImageFileType::PNG, &NSDictionary::new())
+    }
+    .ok_or("Chip PNG failed")?;
+    let path = directory.join("chips.png");
+    if !data.writeToFile_atomically(&NSString::from_str(&path.to_string_lossy()), true) {
+        return Err("Chip write failed".into());
+    }
+    println!("{}", path.display());
+    Ok(())
+}

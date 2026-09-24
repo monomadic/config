@@ -263,6 +263,7 @@ upgrade_src_tools() {
     "system-uptime-widget|install-system-uptime-widget.sh|$HOME/.local/bin/system-uptime-widget"
     "topaz-select-preset|install-topaz-select-preset.sh|$HOME/.local/bin/topaz-select-preset"
     "volume-control-widget|install-volume-control-widget.sh|$HOME/.local/bin/volume-control-widget"
+    "wifi-widget|install-wifi-widget.sh|$HOME/Applications/WiFi Widget.app"
     "ytform|ytform.sh|$HOME/.local/bin/ytform"
     # One cargo workspace, three separately installed artifacts. Each is
     # checked against the whole tree, since they share job-core.

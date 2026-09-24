@@ -27,9 +27,18 @@ open "target/release/WiFi Widget.app"
 ```
 
 The script builds release code, generates the bundle and ad-hoc signs it. It does
-not install or launch anything. You may copy the app to `~/Applications`, open
-that copy, then select **Open at Login**. There is no LaunchAgent or Dotter
-mapping. Rebuilding/re-signing may require granting Location again.
+not install or launch anything.
+
+To install it, use the canonical installer, which runs `bundle.sh`, copies the
+result to `~/Applications`, and restarts a running copy:
+
+```sh
+scripts/install/install-wifi-widget.sh
+```
+
+It also appears in `fzf-app-store`. Select **Open at Login** from the widget's
+own menu; there is no LaunchAgent or Dotter mapping. Rebuilding/re-signing may
+require granting Location again.
 
 The app has no Dock icon. Quit from its menu. Its status item uses the same
 saved-position approach as `menu-tidy`: first launch starts at the right-hand end,

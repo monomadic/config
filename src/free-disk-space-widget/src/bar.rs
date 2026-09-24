@@ -10,7 +10,7 @@ use objc2::AnyThread;
 use objc2::rc::Retained;
 use objc2::runtime::{AnyObject, ProtocolObject};
 use objc2_app_kit::{
-    NSBezierPath, NSColor, NSFont, NSFontAttributeName, NSFontWeightRegular,
+    NSBezierPath, NSColor, NSFont, NSFontAttributeName, NSFontWeightMedium, NSFontWeightRegular,
     NSForegroundColorAttributeName, NSImage, NSStatusBar, NSStringDrawing,
 };
 use objc2_core_foundation::CFAttributedString;
@@ -171,14 +171,25 @@ pub fn icon_text_image(glyph: &str, text: &str) -> Retained<NSImage> {
 fn compact_image(fill: Option<Fill>, glyph: &str, text: &str) -> Retained<NSImage> {
     let glyph_font = font();
     let em = glyph_font.pointSize();
-    let text_font =
-        NSFont::monospacedDigitSystemFontOfSize_weight(em * 0.84, unsafe { NSFontWeightRegular });
+    // The stacked layout shares wifi-widget's metrics so the two widgets sit
+    // side by side in the menu bar at the same size; Icon and Text keeps the
+    // larger single-line text it has always used.
+    let stacked = fill.is_some();
+    let text_font = if stacked {
+        NSFont::monospacedDigitSystemFontOfSize_weight((em * 0.62).round().max(8.0), unsafe {
+            NSFontWeightMedium
+        })
+    } else {
+        NSFont::monospacedDigitSystemFontOfSize_weight(em * 0.84, unsafe { NSFontWeightRegular })
+    };
     let height = NSStatusBar::systemStatusBar().thickness();
-    let bar_height = fill
-        .map(|_| (text_font.xHeight() * 0.55).round().max(3.0))
-        .unwrap_or(0.0);
-    let vertical_gap = fill.map(|_| (em * 0.08).round().max(1.0)).unwrap_or(0.0);
-    let horizontal_gap = (em * 0.35).round();
+    let bar_height = if stacked { 3.0 } else { 0.0 };
+    let vertical_gap = if stacked { 2.0 } else { 0.0 };
+    let horizontal_gap = if stacked {
+        (em * 0.25).round()
+    } else {
+        (em * 0.35).round()
+    };
 
     let ink = NSColor::blackColor();
 
@@ -194,8 +205,19 @@ fn compact_image(fill: Option<Fill>, glyph: &str, text: &str) -> Retained<NSImag
     let text = NSString::from_str(text);
     let text_size = unsafe { text.sizeWithAttributes(Some(&text_attrs)) };
     let text_width = text_size.width.ceil();
-    let column_width = if fill.is_some() {
-        text_width.max((em * 2.0).round())
+    let column_width = if stacked {
+        // A constant column, measured from the widest value the widget shows,
+        // so the item keeps one width as free space changes.
+        let widest = ["999GB", "100%"]
+            .iter()
+            .map(|sample| {
+                let string = NSString::from_str(sample);
+                unsafe { string.sizeWithAttributes(Some(&text_attrs)) }
+                    .width
+                    .ceil()
+            })
+            .fold(0.0_f64, f64::max);
+        text_width.max(widest).max((em * 1.9).round())
     } else {
         text_width
     };

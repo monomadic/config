@@ -19,6 +19,15 @@ fn main() -> ExitCode {
                 }
             }
         }
+        [arg, directory] if arg == "--render-chips" => {
+            match preview::render_chips(std::path::Path::new(directory)) {
+                Ok(()) => ExitCode::SUCCESS,
+                Err(error) => {
+                    eprintln!("{error}");
+                    ExitCode::FAILURE
+                }
+            }
+        }
         [arg] if arg == "--dump" => {
             let mut store = Store::default();
             let reading = wifi::read();

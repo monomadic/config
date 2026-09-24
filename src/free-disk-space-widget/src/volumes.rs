@@ -200,11 +200,11 @@ pub fn format_capacity(bytes: u64) -> String {
 pub fn format_compact_bytes(bytes: u64) -> String {
     let gigabytes = bytes as f64 / 1e9;
     if gigabytes >= 1000.0 {
-        format!("{:.0}tb", gigabytes / 1000.0)
+        format!("{:.0}TB", gigabytes / 1000.0)
     } else if gigabytes >= 1.0 {
-        format!("{gigabytes:.0}gb")
+        format!("{gigabytes:.0}GB")
     } else {
-        format!("{:.0}mb", bytes as f64 / 1e6)
+        format!("{:.0}MB", bytes as f64 / 1e6)
     }
 }
 
@@ -377,10 +377,10 @@ mod tests {
 
     #[test]
     fn compact_capacities_are_integer_lowercase_and_unspaced() {
-        assert_eq!(format_compact_bytes(860_000_000), "860mb");
-        assert_eq!(format_compact_bytes(3_400_000_000), "3gb");
-        assert_eq!(format_compact_bytes(137_000_000_000), "137gb");
-        assert_eq!(format_compact_bytes(1_900_000_000_000), "2tb");
+        assert_eq!(format_compact_bytes(860_000_000), "860MB");
+        assert_eq!(format_compact_bytes(3_400_000_000), "3GB");
+        assert_eq!(format_compact_bytes(137_000_000_000), "137GB");
+        assert_eq!(format_compact_bytes(1_900_000_000_000), "2TB");
     }
 }
 

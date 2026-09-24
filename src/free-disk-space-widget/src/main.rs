@@ -62,7 +62,7 @@ const ALL_STYLES: [LayoutStyle; 6] = [
 impl LayoutStyle {
     fn label(self) -> &'static str {
         match self {
-            LayoutStyle::IconTextBar => "Icon, Text and Bar",
+            LayoutStyle::IconTextBar => "Stacked",
             LayoutStyle::Text => "Text",
             LayoutStyle::IconText => "Icon and Text",
             LayoutStyle::BarText => "Bar and Text",
@@ -697,10 +697,49 @@ fn open_application(name: &str) {
     }
 }
 
+/// Write the menu bar image for the stacked and icon-and-text layouts to PNGs,
+/// so their sizing can be compared without running the widget.
+fn render_chips(directory: &str) {
+    use objc2_app_kit::{NSBitmapImageFileType, NSBitmapImageRep};
+    use objc2_foundation::NSDictionary;
+    let _ = std::fs::create_dir_all(directory);
+    let fill = bar::Fill {
+        used: 0.62,
+        purgeable: 0.08,
+    };
+    for (name, image) in [
+        ("stacked", bar::stacked_image(fill, DISK_ICON, "412GB")),
+        ("icon-text", bar::icon_text_image(DISK_ICON, "412GB")),
+    ] {
+        let size = image.size();
+        let Some(tiff) = image.TIFFRepresentation() else {
+            continue;
+        };
+        let Some(rep) = NSBitmapImageRep::imageRepWithData(&tiff) else {
+            continue;
+        };
+        let Some(data) = (unsafe {
+            rep.representationUsingType_properties(NSBitmapImageFileType::PNG, &NSDictionary::new())
+        }) else {
+            continue;
+        };
+        let path = format!("{directory}/{name}.png");
+        data.writeToFile_atomically(&NSString::from_str(&path), true);
+        println!("{path} {}x{}", size.width, size.height);
+    }
+}
+
 fn main() {
     let mtm = MainThreadMarker::new().expect("must run on the main thread");
     let app = NSApplication::sharedApplication(mtm);
     app.setActivationPolicy(NSApplicationActivationPolicy::Accessory);
+    let args: Vec<String> = std::env::args().skip(1).collect();
+    if let [flag, directory] = args.as_slice()
+        && flag == "--render-chips"
+    {
+        render_chips(directory);
+        return;
+    }
 
     let widget = Widget::new(mtm);
     widget.update();

@@ -58,6 +58,10 @@ These refinements take precedence over adding more panel features:
 - [x] Larger stat figures, centered Internet row, 150 × 10 pt SNR bar with
   0/15/25/40/50 scale labels. Copy icons never shift value text.
 - [x] Synchronize v3 HTML mockup and proposal with the approved native refinements.
+- [x] Third menu bar style **Stacked**: glyph left, band text left-aligned above
+  the meter, constant column width so the item never changes width. Mirrored in
+  `free-disk-space-widget`, whose "Icon, Text and Bar" is renamed **Stacked**,
+  matched to the same metrics, and given uppercase units (`137GB`).
 
 
 ## Implementation checkpoint — 2026-09-22

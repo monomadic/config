@@ -8,6 +8,25 @@ pub enum Style {
     #[default]
     Smart,
     Icon,
+    /// Glyph on the left; band text stacked above the signal meter on the right.
+    Stacked,
+}
+impl Style {
+    pub fn token(self) -> &'static str {
+        match self {
+            Style::Smart => "smart",
+            Style::Icon => "icon",
+            Style::Stacked => "stacked",
+        }
+    }
+    pub fn from_token(token: &str) -> Option<Self> {
+        match token {
+            "smart" => Some(Style::Smart),
+            "icon" => Some(Style::Icon),
+            "stacked" => Some(Style::Stacked),
+            _ => None,
+        }
+    }
 }
 fn path() -> Option<PathBuf> {
     std::env::var_os("HOME").map(|h| PathBuf::from(h).join(".config/wifi-widget/settings"))
@@ -15,8 +34,12 @@ fn path() -> Option<PathBuf> {
 pub fn load() -> Style {
     path()
         .and_then(|p| fs::read_to_string(p).ok())
-        .filter(|s| s.lines().any(|l| l == "style=icon"))
-        .map(|_| Style::Icon)
+        .and_then(|contents| {
+            contents
+                .lines()
+                .filter_map(|line| line.strip_prefix("style="))
+                .find_map(Style::from_token)
+        })
         .unwrap_or_default()
 }
 pub fn save(style: Style) -> io::Result<()> {
@@ -28,15 +51,7 @@ pub fn save(style: Style) -> io::Result<()> {
             .write(true)
             .create_new(true)
             .open(&temp)?;
-        writeln!(
-            file,
-            "style={}",
-            if style == Style::Icon {
-                "icon"
-            } else {
-                "smart"
-            }
-        )?;
+        writeln!(file, "style={}", style.token())?;
         file.sync_all()?;
         fs::rename(&temp, &path)
     })();

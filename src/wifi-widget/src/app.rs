@@ -108,7 +108,7 @@ define_class!(
         #[unsafe(method(styleAction:))]
         fn style_action(&self, sender: &NSMenuItem) {
             if let Some(ui) = self.ivars().borrow_mut().as_mut() {
-                let style = if sender.tag() == 1 { Style::Icon } else { Style::Smart };
+                let style = match sender.tag() { 1 => Style::Icon, 2 => Style::Stacked, _ => Style::Smart };
                 match settings::save(style) {
                     Ok(()) => { ui.style = style; ui.message.setHidden(true); }
                     Err(error) => { set_title(&ui.message,&format!("Could not save style: {error}")); ui.message.setHidden(false); }
@@ -220,7 +220,7 @@ impl Widget {
         let style_menu = NSMenu::new(mtm);
         style_menu.setAutoenablesItems(false);
         let mut styles = Vec::new();
-        for (index, title) in ["Smart Bar", "Icon"].iter().enumerate() {
+        for (index, title) in ["Smart Bar", "Icon", "Stacked"].iter().enumerate() {
             let item = this.item(&style_menu, title, Some(sel!(styleAction:)));
             item.setTag(index as isize);
             styles.push(item);
@@ -393,7 +393,8 @@ impl Widget {
                     _ => Tint::Normal,
                 }
             };
-            let show_bar = ui.style == Style::Smart && associated && bar_state != State::NoInternet;
+            let shows_detail = ui.style != Style::Icon;
+            let show_bar = shows_detail && associated && bar_state != State::NoInternet;
             let chip = Chip {
                 symbol,
                 variable: f64::from(segments) / 4.0,
@@ -401,8 +402,9 @@ impl Widget {
                     segments,
                     dim: snapshot.signal.is_none(),
                 }),
-                text: (ui.style == Style::Smart && !text.is_empty()).then_some(text),
+                text: (shows_detail && !text.is_empty()).then_some(text),
                 tint,
+                stacked: ui.style == Style::Stacked,
             };
             if let Some(button) = ui.status.button(self.mtm()) {
                 button.setImage(Some(&bar::chip_image(chip)));
@@ -516,14 +518,23 @@ impl Widget {
                 }
             }
         }
+        let selected = match ui.style {
+            Style::Smart => 0,
+            Style::Icon => 1,
+            Style::Stacked => 2,
+        };
         for (index, item) in ui.styles.iter().enumerate() {
-            item.setState(if (index == 1) == (ui.style == Style::Icon) {
+            item.setState(if index == selected {
                 NSControlStateValueOn
             } else {
                 NSControlStateValueOff
             });
         }
-        let current = if ui.style == Style::Icon { "Icon" } else { "Smart Bar" };
+        let current = match ui.style {
+            Style::Smart => "Smart Bar",
+            Style::Icon => "Icon",
+            Style::Stacked => "Stacked",
+        };
         set_text(&ui.style_detail, current);
     }
 }

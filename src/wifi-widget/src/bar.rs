@@ -42,9 +42,15 @@ pub struct Chip {
     /// Measured band or diagnostic tag, drawn after the meter.
     pub text: Option<String>,
     pub tint: Tint,
+    /// Stack the text above the meter to the right of the glyph, instead of
+    /// laying glyph, meter and text out in one row.
+    pub stacked: bool,
 }
 
 pub fn chip_image(chip: Chip) -> Retained<NSImage> {
+    if chip.stacked {
+        return stacked_image(chip);
+    }
     let font = NSFont::menuBarFontOfSize(0.0);
     let em = font.pointSize();
     let height = NSStatusBar::systemStatusBar().thickness();
@@ -137,6 +143,131 @@ pub fn chip_image(chip: Chip) -> Retained<NSImage> {
             };
         }
 
+        objc2::runtime::Bool::YES
+    });
+
+    let image = NSImage::imageWithSize_flipped_drawingHandler(
+        NSSize {
+            width: width.max(1.0),
+            height,
+        },
+        false,
+        &handler,
+    );
+    image.setTemplate(chip.tint == Tint::Normal);
+    image
+}
+
+/// Glyph on the left, with the band text sitting above the signal meter on the
+/// right. Both right-hand rows share one column width so they line up.
+fn stacked_image(chip: Chip) -> Retained<NSImage> {
+    let font = NSFont::menuBarFontOfSize(0.0);
+    let em = font.pointSize();
+    let height = NSStatusBar::systemStatusBar().thickness();
+
+    let ink = chip.tint.ink();
+    let symbol = tinted_symbol(chip.symbol, chip.variable, em, &ink);
+    let symbol_size = symbol
+        .as_ref()
+        .map(|image| image.size())
+        .unwrap_or_default();
+
+    let gap = (em * 0.25).round();
+    let row_gap = 2.0;
+    let bar_height = 3.0;
+    // Small enough that text and meter both fit inside the menu bar.
+    let text_font = NSFont::monospacedDigitSystemFontOfSize_weight((em * 0.62).round().max(8.0), unsafe {
+        NSFontWeightMedium
+    });
+    let text = chip.text.map(|text| {
+        let attrs = attributes(&text_font, &ink);
+        let string = NSString::from_str(&text);
+        let size = unsafe { string.sizeWithAttributes(Some(&attrs)) };
+        (string, attrs, size)
+    });
+
+    let text_width = text
+        .as_ref()
+        .map(|(_, _, size)| size.width.ceil())
+        .unwrap_or(0.0);
+    // A constant column, measured from the widest tag the chip ever shows, so
+    // the item keeps one width as the text changes and nothing in the menu bar
+    // shifts. A longer tag still grows rather than clipping.
+    let widest = ["2.4GHz", "\u{2212}81 dB", "212 MB"]
+        .iter()
+        .map(|sample| {
+            let attrs = attributes(&text_font, &ink);
+            let string = NSString::from_str(sample);
+            unsafe { string.sizeWithAttributes(Some(&attrs)) }.width.ceil()
+        })
+        .fold(0.0_f64, f64::max);
+    let column = text_width.max(widest).max((em * 1.9).round());
+    let text_height = text
+        .as_ref()
+        .map(|(_, _, size)| size.height.ceil())
+        .unwrap_or(0.0);
+    let stack_height = text_height + row_gap + bar_height;
+
+    let mut width = symbol_size.width.ceil();
+    if column > 0.0 {
+        width += gap + column;
+    }
+
+    let bar = chip.bar;
+    let ink_for_draw = ink.clone();
+    let handler = block2::RcBlock::new(move |_bounds: NSRect| -> objc2::runtime::Bool {
+        let mut x = 0.0;
+        if let Some(symbol) = &symbol {
+            symbol.drawInRect_fromRect_operation_fraction(
+                rect(
+                    0.0,
+                    ((height - symbol_size.height) / 2.0).round(),
+                    symbol_size.width,
+                    symbol_size.height,
+                ),
+                NSRect::ZERO,
+                NSCompositingOperation::SourceOver,
+                1.0,
+            );
+            x += symbol_size.width.ceil();
+        }
+        x += gap;
+
+        let bottom = ((height - stack_height) / 2.0).round();
+        if let Some((string, attrs, _)) = &text {
+            unsafe {
+                string.drawAtPoint_withAttributes(
+                    NSPoint {
+                        x,
+                        y: bottom + bar_height + row_gap,
+                    },
+                    Some(attrs),
+                )
+            };
+        }
+        if let Some(fill) = bar {
+            let segment_gap = 2.0;
+            let segment_width = (column - 3.0 * segment_gap) / 4.0;
+            for index in 0..4 {
+                let alpha = if index < fill.segments.min(4) {
+                    if fill.dim { 0.55 } else { 1.0 }
+                } else {
+                    0.25
+                };
+                ink_for_draw.colorWithAlphaComponent(alpha).set();
+                NSBezierPath::bezierPathWithRoundedRect_xRadius_yRadius(
+                    rect(
+                        x + f64::from(index) * (segment_width + segment_gap),
+                        bottom,
+                        segment_width,
+                        bar_height,
+                    ),
+                    1.0,
+                    1.0,
+                )
+                .fill();
+            }
+        }
         objc2::runtime::Bool::YES
     });
 

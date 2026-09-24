@@ -11,9 +11,9 @@ time it opens.
 
 | Style | Menu bar |
 |---|---|
-| Icon, Text and Bar | icon + compact `137gb` over bar |
+| Stacked | icon + compact `137GB` over bar |
 | Text | `137 GB` |
-| Icon and Text | icon + compact `137gb` |
+| Icon and Text | icon + compact `137GB` |
 | Bar and Text | bar + `137 GB` (default) |
 | Icon and Bar | `􀤂` + bar |
 | Bar | bar only |
@@ -22,10 +22,11 @@ time it opens.
 Below 10% free the glyph swaps to the warning drive and the title and bar turn
 red. The bar fills with *free* space, so it drains as the disk fills.
 
-Icon and Text and the stacked Icon, Text and Bar style use a rounded integer
-with a lowercase, unspaced unit (`3gb`, `137gb`, `2tb`) to stay narrow. They
-also share the same smaller text size. Other styles and the volume menu retain
-standard macOS-like formatting.
+Icon and Text and the Stacked style use a rounded integer with an uppercase,
+unspaced unit (`3GB`, `137GB`, `2TB`) to stay narrow and legible at small sizes.
+Stacked sets its value smaller still, left-aligned above the bar, matching
+wifi-widget's stacked chip; Icon and Text keeps the larger single-line text.
+Other styles and the volume menu retain standard macOS-like formatting.
 
 Both submenu selections persist to `~/.config/free-disk-space-widget/settings`
 as `key=value` lines.
@@ -65,7 +66,7 @@ that. The canvas is measured from the glyph's ink (`CTLineGetBoundsWithOptions`
 with glyph-path bounds), not its advance, which leaves the item padded evenly on
 both sides by macOS alone — 9pt each way at the default text size.
 
-Icon, Text and Bar also draws the whole layout as one image. Its value is
+Stacked also draws the whole layout as one image. Its value is
 left-aligned directly above the bar, beside the disk glyph, so it uses available
 height instead of adding another horizontal run.
 
