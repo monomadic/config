@@ -1,8 +1,9 @@
-#!/bin/sh
-# Build safesync: indexed one-way drive sync, fill and offline lookup.
-set -eu
-cd "$(dirname "$0")/../../src/safesync"
-cargo build --release --locked
-mkdir -p "$HOME/.local/bin"
-install -m 755 target/release/safesync "$HOME/.local/bin/safesync"
-printf 'installed: %s/.local/bin/safesync\n' "$HOME"
+#!/usr/bin/env bash
+# Build and install safesync, indexed drive sync with sentinels and offline lookup.
+#
+# Upstream repo, not src/ — the checkout lives in $SRC_PATH (default ~/src) and
+# this script keeps it current. Re-run it to pick up new commits.
+
+. "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/lib/git-source-install.sh"
+
+git_source_install safesync "https://github.com/monomadic/safesync.git" cargo

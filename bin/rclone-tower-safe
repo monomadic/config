@@ -246,6 +246,7 @@ rclone sync "${display_flags[@]}" "${run_flags[@]}" \
   --log-file-max-size 10M --log-file-max-backups 3 \
   --backup-dir "$backup_dir" \
   --exclude "/.rclone/**" \
+  --exclude "/.safesync/**" \
   --exclude "/Installers/Cyberpunk MacOS/**" \
   --exclude "/.Trashes/**" \
   --exclude "/.TemporaryItems/**" \

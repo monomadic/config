@@ -258,7 +258,6 @@ upgrade_src_tools() {
     "obsbot-rtsp-widget|obsbot-rtsp-widget.sh|$HOME/.local/bin/obsbot-rtsp-widget"
     "pimped|install-pimped.sh|$HOME/.local/bin/pimped"
     "rclone-tower-ui|install-rclone-tower-ui.sh|$HOME/.local/bin/rclone-tower-ui"
-    "safesync|install-safesync.sh|$HOME/.local/bin/safesync"
     "spill|install-spill.sh|$HOME/.local/bin/spill"
     "system-uptime-widget|install-system-uptime-widget.sh|$HOME/.local/bin/system-uptime-widget"
     "topaz-select-preset|install-topaz-select-preset.sh|$HOME/.local/bin/topaz-select-preset"
@@ -320,7 +319,7 @@ upgrade_git_source_tools() {
   # App installs count as present by their bundle as well as the CLI shim.
   local -A app_for=( switchblade Switchblade abner Abner )
 
-  for name in switchblade abner tagform chordpro-tui; do
+  for name in switchblade abner tagform chordpro-tui safesync; do
     script="$INSTALL_DIR/install-$name.sh"
 
     [[ -x "$HOME/.local/bin/$name" || ( -n "${app_for[$name]:-}" && -d "/Applications/${app_for[$name]}.app" ) ]] || continue

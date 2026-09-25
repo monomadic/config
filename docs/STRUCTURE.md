@@ -18,6 +18,7 @@ This repo should optimize for two things:
 - `assets/` holds fonts, icons, LUTs, and similar static resources. Most are inert, but `assets/LUTs/` is deployed by Dotter into DaVinci Resolve and Final Cut Pro.
 - `bin/` is the single directory of maintained executables and vendor wrappers.
 - `src/` contains small personal utility source trees that are maintained in this repo.
+- `$SRC_PATH` (default `~/src`) contains separate upstream repositories such as [safesync](https://github.com/monomadic/safesync); their installers in `scripts/install/` clone, update, and build them through `lib/git-source-install.sh`.
 - `vendor/bin/` contains retained third-party or custom-built binaries.
 - `_quarantine/` holds commands dropped from PATH but kept in git history. Nothing live may reference it and nothing new should be added to it.
 - This repo targets macOS only. Linux-specific config (i3, sway, waybar, foot, ...) does not belong here.

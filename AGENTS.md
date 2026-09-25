@@ -85,7 +85,7 @@ plus `zsh -n` / `bash -n` on any shell script you touched.
 
 `src/<tool>/` holds tool source (Rust: the AppKit menu bar widgets — `battery-widget`,
 `cpu-usage-widget`, `free-disk-space-widget`, `menu-tidy` — plus `leaf`, `pimped`,
-`motherfucker`, `neuroserver-select-preset`, `topaz-select-preset`, `safesync`; Go: `spill`, `iospeed`, `open-in-forklift`, `obsbot-rtsp-widget`,
+`motherfucker`, `neuroserver-select-preset`, `topaz-select-preset`; Go: `spill`, `iospeed`, `open-in-forklift`, `obsbot-rtsp-widget`,
 `system-uptime-widget`; Swift: the `src/utils/` video ML CLIs `avinterp`,
 `avupscale`, `avremove`). These are the only parts of the repo with a
 build/install step and tests — Dotter does not touch them. `src/utils/` is a
@@ -112,7 +112,7 @@ cd src/obsbot-rtsp-widget && go test ./...
 ### Two kinds of installer
 
 `src/<tool>` builds from a tree inside this repo. Some tools are separate
-repositories of mine instead — `switchblade`, `abner`, `tagform`, `chordpro-tui` — and
+repositories of mine instead — `switchblade`, `abner`, `tagform`, `chordpro-tui`, `safesync` — and
 those clone into `$SRC_PATH` (`~/src` by default, exported from
 `config/zsh/zshenv.zsh`). Their installers share one driver,
 `scripts/install/lib/git-source-install.sh`, which on every run fetches,
@@ -138,7 +138,9 @@ Installers are named `scripts/install/install-<name>.sh` — follow that for new
 (e.g. `pimped` must be on PATH for the zsh precmd prompt hook in
 `config/zsh/zshrc.zsh` to work).
 
-**safesync is guarded by sentinels, not by care.** A drive takes part only if
+**safesync** lives at `$SRC_PATH/safesync` ([GitHub](https://github.com/monomadic/safesync))
+and installs through `scripts/install/install-safesync.sh`.
+**It is guarded by sentinels, not by care.** A drive takes part only if
 it carries `.safesync/drive.toml` — `role = source | backup | scratch` pinned
 to the volume UUID — and every command that writes media opens both sentinels
 first: `sync` runs only source → the backup that names that source, `fill`

@@ -64,6 +64,9 @@ scrim_height = 420.0
 # "glass" look). Tiles stay opaque. Hot-reloads, so dial it live.
 background = [0.0, 0.0, 0.0, 0.6]
 
+[quickview]
+padding = { x = 0.03, y = 0.04 }
+
 [keycap]
 height = 30.0
 height_inline = 22.0
