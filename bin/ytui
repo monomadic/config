@@ -315,6 +315,20 @@ load_archive_set() {
   done < "$apath"
 }
 
+# The counterpart to --no-download-archive above: ytui overrides the archive on
+# every yt-dlp call it makes (including the real download), so nothing gets
+# recorded automatically. Write the line ourselves once a file has actually
+# landed (FINALPATH), the same bookkeeping a plain `yt-dlp <url>` would leave.
+record_archive_key() {
+  local key="$1"
+  [[ -n "$key" ]] || return 0
+  [[ -n "${archive_set[$key]:-}" ]] && return 0
+  local apath; apath="$(archive_file_path)"
+  [[ -n "$apath" ]] || return 0
+  mkdir -p -- "${apath:h}" 2>/dev/null
+  print -r -- "$key" >> "$apath" 2>/dev/null && archive_set[$key]=1
+}
+
 # Same archive file ytq reads/writes: $YT_DLP_ARCHIVE_FILE, synced across machines,
 # falling back to the path baked into the yt-dlp config's own --download-archive.
 archive_file_path() {
@@ -615,7 +629,12 @@ handle_line() {
   if [[ "$line" == FINALPATH\|* ]]; then
     final_real="${line#FINALPATH|}"
     final_files+=("$final_real")
-    (( gallery )) && (( gal_done++ ))
+    if (( gallery )); then
+      (( gal_done++ ))
+      record_archive_key "$gal_archive_key"
+    else
+      record_archive_key "$archive_key"
+    fi
     return
   fi
   # gallery: one ITEM line per entry, printed before that entry's download starts.

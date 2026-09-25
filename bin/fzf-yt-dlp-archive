@@ -1,0 +1,154 @@
+#!/usr/bin/env zsh
+set -euo pipefail
+
+typeset -r SELF="${0:A}"
+
+usage() {
+  cat <<'USAGE'
+Usage: fzf-yt-dlp-archive [initial query]
+
+Fuzzy-search the yt-dlp download archive ($YT_DLP_ARCHIVE_FILE). Each archive
+line is just "<extractor> <id>", but when $YT_DLP_JSON_DIR has a cached
+info.json for an entry (see media-audit's backfill), its title, channel and
+webpage URL are pulled in too — so you can search by title/channel and not
+just the raw key. Entries with no cached metadata still show up, searchable
+by their raw key only.
+
+Keys:
+  enter   print the URL (falls back to the key if none is cached), copy it
+  ctrl-y  copy the highlighted entry's URL (or key) without exiting
+USAGE
+}
+
+die() {
+  print -u2 -r -- "Error: $*"
+  exit 1
+}
+
+[[ "${1:-}" == "-h" || "${1:-}" == "--help" ]] && { usage; exit 0 }
+
+# --preview-entry / --clip-entry take the row's fields as separate args
+# (key, title, channel, url) rather than re-parsing a tab-delimited line —
+# fzf already splits {1} {2} {3} {4} for us.
+if [[ "${1:-}" == "--preview-entry" ]]; then
+  shift
+  key="${1:-}" title="${2:-}" channel="${3:-}" url="${4:-}"
+
+  if [[ -n "$url" ]]; then
+    print -r -- "Title:    ${title:-?}"
+    print -r -- "Channel:  ${channel:-?}"
+    print -r -- "URL:      $url"
+
+    json_dir="${YT_DLP_JSON_DIR:+${~YT_DLP_JSON_DIR}}"
+    id="${key#* }"
+    if [[ -n "$json_dir" && -d "$json_dir" && -n "$id" ]] && command -v jq >/dev/null 2>&1; then
+      match="$(grep -FRl "\"id\": \"${id}\"" -- "$json_dir" 2>/dev/null | head -n1 || true)"
+      [[ -n "$match" ]] && { print -r -- ""; jq -r '.description // empty' -- "$match" 2>/dev/null }
+    fi
+  else
+    print -r -- "$key"
+    print -u2 -r -- "(no cached metadata found)"
+  fi
+  exit 0
+fi
+
+if [[ "${1:-}" == "--clip-entry" ]]; then
+  shift
+  key="${1:-}" url="${2:-}"
+  print -n -r -- "${url:-$key}"
+  exit 0
+fi
+
+archive_file="${YT_DLP_ARCHIVE_FILE:-$HOME/Library/Mobile Documents/com~apple~CloudDocs/Sync/archive.txt}"
+archive_file="${~archive_file}"
+json_dir="${YT_DLP_JSON_DIR:+${~YT_DLP_JSON_DIR}}"
+
+[[ -r "$archive_file" ]] || die "archive file not readable: $archive_file"
+
+for cmd in fzf; do
+  command -v "$cmd" >/dev/null 2>&1 || die "missing dependency: $cmd"
+done
+
+# One jq pass over the whole JSON cache, keyed the same way yt-dlp's own
+# --download-archive lines are ("<extractor_key, lowercased> <id>"), so a
+# plain hash lookup joins it against each archive line below instead of a
+# grep/jq spawn per entry (would be minutes, not seconds, over ~1000 files).
+typeset -A meta_title meta_channel meta_url
+if [[ -n "$json_dir" && -d "$json_dir" ]] && command -v jq >/dev/null 2>&1; then
+  typeset -a jsonfiles
+  jsonfiles=("$json_dir"/*.info.json(N.))
+  if (( ${#jsonfiles} )); then
+    typeset key title channel url
+    while IFS=$'\t' read -r key title channel url; do
+      [[ -n "$key" ]] || continue
+      meta_title[$key]="$title"
+      meta_channel[$key]="$channel"
+      meta_url[$key]="$url"
+    done < <(
+      jq -r '
+        ((.extractor_key // .extractor // "") | tostring | ascii_downcase | gsub("[^a-z0-9]"; "")) as $extractor
+        | (.id // "" | tostring) as $id
+        | select($extractor != "" and $id != "")
+        | [
+            "\($extractor) \($id)",
+            ((.title // "") | gsub("[\t\n]"; " ")),
+            ((.channel // .uploader // "") | gsub("[\t\n]"; " ")),
+            (.webpage_url // .original_url // "")
+          ]
+        | @tsv
+      ' -- "${jsonfiles[@]}" 2>/dev/null
+    )
+  fi
+fi
+
+build_rows() {
+  local key
+  while IFS= read -r key; do
+    [[ -n "$key" ]] || continue
+    printf '%s\t%s\t%s\t%s\n' \
+      "$key" "${meta_title[$key]:-}" "${meta_channel[$key]:-}" "${meta_url[$key]:-}"
+  done < "$archive_file"
+}
+
+initial_query="${1:-}"
+
+fzf_args=(
+  --cycle
+  --exact
+  --delimiter=$'\t'
+  --with-nth=2,3,1
+  --nth=1,2,3
+  --prompt='archive > '
+  --header='enter copy+print URL | ctrl-y copy'
+  --preview="${(q)SELF} --preview-entry {1} {2} {3} {4}"
+  --preview-window='right:60%:wrap'
+  --bind="ctrl-y:execute-silent(${(q)SELF} --clip-entry {1} {4} | pbcopy)"
+)
+
+[[ -n "$initial_query" ]] && fzf_args+=(--query="$initial_query")
+
+set +e
+selected="$(build_rows | fzf "${fzf_args[@]}")"
+fzf_status=$?
+set -e
+
+case "$fzf_status" in
+  0) ;;
+  1) exit 0 ;;
+  130) exit 130 ;;
+  *) exit "$fzf_status" ;;
+esac
+
+[[ -n "$selected" ]] || exit 0
+
+typeset -a fields
+fields=("${(@s:\t:)selected}")
+sel_key="${fields[1]:-}"
+sel_url="${fields[4]:-}"
+out="${sel_url:-$sel_key}"
+
+if command -v pbcopy >/dev/null 2>&1; then
+  print -n -r -- "$out" | pbcopy
+fi
+
+print -r -- "$out"

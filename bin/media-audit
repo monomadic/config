@@ -1876,7 +1876,11 @@ yt_dlp_temp_dir() {
 find_cached_source_json() {
   local url="$1"
   local dir file
-  local url_no_fragment="${url%%#*}"
+  # \# escapes the literal character for extended_glob (set at the top of this
+  # script) — unescaped, %%#* is a glob repetition operator, not "strip from #
+  # onward", and zsh throws "bad pattern" for every call, silently swallowed by
+  # this function's callers (all `$(...) 2>/dev/null` or `... || fallback`).
+  local url_no_fragment="${url%%\#*}"
 
   dir="$(yt_dlp_json_dir 2>/dev/null)" || return 1
   [[ -d "$dir" ]] || return 1

@@ -1,3 +1,9 @@
+# Disabled: Topaz Video 1.7.0's neuroserver rejects the slp-25 alias ("Model
+# slp-25 not found") — the app's own export does too — and its slp25m store is
+# stale (the slp-2.5 descriptor now points at slp26). Last rendered 2026-08-04
+# on the previous build. pseudo = true keeps the file out of every menu; drop
+# it when a 1.7.0 alias for these weights is found.
+pseudo = true
 order = 12
 category = "polish"
 display = "Starlight Precise 2.5"

@@ -1,7 +1,7 @@
 # neuroserver-select-preset
 
 TUI for the Topaz models that only the app's **neuroserver** process can run
-(Starlight Precise 2.5 / 2.6 today — every enhancement preset in
+(Starlight Precise 2.6 today; 2.5 is disabled because the 1.7.0 runtime rejects its alias — every enhancement preset in
 `bin/lib/topaz-presets/` that declares `ns_model`). It is the
 neuroserver counterpart of the mpv `z` menu and `topaz-pick`, which are
 ffmpeg-only.
