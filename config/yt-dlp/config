@@ -11,11 +11,21 @@
 --trim-filenames 200
 --embed-subs
 --sub-langs "en.*,-live_chat"
+
+# default output container. --recode-video (used by the visuals alias) wins
+# over --remux-video when both are set, so this doesn't disturb the ProRes/mov
+# pipeline below.
+--merge-output-format mkv
+--remux-video mkv
 --paths "temp:~/.cache/yt-dlp-tmp"
 --paths "infojson:~/Library/Mobile Documents/com~apple~CloudDocs/Sync/JSON"
 --output "%(channel,uploader|Unknown Channel)s/%(title)s [%(id)s].%(ext)s"
 --output "infojson:%(extractor)s_%(id)s"
 --download-archive "~/Library/Mobile Documents/com~apple~CloudDocs/Sync/archive.txt"
+
+# always attach the full infojson document inside the file (mkv/mka only —
+# harmless no-op otherwise), independent of --embed-metadata/--write-info-json
+--embed-info-json
 
 # map extra fields into embeddable metadata
 --embed-metadata

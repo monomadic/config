@@ -99,12 +99,64 @@ local function collect(groups, targets)
 	return rows
 end
 
--- Space-separated terms, each must appear somewhere in "group desc".
-local function filter(rows, query)
+-- Space-separated terms, lowercased.
+local function terms_of(query)
 	local terms = {}
 	for w in query:lower():gmatch("%S+") do
 		terms[#terms + 1] = w
 	end
+	return terms
+end
+
+-- Split `text` into spans, styling every substring matching a term `match`
+-- and the rest `base`. Overlapping/adjacent matches are merged.
+local function highlight(text, terms, base, match)
+	if #terms == 0 or text == "" then
+		return { ui.Span(text):style(base) }
+	end
+	local lower = text:lower()
+	local marks = {}
+	for _, w in ipairs(terms) do
+		local i = 1
+		while true do
+			local s, e = lower:find(w, i, true)
+			if not s then
+				break
+			end
+			marks[#marks + 1] = { s, e }
+			i = e + 1
+		end
+	end
+	if #marks == 0 then
+		return { ui.Span(text):style(base) }
+	end
+	table.sort(marks, function(a, b) return a[1] < b[1] end)
+	local merged = {}
+	for _, m in ipairs(marks) do
+		local last = merged[#merged]
+		if last and m[1] <= last[2] + 1 then
+			last[2] = math.max(last[2], m[2])
+		else
+			merged[#merged + 1] = { m[1], m[2] }
+		end
+	end
+	local spans, pos = {}, 1
+	for _, m in ipairs(merged) do
+		if m[1] > pos then
+			spans[#spans + 1] = ui.Span(text:sub(pos, m[1] - 1)):style(base)
+		end
+		spans[#spans + 1] = ui.Span(text:sub(m[1], m[2])):style(match)
+		pos = m[2] + 1
+	end
+	if pos <= #text then
+		spans[#spans + 1] = ui.Span(text:sub(pos)):style(base)
+	end
+	return spans
+end
+
+-- Space-separated terms, each must appear somewhere in "group desc".
+local function filter(rows, query)
+	local terms = terms_of(query)
 	local out = {}
 	for _, r in ipairs(rows) do
 		local keep = true
@@ -236,21 +288,29 @@ end
 
 function M:reflow() return { self } end
 
--- Layout matches the help box (border, input row, divider, list), plus a
--- two-line bar under a second divider showing the highlighted command.
+-- Flat, borderless layout (Telescope-style): no box, no dividers, just a
+-- filled backdrop with a search row on top, the list, and a command preview
+-- row pinned to the bottom.
 function M:redraw()
 	local area = self._area
-	if not self.children or area.h < 8 or area.w < 10 then
+	if not self.children or area.h < 6 or area.w < 20 then
 		return {}
 	end
 
 	local x, y, w, h = area.x, area.y, area.w, area.h
-	local input = ui.Rect { x = x + 2, y = y + 1, w = w - 4, h = 1 }
-	local divider = ui.Rect { x = x, y = y + 2, w = w, h = 1 }
-	local list = ui.Rect { x = x + 1, y = y + 3, w = w - 2, h = h - 7 }
-	local divider2 = ui.Rect { x = x, y = y + h - 4, w = w, h = 1 }
-	local bar = ui.Rect { x = x + 2, y = y + h - 3, w = w - 4, h = 2 }
+	local input = ui.Rect { x = x + 3, y = y, w = w - 3 - 10, h = 1 }
+	local count = ui.Rect { x = x + w - 10, y = y, w = 9, h = 1 }
+	local list = ui.Rect { x = x + 1, y = y + 1, w = w - 2, h = h - 2 }
+	local bar = ui.Rect { x = x + 1, y = y + h - 1, w = w - 2, h = 1 }
 
+	-- Backdrop: a flat panel of solid background, drawn once behind
+	-- everything else so unfilled row width still reads as "inside the box".
+	local backdrop_lines = {}
+	for _ = 1, h do
+		backdrop_lines[#backdrop_lines + 1] = ui.Line(string.rep(" ", w)):style(th.help.bg)
+	end
+
+	local terms = terms_of(self.query)
 	local offset = math.max(0, self.cursor - list.h + 1)
 	local lines = {}
 	for i = offset + 1, math.min(#self.rows, offset + list.h) do
@@ -261,44 +321,42 @@ function M:redraw()
 		-- Pad by hand: string.format's width spec caps out well below a
 		-- full-terminal-width row, so a dynamic "%-Ns" blows up.
 		local desc_w = math.max(0, list.w - #indicator - GROUP_W)
-		local desc = #r.desc < desc_w and r.desc .. string.rep(" ", desc_w - #r.desc) or r.desc
 		local group = #r.group < GROUP_W and string.rep(" ", GROUP_W - #r.group) .. r.group or r.group
-		local line = ui.Line {
-			ui.Span(indicator):style(th.help.chord),
-			ui.Span(desc):style(th.help.action),
-			ui.Span(group):style(th.help.chord),
-		}
-		lines[#lines + 1] = hovered_row and line:style(th.help.hovered) or line
+
+		local spans = { ui.Span(indicator):style(th.help.chord) }
+		for _, s in ipairs(highlight(r.desc, terms, th.help.action, th.help.match)) do
+			spans[#spans + 1] = s
+		end
+		if #r.desc < desc_w then
+			spans[#spans + 1] = ui.Span(string.rep(" ", desc_w - #r.desc)):style(th.help.action)
+		end
+		spans[#spans + 1] = ui.Span(group):style(th.help.chord)
+
+		local line = ui.Line(spans)
+		lines[#lines + 1] = line:style(hovered_row and th.help.hovered or th.help.bg)
 	end
 	if #self.rows == 0 then
 		lines[1] = ui.Line(" no matching actions"):style(ui.Style():dim())
 	end
 
 	local hovered = self.rows[self.cursor + 1]
-	-- A fresh Line each time: ui.Text consumes the one it's given.
-	local function rule() return ui.Line("├" .. string.rep("─", w - 2) .. "┤"):style(th.help.border) end
 
-	local count = ui.Rect { x = x + 2, y = y + h - 1, w = w - 4, h = 1 }
 	return {
 		ui.Clear(area),
-		ui.Border(ui.Edge.ALL)
-			:area(area)
-			:type(ui.Border.ROUNDED)
-			:style(th.help.border)
-			:title(ui.Line(" Actions: "):align(ui.Align.LEFT)),
+		ui.Text(backdrop_lines):area(area),
+		ui.Text(ui.Line { ui.Span("  "):style(th.help.chord) }):area(ui.Rect { x = x, y = y, w = 3, h = 1 }),
 		self.input:area(input):focus(true),
-		ui.Text(rule()):area(divider),
+		ui.Text(ui.Line(string.format("%d/%d", #self.rows, #self.all)):style(th.help.border))
+			:area(count)
+			:align(ui.Align.RIGHT),
 		ui.List(lines):area(list),
-		ui.Text(rule()):area(divider2),
 		ui.Text(ui.Line {
 			ui.Span("$ "):style(th.help.chord),
 			ui.Span(hovered and hovered.cmd or ""):style(ui.Style():dim()),
 		})
 			:area(bar)
+			:style(th.help.bg)
 			:wrap(ui.Wrap.YES),
-		ui.Text(ui.Line(string.format(" %d/%d ", #self.rows, #self.all)):style(th.help.border))
-			:area(count)
-			:align(ui.Align.RIGHT),
 	}
 end
 

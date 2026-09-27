@@ -489,7 +489,7 @@ impl App {
 
     fn output_path(&self) -> PathBuf {
         let o = self.output();
-        let ext = if o.ext.is_empty() { "mp4" } else { o.ext.as_str() };
+        let ext = if o.ext.is_empty() { "mkv" } else { o.ext.as_str() };
         plan::output_path(&self.input, &self.preset_name(), ext)
     }
 

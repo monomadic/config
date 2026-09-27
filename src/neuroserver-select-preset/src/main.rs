@@ -266,7 +266,7 @@ impl App {
 
     fn encode_ext(&self) -> &str {
         let o = &self.outputs[self.out_sel];
-        if o.ext.is_empty() { "mp4" } else { o.ext.as_str() }
+        if o.ext.is_empty() { "mkv" } else { o.ext.as_str() }
     }
 
     fn encode_output(&self) -> PathBuf {

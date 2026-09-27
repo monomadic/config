@@ -14,6 +14,7 @@
 #   interpolate-resolve --quality speed-warp-better input.mp4
 #   interpolate-resolve --quality speed-warp-metal --range wide input.mp4
 #   interpolate-resolve --prores input.mp4
+#   interpolate-resolve --mkv input.mp4
 #   interpolate-resolve --help
 
 set -euo pipefail
@@ -24,8 +25,9 @@ Usage:
   interpolate-resolve [options] [fps] <input-file> [output-file]
   interpolate-resolve [options] [fps] <input-file>...
 
-Render input file(s) through DaVinci Resolve to HEVC MP4, or to
-ProRes 422 Proxy MOV with --prores. Optical Flow is always used.
+Render input file(s) through DaVinci Resolve to HEVC MP4, to
+ProRes 422 Proxy MOV with --prores, or to HEVC MKV with --mkv.
+Optical Flow is always used.
 
 Arguments:
   [fps]            Optional target FPS as the first positional argument
@@ -47,17 +49,21 @@ Options:
                    ("wide" and "large" are accepted for larger)
   --prores         Render QuickTime/MOV using ProRes 422 Proxy, the lowest
                    bitrate ProRes profile
+  --mkv            Render HEVC into a Matroska/MKV container instead of MP4
+                   (mutually exclusive with --prores)
 
 Behavior:
   - One input, no output:
-      Writes: input-file with ".hevc<FPS>.mp4" suffix, or ".prores<FPS>.mov"
-      with --prores
+      Writes: input-file with ".hevc<FPS>.mp4" suffix, ".prores<FPS>.mov"
+      with --prores, or ".hevc<FPS>.mkv" with --mkv
   - One input + one output:
       Writes exactly to the given output path; with --prores, a non-.mov
-      target is normalized to .mov
+      target is normalized to .mov, and with --mkv, a non-.mkv target is
+      normalized to .mkv
   - Multiple inputs:
       Writes one output per input beside the source file, using
-      ".hevc<FPS>.mp4" suffix, or ".prores<FPS>.mov" with --prores
+      ".hevc<FPS>.mp4" suffix, ".prores<FPS>.mov" with --prores, or
+      ".hevc<FPS>.mkv" with --mkv
   - After each successful render, the source's metadata tags are copied onto
     the output with `tagform clone` (a failure there only warns)
 
@@ -69,6 +75,7 @@ Examples:
   interpolate-resolve --quality speed-warp-better clip.mp4
   interpolate-resolve --quality speed-warp-metal --range wide clip.mp4
   interpolate-resolve --prores clip.mp4
+  interpolate-resolve --mkv --quality speed-warp-metal clip.mp4
 EOF
 }
 
@@ -86,6 +93,7 @@ export PYTHONPATH="${PYTHONPATH:-}:${RESOLVE_SCRIPT_API}/Modules"
 
 use_speed_warp=0
 use_prores=0
+use_mkv=0
 target_fps=60
 quality=enhanced-better
 motion_range=medium
@@ -175,7 +183,19 @@ while (( $# > 0 )); do
       shift 2
       ;;
     --prores)
+      if (( use_mkv )); then
+        print -u2 "error: --prores and --mkv are mutually exclusive"
+        exit 1
+      fi
       use_prores=1
+      shift
+      ;;
+    --mkv)
+      if (( use_prores )); then
+        print -u2 "error: --prores and --mkv are mutually exclusive"
+        exit 1
+      fi
+      use_mkv=1
       shift
       ;;
     --)
@@ -229,15 +249,20 @@ run_one() {
     output_file=${2:A}
     if (( use_prores )) && [[ "${output_file:e:l}" != "mov" ]]; then
       output_file="${output_file:r}.mov"
+    elif (( use_mkv )) && [[ "${output_file:e:l}" != "mkv" ]]; then
+      output_file="${output_file:r}.mkv"
     fi
   elif (( use_prores )); then
     output_file="${input_file:r}.prores${suffix_fps}.mov"
+  elif (( use_mkv )); then
+    output_file="${input_file:r}.hevc${suffix_fps}.mkv"
   else
     output_file="${input_file:r}.hevc${suffix_fps}.mp4"
   fi
 
   python_args+=(--fps "$target_fps" --quality "$quality" --range "$motion_range")
   (( use_prores )) && python_args+=(--prores)
+  (( use_mkv )) && python_args+=(--mkv)
 
   python3 "$python_script" "${python_args[@]}" "$input_file" "$output_file"
 

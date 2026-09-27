@@ -45,12 +45,14 @@ encode), $script_name offers to resume it: the tail is re-encoded from the last
 keyframe of the partial and losslessly concatenated onto it. --resume skips the
 prompt and resumes automatically.
 
-While an encode runs, the output is written FRAGMENTED and labeled
-NAME.frag.EXT — playable and resumable up to the last fragment even after a
-crash. A successful encode losslessly remuxes it to the clean faststart
-NAME.EXT and deletes the .frag file, so a fragmented file never keeps the
-plain extension (fragmented mp4s seek terribly, especially on network
-shares). A .frag file lying around IS an unfinished encode.
+mkv is the default output container. While an encode runs, the output is
+labeled NAME.frag.EXT — playable and resumable up to the last written byte
+even after a crash. A successful encode remuxes it losslessly to the clean
+NAME.EXT and deletes the .frag file, so an in-progress file never keeps the
+plain extension. For mp4/mov/m4v (--output_ext), the .frag file is
+additionally written FRAGMENTED and the remux moves its moov atom to the
+front (faststart) — a workaround that container needs and mkv does not.
+A .frag file lying around IS an unfinished encode.
 
 Every encode embeds its job (source path, preset, filter, video args) as
 metadata tags in the output, and fragmented outputs keep those tags even when
@@ -1172,9 +1174,11 @@ else
     while IFS= read -r line; do
       line="${line#TAG:}"
       key="${line%%=*}"
-      case "$key" in
+      # Matroska upper-cases tag keys on write (TOPAZ_SOURCE, not topaz_source),
+      # unlike the mov/mp4 muxer — normalize before matching.
+      case "${key:l}" in
         topaz_source|topaz_filter|topaz_preset_name|topaz_video_args|videoai)
-          embedded_job[$key]="${line#*=}"
+          embedded_job[${key:l}]="${line#*=}"
           ;;
       esac
     done < <(
@@ -1339,8 +1343,13 @@ integer trash_fail_count=0
 for input in "$files[@]"; do
   ext="${input:e}"
   base="${input:t:r}"
-  output_ext="${preset_output_ext:-$ext}"
+  # mkv is the default container regardless of the source's — only a preset
+  # that explicitly needs mp4/mov (e.g. for Apple/QuickTime metadata) sets
+  # --output_ext to override it.
+  output_ext="${preset_output_ext:-mkv}"
   output_ext="${output_ext#.}"
+  is_mp4_family=false
+  [[ "${output_ext:l}" == (mp4|mov|m4v) ]] && is_mp4_family=true
   video_args=(${(z)preset_video_args:-})
 
   (( ${#video_args[@]} > 0 )) || {
@@ -1354,6 +1363,17 @@ for input in "$files[@]"; do
       -b:v 30M
     )
   }
+
+  # Fragmentation is an mp4/mov workaround for a container that needs its
+  # index (moov) written either up front or not at all — Matroska has no such
+  # requirement, so a plain .mkv is already playable and resumable while it's
+  # still being written, and use_metadata_tags is mov/mp4-specific too.
+  encode_movflags_args=()
+  finalize_movflags_args=()
+  if [[ "$is_mp4_family" == true ]]; then
+    encode_movflags_args=(-movflags "frag_keyframe+empty_moov+delay_moov+use_metadata_tags+write_colr")
+    finalize_movflags_args=(-movflags "use_metadata_tags+faststart")
+  fi
 
   metadata_args=()
   [[ -n "$preset_metadata" ]] && metadata_args=(-metadata "$preset_metadata")
@@ -1531,7 +1551,7 @@ for input in "$files[@]"; do
     -map_metadata:s:v 0:s:v
     -map_chapters 0
     -fps_mode:v passthrough
-    -movflags "frag_keyframe+empty_moov+delay_moov+use_metadata_tags+write_colr"
+    "${encode_movflags_args[@]}"
     -bf 0
     "${metadata_args[@]}"
     "$encode_target"
@@ -1571,8 +1591,13 @@ for input in "$files[@]"; do
   say "  %F{white}video:%f  %F{magenta}$(topaz_escape_prompt "${(j: :)video_args}")%f"
   say "  %F{white}input:%f  %F{white}$(topaz_escape_prompt "$input")%f"
   say "  %F{white}output:%f %F{green}%B$(topaz_escape_prompt "$output")%b%f"
-  [[ -z "$resume_kf" && "$finalize_only" != true ]] &&
-    say "  %F{white}in-flight:%f %F{blue}$(topaz_escape_prompt "${frag_target:t}")%f %F{8}(fragmented; remuxed to faststart on success)%f"
+  if [[ -z "$resume_kf" && "$finalize_only" != true ]]; then
+    if [[ "$is_mp4_family" == true ]]; then
+      say "  %F{white}in-flight:%f %F{blue}$(topaz_escape_prompt "${frag_target:t}")%f %F{8}(fragmented; remuxed to faststart on success)%f"
+    else
+      say "  %F{white}in-flight:%f %F{blue}$(topaz_escape_prompt "${frag_target:t}")%f %F{8}(remuxed on success)%f"
+    fi
+  fi
   say "  %F{white}log:%f    %F{blue}$(topaz_escape_prompt "$log_file")%f"
   if [[ -n "$resume_kf" ]]; then
     say "  %F{white}resume:%f %F{cyan}tail from $(topaz_format_clock "$resume_kf"), then lossless join%f"
@@ -1668,13 +1693,17 @@ for input in "$files[@]"; do
   # carried over, and only then delete the frag. On any failure the frag is
   # kept (it is still resumable) and the half-written output is removed.
   if [[ -z "$resume_kf" ]]; then
-    say "  %F{cyan}↻ finalizing (faststart remux)…%f"
+    if [[ "$is_mp4_family" == true ]]; then
+      say "  %F{cyan}↻ finalizing (faststart remux)…%f"
+    else
+      say "  %F{cyan}↻ finalizing (remux)…%f"
+    fi
     remux_status=0
     (
       cd "$TOPAZ_MACOS_DIR"
       "${priority_cmd[@]}" "$TOPAZ_FFMPEG" -hide_banner -nostdin -y \
         -i "$frag_target" -map 0 -c copy -map_metadata 0 \
-        -movflags "use_metadata_tags+faststart" \
+        "${finalize_movflags_args[@]}" \
         "${metadata_args[@]}" -- "$output"
     ) >>"$log_file" 2>&1 || remux_status=$?
 
@@ -1719,7 +1748,7 @@ for input in "$files[@]"; do
     (
       cd "$TOPAZ_MACOS_DIR"
       "${priority_cmd[@]}" "$TOPAZ_FFMPEG" -hide_banner -y -f concat -safe 0 -i "$concat_list" \
-        -map 0 -c copy -movflags "use_metadata_tags+faststart" \
+        -map 0 -c copy "${finalize_movflags_args[@]}" \
         "${metadata_args[@]}" -- "$joined"
     ) >>"$log_file" 2>&1 || concat_status=$?
     rm -f -- "$concat_list"

@@ -1,0 +1,96 @@
+#!/usr/bin/env zsh
+# Encode video to AV1 (SVT-AV1) in an MP4 that plays natively on macOS.
+#
+# Targets the Apple hardware AV1 decoder (M3 / A17 Pro and later): Main
+# profile, 4:2:0, 10-bit, no film-grain synthesis, faststart MP4. Audio is
+# copied when it is already an MP4-native codec, otherwise re-encoded to AAC
+# through AudioToolbox. Subtitle tracks are dropped (MP4 only takes mov_text).
+#
+# Usage:
+#   encode-av1 [--fast|--balanced|--quality|--archive] [-d|--delete] <input>...
+#   encode-av1 -p <profile> <input>...
+#
+# Output: <input stem>.av1.mp4 next to the source. Existing outputs are skipped.
+#
+# Profiles (SVT-AV1 preset / CRF):
+#   fast      7 / 28   bulk conversion, previews
+#   balanced  5 / 24   default
+#   quality   4 / 21   keeps fine detail; ~2x slower than balanced
+#   archive   3 / 18   near-transparent; slow
+
+set -u
+
+profile=balanced
+delete_source=0
+inputs=()
+
+while (( $# )); do
+	case "$1" in
+		--fast|--balanced|--quality|--archive) profile="${1#--}" ;;
+		-p|--profile) shift; profile="${1:-}" ;;
+		-d|--delete) delete_source=1 ;;
+		-h|--help) sed -n '2,20p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+		--) shift; inputs+=("$@"); break ;;
+		-*) print -u2 "encode-av1: unknown option: $1"; exit 2 ;;
+		*) inputs+=("$1") ;;
+	esac
+	shift
+done
+
+(( ${#inputs} )) || { print -u2 "usage: encode-av1 [--fast|--balanced|--quality|--archive] [-d] <input>..."; exit 2 }
+
+case "$profile" in
+	fast)     preset=7; crf=28 ;;
+	balanced) preset=5; crf=24 ;;
+	quality)  preset=4; crf=21 ;;
+	archive)  preset=3; crf=18 ;;
+	*) print -u2 "encode-av1: unknown profile: $profile"; exit 2 ;;
+esac
+
+# MP4-native audio codecs that QuickTime/AVFoundation decode without help.
+typeset -a mp4_audio=(aac alac mp3 ac3 eac3)
+
+audio_args() {
+	local src="$1" codec
+	codec="$(ffprobe -v error -select_streams a:0 -show_entries stream=codec_name \
+		-of default=nw=1:nk=1 -- "$src" 2>/dev/null)"
+	[[ -z "$codec" ]] && { print -- "-an"; return }
+	if (( ${mp4_audio[(Ie)$codec]} )); then
+		print -- "-c:a copy"
+	else
+		print -- "-c:a aac_at -b:a 192k"
+	fi
+}
+
+rc=0
+for src in "${inputs[@]}"; do
+	if [[ ! -f "$src" ]]; then
+		print -u2 "encode-av1: not a file: $src"; rc=1; continue
+	fi
+	dst="${src:r}.av1.mp4"
+	if [[ -e "$dst" ]]; then
+		print -u2 "encode-av1: exists, skipping: $dst"; continue
+	fi
+
+	print -- "→ ${src:t}  [$profile: preset $preset, crf $crf]"
+	if ffmpeg -hide_banner -nostdin -i "$src" \
+		-map 0:v:0 -map '0:a:0?' -map_metadata 0 \
+		-c:v libsvtav1 -preset "$preset" -crf "$crf" \
+		-pix_fmt yuv420p10le \
+		-svtav1-params "tune=0:keyint=10s:film-grain=0" \
+		${(z)$(audio_args "$src")} \
+		-movflags +faststart \
+		-- "$dst"
+	then
+		touch -r "$src" "$dst" 2>/dev/null
+		if (( delete_source )); then
+			mv -- "$src" "$HOME/.Trash/" || { print -u2 "encode-av1: could not trash: $src"; rc=1 }
+		fi
+	else
+		print -u2 "encode-av1: failed: $src"
+		rm -f -- "$dst"
+		rc=1
+	fi
+done
+
+exit $rc

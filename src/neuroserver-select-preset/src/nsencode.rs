@@ -223,7 +223,7 @@ pub fn plan(o: &Options) -> Result<Plan> {
     let mut video_args = video_args
         .filter(|a| !a.trim().is_empty())
         .ok_or_else(|| anyhow!("--output-profile or --video-args is required"))?;
-    let ext = ext.filter(|e| !e.is_empty()).unwrap_or_else(|| "mp4".into());
+    let ext = ext.filter(|e| !e.is_empty()).unwrap_or_else(|| "mkv".into());
     if !video_args.contains("-movflags") && matches!(ext.as_str(), "mp4" | "mov" | "m4v") {
         video_args = format!("{video_args} {FRAG_FLAGS}");
     }
@@ -349,9 +349,13 @@ impl Plan {
             .arg("-i")
             .arg(&self.input)
             .args(["-map", "0:v", "-map", "1:a:0?", "-c:v", "copy", "-c:a", "copy", "-map_metadata", "0", "-metadata"])
-            .arg(&self.metadata)
-            .args(["-movflags", "use_metadata_tags", "-fps_mode", "passthrough"])
-            .arg(&self.output);
+            .arg(&self.metadata);
+        // use_metadata_tags is an mov/mp4 muxer flag; Matroska stores arbitrary
+        // metadata tags natively and doesn't recognize it.
+        if matches!(self.ext.as_str(), "mp4" | "mov" | "m4v") {
+            cmd.args(["-movflags", "use_metadata_tags"]);
+        }
+        cmd.args(["-fps_mode", "passthrough"]).arg(&self.output);
         cmd
     }
 

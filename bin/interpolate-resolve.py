@@ -168,10 +168,16 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help="Print available render formats/codecs before rendering",
     )
-    parser.add_argument(
+    container = parser.add_mutually_exclusive_group()
+    container.add_argument(
         "--prores",
         action="store_true",
         help="Render QuickTime/MOV using ProRes 422 Proxy, the lowest bitrate ProRes profile",
+    )
+    container.add_argument(
+        "--mkv",
+        action="store_true",
+        help="Render HEVC into a Matroska/MKV container instead of MP4",
     )
     parser.add_argument("input_file", help="Absolute input file path")
     parser.add_argument("output_file", help="Absolute output file path")
@@ -576,6 +582,10 @@ def main() -> None:
             format_token = find_quicktime_format_token(project)
             codec_token = find_prores_proxy_codec_token(project, format_token)
             output_extension = ".mov"
+        elif args.mkv:
+            format_token = find_format_token(project, "mkv")
+            codec_token = find_hevc_codec_token(project, format_token)
+            output_extension = ".mkv"
         else:
             format_token = find_format_token(project, "mp4")
             codec_token = find_hevc_codec_token(project, format_token)
