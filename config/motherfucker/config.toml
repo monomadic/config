@@ -178,7 +178,8 @@ engine = "􀢾"  # [search_engines] entries that set no icon of their own
 "Open Sorted All" = "$HOME/.local/bin/fd-media --sort-created | $HOME/.local/bin/switchblade --fast-fullscreen"
 "Open Tower (index)" = "cat /Volumes/Tower/Movies/Porn/.index | $HOME/.local/bin/switchblade --fast-fullscreen"
 "Open Tower (live)" = "$HOME/.local/bin/switchblade --fast-fullscreen /Volumes/Tower/Movies/Porn/Downloads"
-"Config" = "/Users/nom/.local/bin/kitty-launch --cwd \"/Users/nom/.config/switchblade/\" -- /bin/zsh -lc 'exec hx -- /Users/nom/.config/switchblade/switchblade.toml'"
+"Config" = "/Users/nom/.local/bin/kitty-launch --cwd \"/Users/nom/.config/switchblade/\" -- /bin/zsh -lc 'cd /Users/nom/.config/switchblade/ && hx -- switchblade.toml'"
+"Build" = "/Users/nom/.local/bin/kitty-launch --cwd \"/Users/nom/src/switchblade/\" -- /bin/zsh -lc 'cd /Users/nom/src/switchblade/ && ./packaging/build-app.sh --install --open'"
 
 # The real System Settings.app: enter opens it normally, ⇥ deep-links a pane.
 [commands.System Settings]

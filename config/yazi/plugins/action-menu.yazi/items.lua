@@ -22,6 +22,15 @@ end
 -- Run a one-file-at-a-time tool over every selected file.
 local function each(cmd) return string.format([[zsh -lc 'for f in "$@"; do %s "$f"; done' zsh %%s]], cmd) end
 
+-- Run a one-file-at-a-time tool that takes explicit in/out paths, writing
+-- "<name>_<suffix>.<ext>" next to each input.
+local function eachOut(cmd, suffix, ext, extra)
+	return string.format(
+		[[zsh -lc 'for f in "$@"; do %s "$f" "${f:r}_%s.%s" %s; done' zsh %%s]],
+		cmd, suffix, ext, extra or ""
+	)
+end
+
 return { groups = {
 	{
 		group = "Topaz Video",
@@ -55,6 +64,17 @@ return { groups = {
 		{ desc = "Remove Duplicate Frames (Output: HEVC)", run = kitty("--window --hold", "discard duplicate frames", BIN .. "ffmpeg-discard-duplicate-frames --hevc %s"), orphan = true },
 		{ desc = "Trim Intro", run = kitty("--window", "trim intro", BIN .. "ffmpeg-lossless-cut %s"), orphan = true },
 		{ desc = "Trim Outro", run = kitty("--window", "trim outro", BIN .. "ffmpeg-lossless-cut --reverse %s"), orphan = true },
+	},
+	{
+		group = "Apple ML",
+		when = { kind = "video" },
+		{ desc = "avinterp: interpolate 2x fps (ProRes 422)", run = kitty("--window --hold", "avinterp 2x", eachOut(BIN .. "avinterp", "2x", "mov", "-c prores422")), orphan = true },
+		{ desc = "avinterp: 4x slow-mo (30fps)", run = kitty("--window --hold", "avinterp slowmo", eachOut(BIN .. "avinterp", "slowmo", "mov", "-f 4 --fps 30")), orphan = true },
+		{ desc = "avupscale: super-res 2x (ProRes 422)", run = kitty("--window --hold", "avupscale 2x", eachOut(BIN .. "avupscale", "2x", "mov", "-s 2")), orphan = true },
+		{ desc = "avupscale: super-res 2x (HEVC, 40mbps)", run = kitty("--window --hold", "avupscale 2x hevc", eachOut(BIN .. "avupscale", "2x", "mp4", "-s 2 -c hevc --mbps 40")), orphan = true },
+		{ desc = "avupscale: list supported scales", run = kitty("--tab --hold", "avupscale --list", BIN .. "avupscale --list %s1 /dev/null"), orphan = true, when = { single = true } },
+		{ desc = "avremove: check mask (interactive template)", run = kitty("--window --hold", "avremove mask-check", [[zsh -lc 'echo "avremove %s1 mask-check.mov --point X,Y --debug-mask"; exec zsh']]), orphan = true, when = { single = true } },
+		{ desc = "avremove: remove object (interactive template)", run = kitty("--window --hold", "avremove", [[zsh -lc 'echo "avremove %s1 out.mov --point X,Y --model LaMa512.mlpackage"; exec zsh']]), orphan = true, when = { single = true } },
 	},
 	{
 		group = "Video",

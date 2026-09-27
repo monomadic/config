@@ -108,8 +108,8 @@ hot_lift = 1.0
 [tech_tag]
 # The MARK: resolution, frame rate, codec — the three facts a clip is
 # picked by, stamped rather than written. A capsule in the category's hue:
-# an outline in that hue, its interior the same hue held down over black,
-# and the value centred in the hue at full strength.
+# an outline in that hue, a black interior, and the value centred in the
+# hue at full strength.
 #
 # Its NORMAL height and face are not here: they are `chip_height` and
 # `chip_font` above, shared with every other capsule in the product. What
@@ -138,22 +138,17 @@ gap = 5.0
 # from a background. (The design's 4px border is `--bw-selection`, the
 # selected tile's ring — `selection_border_width` here, not this.)
 border = 1.5
-# How much of its own hue the interior carries, mixed into the window
-# black. The old lockup had NO fill and only looked solid because every
-# mock it appeared on was dark; over a bright frame the picture showed
-# through it. A neutral fill would have fixed that and cost the mark its
-# colour from the inside, so the ground is the hue itself, held down far
-# enough that the value still reads against it. Opaque either way — the
-# mark lies over video, and a wash would take the frame's colour with it.
-ground = 0.24
-# The three hues, from the design system's NEON set: neon-blue resolution,
-# neon-violet frame rate, neon-pink codec. There is no fourth — every other
-# technical fact is reference and belongs in a labelled row. (The old
-# `--tag-*` set had fps lime and codec gold, and a `meta` violet for a
-# chapter count that is a row now; all three are superseded.)
-res = [0.435, 0.863, 1.0, 1.0]
-fps = [0.722, 0.604, 1.0, 1.0]
-codec = [1.0, 0.373, 0.824, 1.0]
+# The interior is flat black (2026-09-26 — it used to carry the hue at
+# `ground`, but a white hue mixed that way is grey, not black). Opaque —
+# the mark lies over video, and a wash would take the frame's colour
+# with it.
+# Plain white as of 2026-09-26 — the neon set (neon-blue resolution,
+# neon-violet frame rate, neon-pink codec) moved to the hashtag fill
+# ramp instead ([tags] below), so colour reads as "tag" and a mark reads
+# as a measured fact.
+res = [1.0, 1.0, 1.0, 1.0]
+fps = [1.0, 1.0, 1.0, 1.0]
+codec = [1.0, 1.0, 1.0, 1.0]
 
 # ══ The surfaces' own tables ═══════════════════════════════════════════
 # Moved here from switchblade.toml on 2026-09-23 — the look lives in the
@@ -161,12 +156,15 @@ codec = [1.0, 0.373, 0.824, 1.0]
 # take this one's place, whole.
 
 [tags]
-# Chip fill, coldest (rarest tag) → hottest (most used).
+# The three hues that used to belong to the technical marks above
+# (neon-blue resolution, neon-violet frame rate, neon-pink codec) — the
+# marks went plain white and the colour moved here instead, cold → hot.
+# Held at 0.6 of the marks' own strength: full strength was tuned for a
+# stamp a few px tall, and read as washed-out pastel filling a whole pill.
 fill = [
-  [0.059, 0.399, 0.406, 1.0],
-  [0.336, 0.364, 0.748, 1.0],
-  [0.684, 0.373, 0.892, 1.0],
-  [1.0, 0.235, 0.804, 1.0],
+  [0.261, 0.518, 0.6, 1.0],
+  [0.433, 0.362, 0.6, 1.0],
+  [0.6, 0.224, 0.494, 1.0],
 ]
 # Label colour ramp and size ramp [min, max], sampled by the same heat.
 text = [[0.875, 0.957, 1.0, 1.0], [1.0, 1.0, 1.0, 1.0]]
