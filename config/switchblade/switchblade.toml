@@ -52,7 +52,10 @@ row_height_max = 1.6
 gap = 2.0  # space between tiles
 
 thumb_width = 448  # ~2:1 — keeps the ultrawide hedge
-thumb_height = 224  # 224 vs your ~110-176 device px rows
+thumb_height = 320  # was 224: portrait clips (9:16) were fit-constrained to
+# ~126px wide in the old 2:1 box before being upscaled into the tile — this
+# gives them ~180px instead. Landscape/ultrawide are unaffected (still
+# width-constrained at 448). Regenerates the thumbnail cache on next run.
 # atlas_memory_mb = 600   # → 1566 slots (2.0× today's 768)
 chapter_images = 64
 
@@ -415,6 +418,8 @@ cache_key = "size_mtime"
 #
 #   atlas: 21x36 = 756 thumbs resident, slots of 768x432 (995 MB ...)
 #
+# (Raised to 860 here alongside thumb_height 224→320: 448x320 slots cost
+# ~1.43x what 448x224 did, so this keeps roughly the same resident count.)
 # Slots = budget / (thumb_width x thumb_height x 4), so BIGGER THUMBS MEAN
 # FEWER OF THEM: at 1024 MB, 768x432 thumbs give ~756 slots and 640x360
 # give ~1160. Cost is memory only — rendering speed doesn't change.
@@ -429,7 +434,7 @@ cache_key = "size_mtime"
 # it easy to ask for a texture that got silently clamped, or to buy pixels
 # too small to hold a slot. Startup prints the atlas_memory_mb to replace
 # them with.)
-atlas_memory_mb = 600
+atlas_memory_mb = 860
 
 # The selected clip decodes ONCE at up to this size (never above the
 # source's own resolution): the tile shows it downscaled (mipmapped) and
