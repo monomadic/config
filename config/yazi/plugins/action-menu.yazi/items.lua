@@ -138,5 +138,6 @@ return { groups = {
 		{ desc = "File", run = "clear; file %s1; echo 'Press enter to exit'; read _", block = true, when = { single = true } },
 		{ desc = "MediaInfo", run = "clear; mediainfo %s1; echo 'Press enter to exit'; read _", block = true, when = { single = true } },
 		{ desc = "EXIFTool", run = "clear; exiftool %s1; echo 'Press enter to exit'; read _", block = true, when = { single = true } },
+		{ desc = "safesync lookup", run = "clear; safesync lookup --file %s1; echo 'Press enter to exit'; read _", block = true, when = { single = true } },
 	},
 } }
