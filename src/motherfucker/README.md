@@ -86,7 +86,7 @@ file means built-in defaults (bad lines are reported on stderr and skipped).
   `[style]` section that overlays the base style (this repo ships a set in
   `config/motherfucker/themes/`). `theme = "name"` under `[style]` applies
   one at startup. Interactively: search for "theme" and open
-  `Setting: Change Theme (…)` — the panel lists every theme (scrolling like
+  `Theme` (active theme shown dim on the right) — the panel lists every theme (scrolling like
   any other list) with the active one selected, moving the selection
   restyles the live panel, `↩` keeps the theme for the session (the config
   file is never written),

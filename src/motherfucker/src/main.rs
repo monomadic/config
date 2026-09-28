@@ -87,7 +87,7 @@ const RIM_CLIP: f64 = 2.0;
 /// Rows the panel synthesizes itself (no app bundle behind them).
 #[derive(Clone, PartialEq)]
 enum Builtin {
-    /// "Setting: Change Theme (…)" — enter the theme picker.
+    /// "Theme" (active theme as dim detail) — enter the theme picker.
     ThemePicker,
     /// A row in the picker; `None` is the built-in base ("Black Glass" =
     /// the un-overlaid `[style]`).
@@ -592,10 +592,19 @@ declare_class!(
     }
 
     unsafe impl RowView {
+        /// Clicking a row is pressing enter on it: select, then execute.
+        /// `execute` can rebuild the rows (entering an engine or a command
+        /// list), which drops this view from its superview mid-call — hold a
+        /// reference so it outlives its own handler.
         #[method(mouseDown:)]
         fn mouse_down(&self, _event: &NSEvent) {
+            let _keep = self.retain();
             if let Some(delegate) = self.delegate() {
-                delegate.select_row(self.ivars().index.get());
+                let index = self.ivars().index.get();
+                delegate.select_row(index);
+                if delegate.ivars().selected.get() == index {
+                    delegate.execute(false);
+                }
             }
         }
 
@@ -1859,16 +1868,15 @@ impl Delegate {
                 ));
             }
             // Built-in settings rows, matched like everything else. The
-            // theme-picker entry point names the active theme so the current
-            // state is visible before you enter the picker.
+            // theme-picker entry point names the active theme in its dim
+            // detail so the current state is visible before you enter it.
             {
-                let setting_name =
-                    format!("Setting: Change Theme ({})", self.current_theme_display());
-                if let Some((s, positions)) = apps::match_positions(&query, &setting_name) {
+                let setting_name = "Theme";
+                if let Some((s, positions)) = apps::match_positions(&query, setting_name) {
                     scored.push((
                         s,
                         Entry {
-                            name: setting_name,
+                            name: setting_name.to_string(),
                             path: None,
                             running: None,
                             matched: positions,
@@ -1876,7 +1884,7 @@ impl Delegate {
                             stats: None,
                             command: None,
                             builtin: Some(Builtin::ThemePicker),
-                            detail: None,
+                            detail: Some(self.current_theme_display()),
                             tag: None,
                             icon: None,
                             engine: None,

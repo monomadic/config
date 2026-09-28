@@ -313,5 +313,3 @@ export PATH="$PATH:/Users/nom/.lmstudio/bin"
 
 export PATH="$HOME/go/bin:$PATH"
 
-# rustup (Homebrew)
-export PATH="$(brew --prefix rustup)/bin:$PATH"

@@ -36,7 +36,7 @@ result to `~/Applications`, and restarts a running copy:
 scripts/install/install-wifi-widget.sh
 ```
 
-It also appears in `fzf-app-store`. Select **Open at Login** from the widget's
+It also appears in `update`. Select **Open at Login** from the widget's
 own menu; there is no LaunchAgent or Dotter mapping. Rebuilding/re-signing may
 require granting Location again.
 

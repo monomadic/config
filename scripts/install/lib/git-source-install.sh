@@ -37,6 +37,19 @@ _gsi_dirty() {
   ! git -C "$src" diff --quiet --ignore-submodules HEAD 2>/dev/null
 }
 
+# Any local change at all, untracked files included. Such a tree is always
+# rebuilt: it is what gets built, and its version reads <commit>-unstaged.
+_gsi_local_changes() {
+  [ -n "$(git -C "$1" status --porcelain 2>/dev/null)" ]
+}
+
+_gsi_version() {
+  local src="$1" v
+  v="$(git -C "$src" rev-parse --short HEAD 2>/dev/null || echo unknown)"
+  _gsi_local_changes "$src" && v="$v-unstaged"
+  echo "$v"
+}
+
 # Sync the checkout to upstream. Echoes "1" when the tree moved, "0" otherwise.
 # Never destructive: a dirty tree or a local commit upstream doesn't have means
 # we leave it exactly as it is and say so.
@@ -162,6 +175,9 @@ git_source_install() {
   elif [ ! -x "$dest" ]; then
     echo "  $dest exists but is not executable"
     rebuild=1
+  elif _gsi_local_changes "$src"; then
+    echo "  $name has local changes; building the working tree as $(_gsi_version "$src")"
+    rebuild=1
   elif _gsi_binary_is_stale "$src" "$dest"; then
     echo "  $binname is older than the checked-out commit"
     rebuild=1
@@ -175,7 +191,7 @@ git_source_install() {
   if [ "$rebuild" = "1" ]; then
     echo "Building $name from $src..."
     _gsi_build "$kind" "$src" "$dest" "$binname"
-    echo "installed: $dest ($(git -C "$src" rev-parse --short HEAD))"
+    echo "installed: $dest ($(_gsi_version "$src"))"
   else
     echo "$binname is current: $dest"
   fi

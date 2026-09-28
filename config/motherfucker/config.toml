@@ -33,7 +33,7 @@
 #
 # Themes: a file in ~/.config/motherfucker/themes/<name>.toml holds a [style]
 # section that overlays these values. `theme = "name"` applies one at startup;
-# the in-panel picker (search "theme", pick "Setting: Change Theme (…)")
+# the in-panel picker (search "theme", pick the "Theme" row)
 # previews themes live as the selection moves and applies one for the session
 # on enter — it never writes this file.
 [style]
@@ -172,15 +172,18 @@ engine = "􀢾"  # [search_engines] entries that set no icon of their own
 # instead of activating the row; enter runs one via `sh -c`, like a shortcut.
 # Backspace on an empty field leaves the list, like a sigil mode.
 [commands.SwitchBlade]
+"Debug" = "SB_DEBUG=1 open -a Switchblade --args --fast-fullscreen"
+"Open ~/Movies/Porn/Downloads" = "open -a Switchblade ~/Movies/Porn/Downloads --args --fast-fullscreen"
 "fd-media" = "fd-media | switchblade --fast-fullscreen"
 "Open ~/Movies/Porn/Downloads" = "open -a Switchblade ~/Movies/Porn/Downloads --args --fast-fullscreen"
-"Open /Volumes/*/Movies/Porn" = "$HOME/.local/bin/switchblade --fast-fullscreen /Volumes/*/Movies/Porn"
+"Open /Volumes/*/Movies/Porn" = "open -a Switchblade --args --fast-fullscreen /Volumes/*/Movies/Porn"
 "Open Sorted Local" = "$HOME/.local/bin/fd-media --sort-created . ~/Movies/Porn/Downloads | $HOME/.local/bin/switchblade --fast-fullscreen"
 "Open Sorted All" = "$HOME/.local/bin/fd-media --sort-created | $HOME/.local/bin/switchblade --fast-fullscreen"
 "Open Tower (index)" = "cat /Volumes/Tower/Movies/Porn/.index | $HOME/.local/bin/switchblade --fast-fullscreen"
 "Open Tower (live)" = "$HOME/.local/bin/switchblade --fast-fullscreen /Volumes/Tower/Movies/Porn/Downloads"
-"Config" = "/Users/nom/.local/bin/kitty-launch --cwd \"/Users/nom/.config/switchblade/\" -- /bin/zsh -lc 'cd /Users/nom/.config/switchblade/ && hx -- switchblade.toml'"
-"Build" = "/Users/nom/.local/bin/kitty-launch --cwd \"/Users/nom/src/switchblade/\" -- /bin/zsh -lc 'cd /Users/nom/src/switchblade/ && ./packaging/build-app.sh --install --open'"
+"Config" = "/Users/nom/.local/bin/kitty-launch --cwd /Users/nom/.config/switchblade -- hx switchblade.toml"
+"Build" = "/Users/nom/.local/bin/kitty-launch --interactive -- update switchblade"
+#"Build (Debug)" = "SB_DEBUG=1 /Users/nom/.local/bin/kitty-launch --interactive -- ~/src/switchblade/packaging/build-app.sh --install --open"
 
 # The real System Settings.app: enter opens it normally, ⇥ deep-links a pane.
 [commands.System Settings]

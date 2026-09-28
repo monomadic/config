@@ -1,0 +1,567 @@
+#!/usr/bin/env zsh
+# Install and update everything in scripts/install/. Bare `update` browses
+# them all as an "app store" in fzf; `update <app>...` runs the named ones;
+# `update --all` runs every installer with an update waiting.
+#
+# App names match case-insensitively with everything but letters and digits
+# dropped, so "Fight-Club", "fight club" and "fightclub" are the same app. The
+# installer name, the repo name and the installed bundle's name all match.
+#
+# "Needs an update":
+#   src/ tools        a build input (*.rs, *.go, Cargo.toml, go.mod, ...), the
+#   vendor/bin tools  vendored binary or the installer changed since the
+#                     install — decided by bin/lib/install-staleness.zsh, the
+#                     same check `deploy.sh --upgrade` uses
+#   $SRC_PATH repos   upstream is ahead of the checkout, or the binary predates
+#                     the checked-out commit
+#   either            the source has uncommitted, unstaged or untracked files.
+#                     The installer builds the working tree as it is, the
+#                     version reads <version>-unstaged, and it is always due
+#                     for an update until those changes are committed.
+# Installers that download a release (rife, vsr, propainter, yt-dlp, ...) have
+# nothing local to compare against, so they only report installed / not.
+set -uo pipefail
+
+typeset -r SELF="${0:A}"
+typeset -r DOTFILES_DIR="${DOTFILES_DIR:-${SELF:h:h}}"
+typeset -r INSTALL_DIR="$DOTFILES_DIR/scripts/install"
+typeset -r SRC_PATH="${SRC_PATH:-$HOME/src}"
+typeset -r BIN_DIR="$HOME/.local/bin"
+
+source "${SELF:h}/lib/install-staleness.zsh"
+
+usage() {
+  cat <<'USAGE'
+Usage: update [options] [app...]
+
+With no app, browse every installer in scripts/install/ in fzf; enter runs
+the selection. With apps, run those installers — installing any that are
+missing. App names ignore case, spaces and punctuation: "Fight-Club" is
+"fightclub".
+
+Options:
+  -a, --all            Run every installer that has an update waiting.
+  -i, --browse [query] Browse in fzf, with the arguments as the initial query.
+  -l, --list           List the apps with an update waiting, and run nothing.
+      --install        With --all or --list: include the apps that aren't
+                       installed, so --all leaves the whole list installed and
+                       current. On its own: the same as --install --all.
+  -n, --dry-run        With --all: the same as --list. With apps: name the
+                       installers that would run.
+      --no-fetch       Don't git fetch the $SRC_PATH checkouts first.
+  -h, --help           Show this help.
+
+Browser keys:
+  enter                Install / update the highlighted entry.
+  ctrl-f               git fetch the $SRC_PATH checkouts, then refresh.
+  ctrl-r               Refresh the list.
+  ctrl-v               Toggle the preview.
+USAGE
+}
+
+# Where each installer leaves its result, when that isn't ~/.local/bin/<name>.
+typeset -A artifact_for=(
+  bin                "$BIN_DIR/bin"
+  cargo              "$HOME/.cargo/bin/cargo-recursive-clean"
+  go-apps            "$HOME/go/bin/cgasm"
+  wasmtime           "$HOME/.wasmtime/bin/wasmtime"
+  job-monitor        "$HOME/Applications/Job Monitor.app"
+  job-folder         "$HOME/Applications/Job Folder.app"
+  wifi-widget        "$HOME/Applications/WiFi Widget.app"
+  propainter         "$HOME/src/scrubber/.venv"
+  rife-arm64         "$BIN_DIR/rife-ncnn-vulkan"
+  vapoursynth-rife   "$HOME/.local/lib/vapoursynth/librife.dylib"
+  vsr-arm64          "/Applications/VideoSubtitleRemover.app"
+  yt-dlp             "$HOME/.local/share/uv/tools/yt-dlp"
+)
+
+# src/ subdirectory, when it isn't src/<name>. One workspace, three installers;
+# and the Swift tools under the src/utils/ group.
+typeset -A src_for=(
+  job-daemon   jobs
+  job-monitor  jobs
+  job-folder   jobs
+  avinterp     utils/avinterp
+  avremove     utils/avremove
+  avupscale    utils/avupscale
+)
+
+installer_files() {
+  local f
+  for f in "$INSTALL_DIR"/*(.N); do
+    [[ "${f:t}" == install-* || "${f:t}" == *.sh ]] && print -r -- "$f"
+  done
+}
+
+# What each entry is, in a few words — the list's description column.
+typeset -A about_for=(
+  abner                      "A/B comparison player for videos"
+  battery-widget             "Menu bar battery meter"
+  bin                        "GitHub release binary manager"
+  cargo                      "cargo-recursive-clean, for clearing Rust build dirs"
+  chordpro-tui               "ChordPro chord chart browser"
+  cpu-usage-widget           "Menu bar CPU and GPU load meter"
+  dupchk                     "Finds duplicate files by size"
+  free-disk-space-widget     "Menu bar free disk space meter"
+  go-apps                    "Small Go command-line tools"
+  job-daemon                 "Runs the jobs queue in the background"
+  job-folder                 "Jobs queue and its menu bar, in one app"
+  job-monitor                "Menu bar view of the jobs queue"
+  menu-tidy                  "Hides menu bar clutter"
+  motherfucker               "Spotlight replacement and app launcher"
+  neuroserver-select-preset  "Previews and encodes Topaz Starlight presets"
+  obsbot-rtsp-widget         "Menu bar control for the OBSBOT camera stream"
+  pimped                     "Fast zsh prompt"
+  propainter                 "AI video inpainting (removes objects and logos)"
+  rclone-tower-ui            "Tower backup dashboard"
+  rife-arm64                 "RIFE AI frame interpolation"
+  safesync                   "Indexed drive sync with sentinels, offline lookup, TUI"
+  spill                      "Fills a drive with files piped to it"
+  switchblade                "Fullscreen media browser"
+  system-uptime-widget       "Menu bar uptime display"
+  tagform                    "Media tag editor"
+  topaz-select-preset        "Previews and encodes Topaz Video AI presets"
+  vapoursynth-rife           "RIFE frame interpolation plugin for VapourSynth"
+  volume-control-widget      "Menu bar audio output and mute control"
+  wifi-widget                "Menu bar Wi-Fi signal, band and internet check"
+  vsr-arm64                  "Removes hardcoded subtitles from video"
+  wasmtime                   "WebAssembly runtime"
+  yt-dlp                     "Video downloader"
+  ytform                     "Video downloader with a live tag form"
+)
+
+# Upstream-repo installers (lib/git-source-install.sh) name their repo on the
+# git_source_install line, then the build kind and, for an app, its bundle.
+git_source_repo() {
+  awk '$1 == "git_source_install" { print $2; exit }' "$1"
+}
+
+git_source_app() {
+  awk '$1 == "git_source_install" && $4 == "app" { gsub(/"/, "", $5); print $5; exit }' "$1"
+}
+
+artifact_of() {
+  local name="$1" installer="$2" repo app
+  if [[ -n "${artifact_for[$name]:-}" ]]; then
+    print -r -- "${artifact_for[$name]}"
+  elif app="$(git_source_app "$installer")" && [[ -n "$app" ]]; then
+    print -r -- "/Applications/$app.app"
+  elif repo="$(git_source_repo "$installer")" && [[ -n "$repo" ]]; then
+    print -r -- "$BIN_DIR/$repo"
+  else
+    print -r -- "$BIN_DIR/$name"
+  fi
+}
+
+src_dir_of() { print -r -- "$DOTFILES_DIR/src/${src_for[$1]:-$1}"; }
+vendor_of()  { print -r -- "$DOTFILES_DIR/vendor/bin/$1"; }
+
+# Local edits in an upstream checkout, untracked files included.
+checkout_dirty() {
+  [[ -n "$(git -C "$1" status --porcelain 2>/dev/null)" ]]
+}
+
+# The package version from a Cargo.toml's [package] or [workspace.package];
+# empty for `version.workspace = true`, so the caller falls back to the root.
+cargo_version() {
+  awk '
+    /^\[/ { sec = $0; next }
+    (sec == "[package]" || sec == "[workspace.package]") && /^version[[:space:]]*=[[:space:]]*"/ {
+      sub(/^[^"]*"/, ""); sub(/".*/, ""); print; exit
+    }
+  ' "$1" 2>/dev/null
+}
+
+# What the source would build as: <cargo version>+<short commit>, or just the
+# commit, with "-unstaged" when the working tree has local changes. Empty for
+# downloaded releases, which have no local source.
+version_of() {
+  local name="$1" installer="$2" repo src vendor v="" sha m
+  local -a paths
+
+  if repo="$(git_source_repo "$installer")" && [[ -n "$repo" ]]; then
+    src="$SRC_PATH/$repo"
+    [[ -d "$src/.git" ]] || return 0
+    v="$(cargo_version "$src/Cargo.toml")"
+    sha="$(git -C "$src" rev-parse --short HEAD 2>/dev/null)"
+    v="${v:+$v+}$sha"
+    checkout_dirty "$src" && v+="-unstaged"
+    print -r -- "$v"
+    return 0
+  fi
+
+  src="$(src_dir_of "$name")"
+  vendor="$(vendor_of "$name")"
+  [[ -d "$src" || -f "$vendor" ]] || return 0
+
+  for m in "$src/${name}/Cargo.toml" "$src/Cargo.toml"; do
+    [[ -f "$m" ]] && v="$(cargo_version "$m")" && [[ -n "$v" ]] && break
+  done
+  paths=("$installer")
+  [[ -d "$src" ]] && paths+=("$src")
+  [[ -f "$vendor" ]] && paths+=("$vendor")
+  sha="$(git -C "$DOTFILES_DIR" log -1 --format=%h -- "${paths[@]}" 2>/dev/null)"
+  v="${v:+$v+}$sha"
+  install_dirty_paths "$installer" "$src" "$vendor" >/dev/null && v+="-unstaged"
+  print -r -- "$v"
+}
+
+# The version the last install through here recorded, if any.
+installed_version_of() {
+  local f="$INSTALL_STATE_DIR/$1.version"
+  [[ -f "$f" ]] && print -r -- "$(<"$f")"
+}
+
+# The about_for line; for an entry that has none yet, the first sentence of
+# the installer's comment minus the "Build and install <name>, the" preamble.
+description_of() {
+  local installer="$1" name="$2" desc
+  if [[ -n "${about_for[$name]:-}" ]]; then
+    print -r -- "${about_for[$name]}"
+    return
+  fi
+  desc="$(installer_comment "$installer")"
+  desc="${desc%%. *}"
+  desc="${desc%.}"
+  desc="$(sed -E 's/^(Build and )?[Ii]nstall [^,:(]+([,:]| \([^)]*\)[,:]?)? *(the )?//' <<<"$desc")"
+  print -r -- "${(U)desc[1]}${desc[2,-1]}"
+}
+
+installer_comment() {
+  awk '
+    NR == 1 && /^#!/ { next }
+    /^#[[:space:]]*Generated by/ { next }
+    /^#[[:space:]]*$/ { if (seen) exit; next }
+    /^#/ { sub(/^#[[:space:]]*/, ""); printf "%s%s", (seen ? " " : ""), $0; seen = 1; next }
+    { exit }
+  ' "$1"
+}
+
+# Prints "<state>\t<reason>", state being one of: update, missing, ok, installed.
+status_of() {
+  local name="$1" installer="$2" artifact="$3"
+  local repo src vendor hit ahead commit_epoch
+
+  # A symlink into this repo is Dotter's, not an install.
+  if [[ ! -e "$artifact" || ( -L "$artifact" && "${artifact:A}" == "$DOTFILES_DIR"/* ) ]]; then
+    print -r -- $'missing\tnot installed'
+    return
+  fi
+
+  if repo="$(git_source_repo "$installer")" && [[ -n "$repo" ]]; then
+    src="$SRC_PATH/$repo"
+    if [[ ! -d "$src/.git" ]]; then
+      print -r -- $'installed\tno checkout at '"${src/#$HOME/~}"
+      return
+    fi
+    if checkout_dirty "$src"; then
+      print -r -- $'update\tlocal changes in '"${src/#$HOME/~}"
+      return
+    fi
+    ahead="$(git -C "$src" rev-list --count 'HEAD..@{upstream}' 2>/dev/null || echo 0)"
+    if (( ahead > 0 )); then
+      print -r -- $'update\tupstream is '"$ahead commit(s) ahead"
+      return
+    fi
+    commit_epoch="$(git -C "$src" log -1 --format=%ct 2>/dev/null || echo 0)"
+    if (( commit_epoch > $(stat -f %m "$artifact") )); then
+      print -r -- $'update\tinstall predates the checked-out commit'
+      return
+    fi
+    print -r -- $'ok\tup to date with '"$(git -C "$src" rev-parse --abbrev-ref '@{upstream}' 2>/dev/null || echo HEAD)"
+    return
+  fi
+
+  src="$(src_dir_of "$name")"
+  vendor="$(vendor_of "$name")"
+
+  if [[ -d "$src" || -f "$vendor" ]]; then
+    if hit="$(install_stale_reason "$installer" "$src" "$vendor" "$artifact")"; then
+      print -r -- $'update\t'"$hit"
+    else
+      print -r -- $'ok\tbuilt from current source'
+    fi
+    return
+  fi
+
+  print -r -- $'installed\tinstalled (downloaded release; no local source to compare)'
+}
+
+# TSV: installer path, sort key, coloured badge, name, version, description.
+list_entries() {
+  local f name artifact state reason badge rank version
+  local unstaged=$'\e[0;33m-unstaged\e[0;2m'
+  for f in $(installer_files); do
+    name="$(install_entry_name "$f")"
+    artifact="$(artifact_of "$name" "$f")"
+    IFS=$'\t' read -r state reason <<<"$(status_of "$name" "$f" "$artifact")"
+    case "$state" in
+      update)    rank=1 badge=$'\e[33m↑ update       \e[0m' ;;
+      missing)   rank=3 badge=$'\e[2m· not installed\e[0m' ;;
+      ok)        rank=2 badge=$'\e[32m✓ up to date   \e[0m' ;;
+      *)         rank=2 badge=$'\e[36m✓ installed    \e[0m' ;;
+    esac
+    version="$(printf '%-24s' "$(version_of "$name" "$f")")"
+    version=$'\e[2m'"${version/-unstaged/$unstaged}"$'\e[0m'
+    printf '%s\t%s\t%s\t\e[1m%-26s\e[0m\t%s\t%s\n' \
+      "$f" "$rank$name" "$badge" "$name" "$version" "$(description_of "$f" "$name")"
+  done | LC_ALL=C sort -t $'\t' -k2,2 | cut -f1,3-
+}
+
+preview_entry() {
+  local installer="$1" name artifact state reason installed
+  name="$(install_entry_name "$installer")"
+  artifact="$(artifact_of "$name" "$installer")"
+  IFS=$'\t' read -r state reason <<<"$(status_of "$name" "$installer" "$artifact")"
+  installed="$(installed_version_of "$name")"
+
+  print -P -- "%B$name%b  $(description_of "$installer" "$name")"
+  print
+  print -r -- "status     $reason"
+  print -r -- "version    $(version_of "$name" "$installer")"
+  print -r -- "updated    $(last_update_of "$name" "$installer")"
+  [[ -e "$artifact" ]] &&
+    print -r -- "installed  ${installed:+$installed, }$(stat -f '%Sm' -t '%Y-%m-%d %H:%M' "$artifact")"
+  print -r -- "installer  ${installer#$DOTFILES_DIR/}"
+  print -r -- "artifact   ${artifact/#$HOME/~}"
+  print
+  awk 'NR == 1 && /^#!/ { next } /^#/ { sub(/^# ?/, ""); print; next } { exit }' "$installer"
+}
+
+# When the source last changed: the newest commit of an upstream checkout
+# (upstream's, once fetched, so a waiting update shows its date), or the last
+# commit touching the src/ tree, vendored binary or installer here.
+last_update_of() {
+  local name="$1" installer="$2" repo src rev=HEAD
+  local fmt='%cd (%cr)' date=--date=format:'%Y-%m-%d %H:%M'
+  local -a paths
+
+  if repo="$(git_source_repo "$installer")" && [[ -n "$repo" ]]; then
+    src="$SRC_PATH/$repo"
+    [[ -d "$src/.git" ]] || { print -r -- "unknown (no checkout)"; return; }
+    git -C "$src" rev-parse -q --verify '@{upstream}' >/dev/null 2>&1 && rev='@{upstream}'
+    git -C "$src" log -1 "$date" --format="$fmt" "$rev" 2>/dev/null
+    return
+  fi
+
+  paths=("$installer")
+  [[ -d "$(src_dir_of "$name")" ]] && paths+=("$(src_dir_of "$name")")
+  [[ -f "$(vendor_of "$name")" ]] && paths+=("$(vendor_of "$name")")
+  git -C "$DOTFILES_DIR" log -1 "$date" --format="$fmt" -- "${paths[@]}" 2>/dev/null
+}
+
+# Runs one installer and records what it built. $2 = 1 pauses afterwards, for
+# the fzf browser, which would otherwise wipe the output straight away.
+run_installer() {
+  local installer="$1" pause="${2:-0}" name rc src vendor version
+  name="$(install_entry_name "$installer")"
+  src="$(src_dir_of "$name")"
+  vendor="$(vendor_of "$name")"
+  version="$(version_of "$name" "$installer")"
+
+  print -P -- "%B==> $name%b${version:+ $version}  %F{8}${installer#$DOTFILES_DIR/}%f"
+  if [[ -x "$installer" ]]; then
+    "$installer"
+  else
+    sh "$installer"
+  fi
+  rc=$?
+  print
+  if (( rc == 0 )); then
+    [[ -d "$src" || -f "$vendor" ]] && install_record "$installer" "$src" "$vendor"
+    if [[ -n "$version" ]]; then
+      mkdir -p "$INSTALL_STATE_DIR"
+      print -r -- "$version" >"$INSTALL_STATE_DIR/$name.version"
+    fi
+    print -P -- "%F{green}==> $name done%f"
+  else
+    print -P -- "%F{red}==> $name failed (exit $rc)%f"
+  fi
+  (( pause )) && [[ -t 0 ]] && read -rs -k 1 '?Press any key to return to the list.'
+  return $rc
+}
+
+fetch_checkouts() {
+  local f repo
+  for f in $(installer_files); do
+    repo="$(git_source_repo "$f")"
+    [[ -n "$repo" && -d "$SRC_PATH/$repo/.git" ]] || continue
+    GIT_TERMINAL_PROMPT=0 git -C "$SRC_PATH/$repo" fetch --quiet --prune origin >/dev/null 2>&1 &
+  done
+  wait
+}
+
+# Lowercase, letters and digits only: "Fight-Club" -> "fightclub".
+normalize() {
+  local s="${(L)1}"
+  print -r -- "${s//[^a-z0-9]/}"
+}
+
+# Every name an entry answers to: the installer's, the upstream repo's and
+# the installed artifact's ("WiFi Widget.app" -> wifiwidget).
+names_of() {
+  local installer="$1" name repo artifact
+  name="$(install_entry_name "$installer")"
+  repo="$(git_source_repo "$installer")"
+  artifact="$(artifact_of "$name" "$installer")"
+  normalize "$name"
+  [[ -n "$repo" ]] && normalize "$repo"
+  normalize "${${artifact:t}%.app}"
+}
+
+# App name -> installer path. An exact match wins; otherwise a prefix that
+# only one entry has. Ambiguity and misses are errors that list candidates.
+resolve_app() {
+  local want f n
+  local -a exact prefix
+  want="$(normalize "$1")"
+  [[ -n "$want" ]] || { print -u2 -r -- "Error: not an app name: '$1'"; return 1; }
+
+  for f in $(installer_files); do
+    for n in $(names_of "$f"); do
+      if [[ "$n" == "$want" ]]; then
+        exact+=("$f"); break
+      elif [[ "$n" == "$want"* ]]; then
+        prefix+=("$f"); break
+      fi
+    done
+  done
+
+  if (( ${#exact} )); then
+    print -r -- "${exact[1]}"
+  elif (( ${#prefix} == 1 )); then
+    print -r -- "${prefix[1]}"
+  elif (( ${#prefix} > 1 )); then
+    print -u2 -r -- "Error: '$1' matches more than one app:"
+    for f in "${prefix[@]}"; do print -u2 -r -- "  $(install_entry_name "$f")"; done
+    return 1
+  else
+    print -u2 -r -- "Error: no app named '$1' (see: update)"
+    return 1
+  fi
+}
+
+# Runs installers in order and reports the failures; returns 1 if any failed.
+run_all() {
+  local f
+  local -a failed
+  for f in "$@"; do
+    run_installer "$f" || failed+=("$(install_entry_name "$f")")
+    print
+  done
+  if (( ${#failed} )); then
+    print -P -- "%F{red}Failed:%f ${(j:, :)failed}"
+    return 1
+  fi
+  return 0
+}
+
+# `update --all`: everything installed with an update waiting. With
+# $2 = 1 (`--install`), everything not installed yet as well, so the run ends
+# with the whole list installed and current.
+update_pending() {
+  local dry_run="$1" include_missing="$2" f name state reason mark
+  local -a pending
+
+  for f in $(installer_files); do
+    name="$(install_entry_name "$f")"
+    IFS=$'\t' read -r state reason <<<"$(status_of "$name" "$f" "$(artifact_of "$name" "$f")")"
+    case "$state" in
+      update)  mark='%F{yellow}↑%f' ;;
+      missing) (( include_missing )) || continue; mark='%F{green}+%f' ;;
+      *)       continue ;;
+    esac
+    pending+=("$f")
+    print -r -- "${(%)mark} ${(%):-%B}${(r:26:)name}${(%):-%b} ${(r:24:)$(version_of "$name" "$f")} ${(%):-%F{8\}}$reason${(%):-%f}"
+  done
+
+  if (( ! ${#pending} )); then
+    if (( include_missing )); then
+      print -- "Everything is installed and up to date."
+    else
+      print -- "Everything is up to date."
+    fi
+    return 0
+  fi
+  (( dry_run )) && return 0
+  print
+  run_all "${pending[@]}"
+}
+
+browse() {
+  local query="$1"
+  command -v fzf >/dev/null 2>&1 || { print -u2 -- "Error: missing dependency: fzf"; return 1; }
+
+  list_entries | fzf \
+    --ansi \
+    --query="$query" \
+    --delimiter=$'\t' \
+    --with-nth=2.. \
+    --nth=2,4 \
+    --no-sort \
+    --prompt='update > ' \
+    --header='enter install/update · ctrl-f fetch · ctrl-r refresh · ctrl-v preview' \
+    --preview="${(q)SELF} --preview {1}" \
+    --preview-window='right,50%,wrap' \
+    --bind="enter:execute(${(q)SELF} --run {1})+reload(${(q)SELF} --tsv)" \
+    --bind="ctrl-f:reload(${(q)SELF} --fetch; ${(q)SELF} --tsv)" \
+    --bind="ctrl-r:reload(${(q)SELF} --tsv)" \
+    --bind='ctrl-v:toggle-preview' \
+    >/dev/null
+  return 0
+}
+
+main() {
+  local fetch=1 browse=0 all=0 install=0 dry_run=0 query="" app f
+  local -a apps installers
+
+  while (( $# )); do
+    case "$1" in
+      -l|--list)       all=1 dry_run=1 ;;
+      --tsv)           list_entries; return ;;
+      --preview)       preview_entry "$2"; return ;;
+      --run)           run_installer "$2" 1; return ;;
+      --install)       install=1 ;;
+      --fetch)         fetch_checkouts; return ;;
+      -a|--all)        all=1 ;;
+      -i|--browse)     browse=1 ;;
+      -n|--dry-run)    dry_run=1 ;;
+      --no-fetch)      fetch=0 ;;
+      -h|--help)       usage; return ;;
+      --)              shift; apps+=("$@"); break ;;
+      -*)              print -u2 -r -- "Error: unknown option: $1"; usage >&2; return 2 ;;
+      *)               apps+=("$1") ;;
+    esac
+    shift
+  done
+
+  # --install alone means the whole list; with apps it changes nothing, since
+  # naming an app already installs it if it is missing.
+  (( install && ! ${#apps} )) && all=1
+
+  if (( all )); then
+    (( ${#apps} )) && { print -u2 -- "Error: --all and --list take no app names"; return 2; }
+    (( fetch )) && fetch_checkouts
+    update_pending "$dry_run" "$install"
+    return
+  fi
+
+  if (( browse )) || (( ! ${#apps} )); then
+    query="${(j: :)apps}"
+    (( fetch )) && fetch_checkouts
+    browse "$query"
+    return
+  fi
+
+  for app in "${apps[@]}"; do
+    f="$(resolve_app "$app")" || return 1
+    (( ${installers[(Ie)$f]} )) || installers+=("$f")
+  done
+  if (( dry_run )); then
+    for f in "${installers[@]}"; do print -r -- "$(install_entry_name "$f")"; done
+    return 0
+  fi
+  run_all "${installers[@]}"
+}
+
+main "$@"

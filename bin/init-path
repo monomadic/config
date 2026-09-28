@@ -1,6 +1,8 @@
 #!/usr/bin/env sh
 
 PATH="$PATH"
+# rustup (Homebrew) ahead of /opt/homebrew/bin, so its cargo/rustc proxies win
+PATH="$PATH:/opt/homebrew/opt/rustup/bin"
 PATH="$PATH:/opt/homebrew/bin:/opt/homebrew/sbin"
 PATH="$PATH:/opt/homebrew/coreutils/libexec/gnubin"
 PATH="$PATH:/opt/homebrew/gnu-sed/libexec/gnubin"

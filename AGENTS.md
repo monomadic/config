@@ -72,10 +72,17 @@ and design mockups don't count, or every doc edit would rebuild the world. Add a
 new tool to the `specs` table in `bin/dotter-deploy` when it gets an installer.
 
 "Changed" is decided by `bin/lib/install-staleness.zsh`, shared with
-`fzf-app-store` (the browser over `scripts/install/`): a content hash recorded in
-`~/.local/state/fzf-app-store/` after each install, falling back to git history
-when there is no record. Never raw mtimes — a `git mv` resets them and makes
-every installed tool look stale.
+`update` (bare: the fzf browser over `scripts/install/`; `update <app>`: that
+one, name matched case- and punctuation-insensitively; `update --all`: every
+pending update): a content hash recorded in
+`~/.local/state/fzf-app-store/` (the command's old name) after each install,
+falling back to git history when there is no record. Never raw mtimes — a
+`git mv` resets them and makes every installed tool look stale.
+
+A source tree with uncommitted, unstaged or untracked files — in `src/` here or
+a `$SRC_PATH` checkout — is **always** stale: the installer builds the working
+tree as it is, and the version reads `<version>-unstaged`. That holds for
+`deploy.sh --upgrade` too, so commit to stop the rebuilds.
 
 `deploy.sh` runs `check.sh` automatically unless `DOTTER_SKIP_HEALTHCHECK=1`.
 There is no CI. For config and script changes, verification = `check.sh` passing,

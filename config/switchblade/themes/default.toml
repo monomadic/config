@@ -449,7 +449,7 @@ max_aspect = 1.5  # was max_display_aspect
 
 [tile.hover]
 scale = 1.02                     # was hover_scale
-border.width = 4.0               # was hover_border_width
+border.width = 1.0               # was hover_border_width
 border.color = [1.0, 1.0, 1.0]   # was hover_border
 
 # The selected tile. `zoom_boost` makes it stand out more as you zoom out
@@ -459,6 +459,9 @@ radius = 10.0       # was selection_corner_radius
 scale = 1.0         # was selection_scale
 zoom_boost = 0.0    # was selection_zoom_boost
 border.width = 4.0  # was selection_border_width
+
+[tile.focused]
+border.width = 1.0
 
 # A cmd/shift-clicked tile: the selection ring, border only. The old
 # selection_border_width drove this too.

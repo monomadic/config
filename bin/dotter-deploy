@@ -288,7 +288,7 @@ upgrade_src_tools() {
     fi
 
     # Editing the installer or the vendored binary counts as staleness too.
-    # See bin/lib/install-staleness.zsh — shared with fzf-app-store, so the two
+    # See bin/lib/install-staleness.zsh — shared with bin/update, so the two
     # agree and share one record of what was last installed.
     if ! reason="$(install_stale_reason "$script" "$CONFIG_DIR/src/$name" \
                      "$CONFIG_DIR/vendor/bin/$(install_entry_name "$script")" "$artifact")"; then

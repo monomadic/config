@@ -9,7 +9,8 @@
 #   - Tints the tab using a supplied color
 #   - Runs either:
 #       - a normal argv-style command, preserving arguments exactly
-#       - a zsh shell command via --shell
+#       - either of those through the user's login $SHELL via --shell
+#         (or --interactive, which also loads .zshrc)
 #   - Restores the previous Kitty tab title/colors when the command exits
 #
 # Behavior outside Kitty:
@@ -19,16 +20,25 @@
 # Usage:
 #   kitty-exec <title> <color> <command> [args...]
 #   kitty-exec <title> <color> --shell <shell-command>
+#   kitty-exec <title> <color> --shell <command> [args...]
+#   kitty-exec <title> <color> --interactive <command> [args...]
 #
 # Examples:
 #   kitty-exec "Build" "#ffcc00" cargo build --release
 #   kitty-exec "Index" "#00ffff" fd -e mp4 . /Volumes/Tower
 #   kitty-exec "Shell Task" "#ff66cc" --shell 'cd ~/src/project && just build'
+#   kitty-exec "Build" "#ffcc00" --shell cargo build --release
 #
 # Notes:
 #   - <color> should be a Kitty-compatible color, usually "#rrggbb".
 #   - argv mode is preferred when possible because it avoids shell quoting issues.
-#   - --shell runs the supplied string through `/bin/zsh -lc`.
+#   - --shell launches through `$SHELL -lc` (/bin/zsh if $SHELL is unset), so
+#     the command gets the login environment (PATH etc.) — which matters when
+#     kitty-exec is started from a GUI with launchd's bare PATH.
+#     A single argument is evaluated as a shell string; several arguments are
+#     passed through untouched as positional parameters, never re-parsed.
+#   - --interactive is --shell with `-lic`: the shell also reads .zshrc, for
+#     anything that is only set up there (aliases, functions, late PATH edits).
 #   - Requires Kitty remote control to be enabled for decoration commands to work.
 
 emulate -L zsh
@@ -50,6 +60,8 @@ If it is not running inside Kitty, it simply execs the command normally.
 Usage:
   $script_name <title> <color> <command> [args...]
   $script_name <title> <color> --shell <shell-command>
+  $script_name <title> <color> --shell <command> [args...]
+  $script_name <title> <color> --interactive <command> [args...]
 
 Arguments:
   <title>    Title to show on the Kitty tab/window while the command runs.
@@ -58,13 +70,17 @@ Arguments:
   [args...]  Arguments passed directly to <command>.
 
 Options:
-  --shell <shell-command>
-             Run a single shell command through /bin/zsh -lc.
+  --shell    Launch through \$SHELL -lc, so the command gets your login env.
+             One argument is evaluated as a shell string; several are run as
+             argv, exactly as supplied.
+  --interactive
+             Like --shell, but through \$SHELL -lic, so .zshrc is read too.
 
 Examples:
   $script_name "Build" "#ffcc00" cargo build --release
   $script_name "Index" "#00ffff" fd -e mp4 . /Volumes/Tower
   $script_name "Shell Task" "#ff66cc" --shell 'cd ~/src/project && just build'
+  $script_name "Build" "#ffcc00" --shell cargo build --release
 EOF
 }
 
@@ -78,33 +94,36 @@ color="$2"
 shift 2
 
 mode="argv"
-shell_command=""
+launch_shell="${SHELL:-/bin/zsh}"
+shell_flags="-lc"
 
-if [[ ${1:-} == "--shell" ]]; then
+if [[ ${1:-} == "--shell" || ${1:-} == "--interactive" ]]; then
+  [[ $1 == "--interactive" ]] && shell_flags="-lic"
   shift
 
   if [[ -z ${1:-} ]]; then
-    print -u2 -- "$script_name: missing shell command after --shell"
+    print -u2 -- "$script_name: missing command after --shell/--interactive"
     exit 2
   fi
 
-  mode="shell"
-  shell_command="$1"
-  shift
-
-  if (( $# )); then
-    print -u2 -- "$script_name: unexpected arguments after --shell command: $*"
-    exit 2
+  # One argument is a shell string; several are argv routed through the shell.
+  if (( $# == 1 )); then
+    mode="shell"
+  else
+    mode="shell-argv"
   fi
 fi
 
 # Run the requested command, replacing this process when outside Kitty.
 #
-# In shell mode, the command is intentionally evaluated by zsh.
-# In argv mode, arguments are executed exactly as supplied.
+# In shell mode, the command is intentionally evaluated by the launch shell.
+# In argv mode, arguments are executed exactly as supplied; in shell-argv mode
+# they ride through $SHELL as positional parameters, never re-parsed.
 run_command() {
   if [[ $mode == "shell" ]]; then
-    exec /bin/zsh -lc "$shell_command"
+    exec "$launch_shell" "$shell_flags" "$1"
+  elif [[ $mode == "shell-argv" ]]; then
+    exec "$launch_shell" "$shell_flags" 'exec "$@"' "$script_name" "$@"
   else
     exec "$@"
   fi
@@ -154,12 +173,7 @@ kitty @ set-tab-color \
 kitty @ set-tab-title "$title" >/dev/null 2>&1 || true
 kitty @ set-window-title --temporary "$title" >/dev/null 2>&1 || true
 
-# Run the command without exec here so the EXIT trap can restore Kitty state.
-if [[ $mode == "shell" ]]; then
-  /bin/zsh -lc "$shell_command"
-else
-  "$@"
-fi
-
-exit_status=$?
+# Run the command in a subshell so its exec replaces only the subshell and the
+# EXIT trap can still restore Kitty state.
+( run_command "$@" ) && exit_status=0 || exit_status=$?
 exit "$exit_status"

@@ -6,7 +6,10 @@
 #   - If Kitty IPC is reachable, open a new Kitty window/tab via `kitten @ launch`.
 #   - If not reachable, start a new Kitty instance listening on the chosen socket.
 #   - If no command is provided, open an interactive login shell.
+#   - --shell runs the command through the login $SHELL, for its env/PATH;
+#     --interactive does the same with -i, so .zshrc is read too.
 #   - Focuses/shows the launched Kitty window by default after launching.
+#   - Keeps the window open after the command exits; --dismiss closes it.
 #
 # Socket priority:
 #   1. KITTY_LAUNCH_SOCKET
@@ -32,8 +35,10 @@ keep_focus=false
 activate=true
 detach=true
 debug=false
-hold=false
+hold=true
 auto_hide=false
+via_shell=false
+shell_flags="-lc"
 
 usage() {
   cat <<EOF
@@ -52,8 +57,15 @@ Options:
   --os-window        Open in a new top-level OS window
   --cwd DIR          Working directory for launched command
   --title TITLE      Window/tab title
+  --shell            Run the command through \$SHELL -lc, so it gets your login
+                     env (PATH etc.). One argument is evaluated as a shell
+                     string; several are run as argv, exactly as supplied
+  --interactive      Like --shell, but through \$SHELL -lic, so .zshrc is read
+                     too (aliases, functions, PATH set up only there)
   --keep-focus       Do not focus the newly launched Kitty window/tab internally
-  --hold             Keep the Kitty window open after the command exits
+  --dismiss          Close the Kitty window when the command exits
+                     (default: keep it open until a key is pressed)
+  --hold             No-op; holding is now the default (transitional alias)
   --auto-hide        Hide Kitty.app after the launched command exits
   --activate         Focus/show the launched Kitty window after launch (default)
   --no-activate      Do not focus/show the launched Kitty window after launch
@@ -75,8 +87,9 @@ Examples:
   $script_name
   $script_name --cwd ~/Downloads
   $script_name --tab -- zsh -lc 'cd ~/src && hx .'
+  $script_name --tab --shell -- 'cd ~/src && hx .'
   $script_name --window -- yazi ~/Downloads
-  $script_name --auto-hide -- zsh -lc 'make test'
+  $script_name --auto-hide --shell -- make test
   $script_name --os-window -- zsh -l
 EOF
 }
@@ -141,12 +154,25 @@ while (( $# )); do
       title="$2"
       shift 2
       ;;
+    --shell)
+      via_shell=true
+      shift
+      ;;
+    --interactive)
+      via_shell=true
+      shell_flags="-lic"
+      shift
+      ;;
     --keep-focus)
       keep_focus=true
       shift
       ;;
+    --dismiss)
+      hold=false
+      shift
+      ;;
     --hold)
-      hold=true
+      # Transitional: holding is the default now; accepted so old callers work.
       shift
       ;;
     --auto-hide)
@@ -196,7 +222,14 @@ while (( $# )); do
   esac
 done
 
-if (( $# )); then
+if (( $# )) && $via_shell; then
+  # One argument is a shell string; several are argv routed through the shell.
+  if (( $# == 1 )); then
+    command_argv=( "$default_shell" "$shell_flags" "$1" )
+  else
+    command_argv=( "$default_shell" "$shell_flags" 'exec "$@"' "$script_name" "$@" )
+  fi
+elif (( $# )); then
   command_argv=( "$@" )
 else
   command_argv=( "$default_shell" -l )
