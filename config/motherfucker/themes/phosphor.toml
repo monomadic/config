@@ -1,0 +1,24 @@
+# motherfucker theme: Phosphor — Toxic's sibling: near-black, amber-monitor phosphor,
+# white-hot matches on the selection.
+[style]
+panel_background = "#080603"
+panel_opacity = 0.94
+panel_foreground = "#FFEBC8"
+item_foreground = "#B39F80"
+selected_item_foreground = "#FFB000"
+item_foreground_highlight = "#FFB000"
+selected_item_foreground_highlight = "#FFFFFF"
+icon_foreground = "#FFB000"
+selected_item_background = "#2E1F04"
+selected_item_opacity = 0.95
+selected_item_border = "#FFB000"
+selected_item_border_width = 1
+item_info_foreground = "#FFB000"
+item_info_background = "#1C1404"
+running_dot = "#FFF3B0"
+cpu_alert = "#FF1F4B"
+cpu_alert_background = "#2E0612"
+border_width = 1
+border = "#FFB000"  # matches the selected row outline
+scanlines = 0.4  # soft CRT scanlines, 0 = off
+crt = 0.5  # phosphor glow and vignette, 0 = off

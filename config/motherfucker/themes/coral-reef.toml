@@ -1,0 +1,20 @@
+# motherfucker theme: Coral Reef — deep-water teal, living-coral highlights,
+# turquoise fish, a flash of reef-yellow.
+[style]
+panel_background = "#06303A"
+panel_opacity = 0.82
+panel_foreground = "#D9F6F2"
+item_foreground = "#D9F6F2"
+selected_item_foreground = "#FFFFFF"
+item_foreground_highlight = "#FF7F66"  # living coral
+selected_item_foreground_highlight = "#FFD23F"
+icon_foreground = "#3EE6D0"  # turquoise
+selected_item_background = "#0E6B73"
+selected_item_opacity = 0.72
+item_info_foreground = "#3EE6D0"
+item_info_background = "#0A4550"
+running_dot = "#FFD23F"  # reef yellow
+cpu_alert = "#FF5A5F"
+cpu_alert_background = "#4A1E28"
+border_width = 1
+border = "#0F5561"

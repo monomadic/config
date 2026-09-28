@@ -1,0 +1,18 @@
+# motherfucker theme: Mango Lassi — sunny cream glass, mango selection,
+# cardamom-green icons, rose-syrup highlights.
+[style]
+panel_background = "#FFF4DC"
+panel_opacity = 0.88
+panel_foreground = "#5A3A1E"
+item_foreground = "#5A3A1E"
+selected_item_foreground = "#3E2410"
+item_foreground_highlight = "#E0457B"  # rose syrup
+selected_item_foreground_highlight = "#C2185B"
+icon_foreground = "#4E9F3D"  # cardamom
+selected_item_background = "#FFB547"  # mango
+selected_item_opacity = 0.55
+item_info_foreground = "#7A4B12"
+item_info_background = "#FFE3A8"
+running_dot = "#4E9F3D"
+cpu_alert = "#C62828"
+cpu_alert_background = "#FFD6CF"

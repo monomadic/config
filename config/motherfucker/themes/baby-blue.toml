@@ -1,0 +1,20 @@
+# motherfucker theme: Baby Blue — pale sky glass, a powder-blue selection,
+# cornflower highlights.
+[style]
+panel_background = "#E4F2FD"
+panel_opacity = 0.9
+panel_foreground = "#2C4A63"
+item_foreground = "#2C4A63"
+selected_item_foreground = "#1A3550"
+item_foreground_highlight = "#1E88E5"  # cornflower
+selected_item_foreground_highlight = "#1565C0"
+icon_foreground = "#64B5F6"
+selected_item_background = "#A8D8F8"
+selected_item_opacity = 0.7
+item_info_foreground = "#2F6A9A"
+item_info_background = "#CBE6FA"
+running_dot = "#4FC3F7"
+cpu_alert = "#C62828"
+cpu_alert_background = "#FDD9D9"
+border_width = 1
+border = "#B3DAF7"

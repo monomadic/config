@@ -1,0 +1,20 @@
+# motherfucker theme: Risograph — off-white paper, fluorescent-pink and
+# medium-blue ink, a yellow overprint for the selection.
+[style]
+panel_background = "#F5F0E6"
+panel_opacity = 0.92
+panel_foreground = "#1F2A7A"
+item_foreground = "#1F2A7A"  # riso medium blue
+selected_item_foreground = "#141C5C"
+item_foreground_highlight = "#FF48B0"  # fluorescent pink
+selected_item_foreground_highlight = "#E0158C"
+icon_foreground = "#FF48B0"
+selected_item_background = "#FFE800"  # riso yellow overprint
+selected_item_opacity = 0.60
+item_info_foreground = "#1F2A7A"
+item_info_background = "#FFD3EC"
+running_dot = "#00A95C"  # riso green
+cpu_alert = "#FF48B0"
+cpu_alert_background = "#FFE0F1"
+border_width = 1
+border = "#1F2A7A"

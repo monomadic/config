@@ -22,7 +22,7 @@ use std::ffi::c_void;
 use std::path::PathBuf;
 
 use objc2::rc::Retained;
-use objc2::runtime::{ProtocolObject, Sel};
+use objc2::runtime::{AnyObject, ProtocolObject, Sel};
 use objc2::{
     declare_class, msg_send, msg_send_id, mutability::MainThreadOnly, sel, ClassType,
     DeclaredClass,
@@ -41,10 +41,13 @@ use objc2_app_kit::{
     NSWindowDelegate, NSWindowStyleMask, NSWorkspace, NSWorkspaceOpenConfiguration,
 };
 use objc2_foundation::{
-    MainThreadMarker, NSData, NSMutableAttributedString, NSNotification, NSObject,
+    MainThreadMarker, NSArray, NSData, NSMutableArray, NSMutableAttributedString, NSNumber, NSNotification, NSObject,
     NSObjectProtocol, NSPoint, NSRange, NSRect, NSSize, NSString, NSURL,
 };
-use objc2_quartz_core::CALayer;
+use objc2_quartz_core::{
+    kCAGradientLayerRadial, CAGradientLayer, CALayer, CAReplicatorLayer,
+    CATransform3DMakeTranslation,
+};
 
 // ---- visual spec (black glass) ----
 // Colors, panel width, padding, corner radii, and font sizes moved to
@@ -441,6 +444,12 @@ struct State {
     /// around the panel body — outside the material, unlike `chrome_view`'s
     /// inner `border`.
     outer_view: OnceCell<Retained<NSView>>,
+    /// CRT overlay (`scanlines`/`crt` style keys): a sibling above the
+    /// container, so the container's glow never touches the
+    /// lines. `crt_key` is what the effect was last built for — it is
+    /// rebuilt only when that changes, not on every relayout.
+    scanline_view: OnceCell<Retained<NSView>>,
+    crt_key: Cell<[f64; 8]>,
     entries: RefCell<Vec<Entry>>,
     /// Set while `mode` is `AppCommands`: the context app and its row list,
     /// so `refresh` can list them and backspace-to-exit knows there's
@@ -560,6 +569,28 @@ declare_class!(
         #[method(canBecomeKeyWindow)]
         fn can_become_key_window(&self) -> bool {
             true
+        }
+    }
+);
+
+declare_class!(
+    /// Scanline overlay: sits above every other panel view and draws the
+    /// lines, but is invisible to the mouse so rows stay hoverable and
+    /// clickable through it.
+    struct ScanlineView;
+
+    unsafe impl ClassType for ScanlineView {
+        type Super = NSView;
+        type Mutability = MainThreadOnly;
+        const NAME: &'static str = "MFScanlineView";
+    }
+
+    impl DeclaredClass for ScanlineView {}
+
+    unsafe impl ScanlineView {
+        #[method(hitTest:)]
+        fn hit_test(&self, _point: NSPoint) -> *mut NSView {
+            std::ptr::null_mut()
         }
     }
 );
@@ -764,6 +795,38 @@ fn fade_behavior(fade: bool) -> NSWindowAnimationBehavior {
 
 fn rgba(c: (f64, f64, f64), alpha: f64) -> Retained<NSColor> {
     unsafe { NSColor::colorWithSRGBRed_green_blue_alpha(c.0, c.1, c.2, alpha) }
+}
+
+/// A theme's four defining colors — panel, selection, match highlight,
+/// icon — resolved over the base style (`None` is the base style itself).
+fn theme_palette(
+    base: &config::Style,
+    cfg: &config::Config,
+    theme: Option<&str>,
+) -> [(f64, f64, f64); 4] {
+    let mut style = base.clone();
+    if let Some(t) = theme.and_then(|n| cfg.themes.iter().find(|t| t.name == n)) {
+        config::apply_theme(&mut style, t);
+    }
+    [
+        style.panel_background,
+        style.selected_item_background,
+        style.item_foreground_highlight,
+        style.icon_foreground.unwrap_or(style.item_foreground),
+    ]
+}
+
+/// NSColors → an NSArray of their CGColors, the form CAGradientLayer's
+/// `colors` wants.
+fn cg_colors(colors: &[Retained<NSColor>]) -> Retained<NSArray> {
+    let arr: Retained<NSMutableArray> = NSMutableArray::new();
+    for c in colors {
+        unsafe {
+            let cg: *mut AnyObject = msg_send![&**c, CGColor];
+            let _: () = msg_send![&*arr, addObject: cg];
+        }
+    }
+    Retained::into_super(arr)
 }
 
 fn set_layer_bg(layer: &CALayer, color: &NSColor) {
@@ -1077,6 +1140,20 @@ impl Delegate {
         }
         container.addSubview(&rows_area);
 
+        // CRT overlay: added to `content` after the container, so it draws
+        // over the input band and every row.
+        let scanlines: Retained<ScanlineView> =
+            unsafe { msg_send_id![mtm.alloc::<ScanlineView>(), initWithFrame: body] };
+        let scanlines: Retained<NSView> = Retained::into_super(scanlines);
+        scanlines.setWantsLayer(true);
+        if let Some(layer) = scanlines.layer() {
+            layer.setMasksToBounds(true);
+            let curve = NSString::from_str("continuous");
+            let _: () = msg_send![&*layer, setCornerCurve: &*curve];
+        }
+        content.addSubview(&scanlines);
+        container.setWantsLayer(true);
+
         let ivars = self.ivars();
         ivars.panel.set(panel).ok();
         ivars.field.set(field).ok();
@@ -1087,6 +1164,7 @@ impl Delegate {
         ivars.chrome_view.set(chrome_ref).ok();
         ivars.container_view.set(container.clone()).ok();
         ivars.outer_view.set(outer).ok();
+        ivars.scanline_view.set(scanlines).ok();
         if let Some(v) = tint_ref {
             ivars.tint_view.set(v).ok();
         }
@@ -1555,6 +1633,10 @@ impl Delegate {
         if let Some(outer) = ivars.outer_view.get() {
             apply_outer_border(outer, style);
         }
+        drop(cfg);
+        self.update_crt();
+        let cfg = ivars.config.borrow();
+        let style = &cfg.style;
         // Vibrancy fallback: a plain tint layer carries panel_background at
         // panel_opacity (the glass path uses the material tint above).
         if let Some(tint) = ivars.tint_view.get() {
@@ -1563,6 +1645,95 @@ impl Delegate {
                     &layer,
                     &rgba(style.panel_background, style.panel_opacity),
                 );
+            }
+        }
+    }
+
+    /// Apply the `scanlines` and `crt` style keys. Scanlines are one soft
+    /// line (a transparent → dark → transparent gradient, so the edges
+    /// blur like a beam) replicated every `PERIOD` points down the panel.
+    /// `crt` adds a phosphor glow on the content and a vignette on the
+    /// overlay. Everything is rebuilt only when its inputs change.
+    fn update_crt(&self) {
+        const PERIOD: f64 = 2.0;
+        let ivars = self.ivars();
+        let (Some(view), Some(container)) =
+            (ivars.scanline_view.get(), ivars.container_view.get())
+        else {
+            return;
+        };
+        let (scan, crt, radius, glow) = {
+            let style = &ivars.config.borrow().style;
+            (
+                style.scanlines,
+                style.crt,
+                style.panel_corner_radius,
+                style.item_foreground_highlight,
+            )
+        };
+        let bounds = view.bounds();
+        let (w, h) = (bounds.size.width, bounds.size.height);
+        let key = [w, h, scan, crt, radius, glow.0, glow.1, glow.2];
+        if ivars.crt_key.get() == key {
+            return;
+        }
+        ivars.crt_key.set(key);
+        let scale = ivars.panel.get().map(|p| p.backingScaleFactor()).unwrap_or(2.0);
+        let full = NSRect::new(NSPoint::new(0.0, 0.0), bounds.size);
+        unsafe {
+            let _: () = msg_send![&**view, setHidden: scan <= 0.0 && crt <= 0.0];
+            let Some(layer) = view.layer() else { return };
+            let _: () = msg_send![&*layer, setSublayers: std::ptr::null_mut::<AnyObject>()];
+            layer.setCornerRadius(radius);
+
+            if scan > 0.0 {
+                let line = CAGradientLayer::layer();
+                line.setFrame(NSRect::new(NSPoint::new(0.0, 0.0), NSSize::new(w, PERIOD)));
+                line.setContentsScale(scale);
+                line.setColors(Some(&cg_colors(&[
+                    rgba((0.0, 0.0, 0.0), 0.0),
+                    rgba((0.0, 0.0, 0.0), scan),
+                    rgba((0.0, 0.0, 0.0), 0.0),
+                ])));
+                let rep = CAReplicatorLayer::layer();
+                rep.setFrame(full);
+                rep.setInstanceCount((h / PERIOD).ceil() as isize);
+                rep.setInstanceTransform(CATransform3DMakeTranslation(0.0, PERIOD, 0.0));
+                rep.addSublayer(&line);
+                layer.addSublayer(&rep);
+            }
+
+            if crt > 0.0 {
+                // Vignette: clear across the middle, darkening into the
+                // corners like the edge of a tube.
+                let vignette = CAGradientLayer::layer();
+                vignette.setFrame(full);
+                vignette.setContentsScale(scale);
+                vignette.setType(kCAGradientLayerRadial);
+                vignette.setStartPoint(NSPoint::new(0.5, 0.5));
+                vignette.setEndPoint(NSPoint::new(1.1, 1.25));
+                vignette.setColors(Some(&cg_colors(&[
+                    rgba((0.0, 0.0, 0.0), 0.0),
+                    rgba((0.0, 0.0, 0.0), 0.0),
+                    rgba((0.0, 0.0, 0.0), 0.55 * crt),
+                ])));
+                vignette.setLocations(Some(&NSArray::from_vec(vec![
+                    NSNumber::new_f64(0.0),
+                    NSNumber::new_f64(0.55),
+                    NSNumber::new_f64(1.0),
+                ])));
+                layer.addSublayer(&vignette);
+            }
+
+            // Phosphor glow: a zero-offset shadow in the neon color bleeds
+            // softly around every glyph and the selected row.
+            if let Some(clayer) = container.layer() {
+                let color = rgba(glow, 1.0);
+                let cg: *mut c_void = msg_send![&*color, CGColor];
+                let _: () = msg_send![&*clayer, setShadowColor: cg];
+                clayer.setShadowOffset(NSSize::new(0.0, 0.0));
+                clayer.setShadowRadius(2.5 + 2.0 * crt);
+                clayer.setShadowOpacity((0.9 * crt) as f32);
             }
         }
     }
@@ -2604,6 +2775,10 @@ impl Delegate {
         if let Some(container) = ivars.container_view.get() {
             container.setFrame(body);
         }
+        if let Some(overlay) = ivars.scanline_view.get() {
+            overlay.setFrame(body);
+        }
+        self.update_crt();
 
         // Input band, inset from the top by `pad`. The extra 12px keeps the
         // search glyph aligned with the row glyphs (rows inset by 12px).
@@ -2802,6 +2977,10 @@ impl Delegate {
         );
         let name_x = if mode_math {
             12.0
+        } else if let Some(Builtin::ApplyTheme(theme)) = &entry.builtin {
+            // Theme picker rows swap the icon for the theme's own palette.
+            let palette = theme_palette(&self.ivars().base_style.borrow(), &cfg, theme.as_deref());
+            unsafe { self.build_theme_swatches(mtm, &row, &palette) }
         } else {
             // Leading state glyph column. An entry carrying its own icon
             // (a `[search_engines]` item) wins outright — that icon is part
@@ -3086,6 +3265,46 @@ impl Delegate {
 
     /// A small filled dot with its right edge at `right_x`, vertically
     /// centered — the active marker on the theme picker's current row.
+    /// Four color bricks side by side in the leading column of a theme
+    /// picker row; returns the x where the name starts. Each brick carries
+    /// a faint inset stroke so one that matches the panel still has an edge.
+    unsafe fn build_theme_swatches(
+        &self,
+        mtm: MainThreadMarker,
+        row: &NSView,
+        palette: &[(f64, f64, f64); 4],
+    ) -> f64 {
+        const BRICK_W: f64 = 8.0;
+        const BRICK_H: f64 = 16.0;
+        const GAP: f64 = 2.0;
+        let mut x = 12.0;
+        for &color in palette {
+            let brick = unsafe {
+                NSView::initWithFrame(
+                    mtm.alloc(),
+                    NSRect::new(
+                        NSPoint::new(x, (ROW_H - BRICK_H) / 2.0),
+                        NSSize::new(BRICK_W, BRICK_H),
+                    ),
+                )
+            };
+            brick.setWantsLayer(true);
+            if let Some(layer) = brick.layer() {
+                layer.setCornerRadius(2.0);
+                set_layer_bg(&layer, &rgba(color, 1.0));
+                let border = rgba((0.0, 0.0, 0.0), 0.18);
+                unsafe {
+                    let cg: *mut c_void = msg_send![&*border, CGColor];
+                    let _: () = msg_send![&*layer, setBorderColor: cg];
+                    let _: () = msg_send![&*layer, setBorderWidth: 0.5f64];
+                }
+            }
+            row.addSubview(&brick);
+            x += BRICK_W + GAP;
+        }
+        x - GAP + 10.0
+    }
+
     unsafe fn build_running_dot(&self, mtm: MainThreadMarker, row: &NSView, right_x: f64) {
         const DOT_D: f64 = 7.0;
         // Pull the dot a hair left of the right edge so it lines up under the

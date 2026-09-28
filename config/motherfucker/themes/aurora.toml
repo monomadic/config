@@ -1,0 +1,22 @@
+# motherfucker theme: Aurora — polar night, curtains of green and violet,
+# a magenta fringe where they meet.
+[style]
+panel_background = "#0A0F24"
+panel_opacity = 0.78
+panel_foreground = "#E4ECFF"
+item_foreground = "#C9D6F5"
+selected_item_foreground = "#F2FFF8"
+item_foreground_highlight = "#5CFFB0"  # aurora green
+selected_item_foreground_highlight = "#FF6AD5"  # magenta fringe
+icon_foreground = "#9D7BFF"  # violet curtain
+selected_item_background = "#1E2A5E"
+selected_item_opacity = 0.85
+selected_item_border = "#3B4C9B"
+selected_item_border_width = 1
+item_info_foreground = "#5CFFB0"
+item_info_background = "#11244A"
+running_dot = "#5CFFB0"
+cpu_alert = "#FF6AD5"
+cpu_alert_background = "#3A1540"
+border_width = 1
+border = "#1C2550"

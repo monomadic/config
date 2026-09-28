@@ -118,6 +118,12 @@ pub struct Style {
     /// `sigil_foreground` `None` = `panel_background` (dark glyph on the box).
     pub sigil_background: Option<(f64, f64, f64)>,
     pub sigil_foreground: Option<(f64, f64, f64)>,
+    /// CRT scanline overlay: strength of the soft dark lines drawn over the
+    /// whole panel, 0.0 (off) to 1.0.
+    pub scanlines: f64,
+    /// CRT tube effect, 0.0 (off) to 1.0: phosphor glow on the content in
+    /// `item_foreground_highlight` and a darkened vignette.
+    pub crt: f64,
 }
 
 impl Default for Style {
@@ -155,6 +161,8 @@ impl Default for Style {
             cpu_alert_background: None,
             sigil_background: None,
             sigil_foreground: None,
+            scanlines: 0.0,
+            crt: 0.0,
         }
     }
 }
@@ -888,6 +896,14 @@ fn apply_style(style: &mut Style, key: &str, val: &str, line: &str) {
         "sigil_foreground" => match parse_color(val) {
             Some(c) => style.sigil_foreground = Some(c),
             None => warn(line, "expected \"#rrggbb\""),
+        },
+        "scanlines" => match num() {
+            Ok(v) => style.scanlines = v.clamp(0.0, 1.0),
+            Err(_) => warn(line, "expected a number 0.0-1.0"),
+        },
+        "crt" => match num() {
+            Ok(v) => style.crt = v.clamp(0.0, 1.0),
+            Err(_) => warn(line, "expected a number 0.0-1.0"),
         },
         // Panel geometry, read straight into `Config` by the section
         // dispatch above — a theme overlay must not resize the viewport

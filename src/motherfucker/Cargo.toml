@@ -51,7 +51,12 @@ objc2-app-kit = { version = "0.2", features = [
     "block2",
     "libc",
 ] }
-objc2-quartz-core = { version = "0.2", features = ["CALayer"] }
+objc2-quartz-core = { version = "0.2", features = [
+    "CALayer",
+    "CAGradientLayer",
+    "CAReplicatorLayer",
+    "CATransform3D",
+] }
 
 [profile.release]
 lto = true

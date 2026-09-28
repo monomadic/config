@@ -1,0 +1,24 @@
+# motherfucker theme: Coolant — Toxic's sibling: near-black, reactor-coolant cyan,
+# yellow matches on the selection.
+[style]
+panel_background = "#030708"
+panel_opacity = 0.94
+panel_foreground = "#D0FBFF"
+item_foreground = "#8AAFB3"
+selected_item_foreground = "#00F0FF"
+item_foreground_highlight = "#00F0FF"
+selected_item_foreground_highlight = "#F5FF00"
+icon_foreground = "#00F0FF"
+selected_item_background = "#062A2E"
+selected_item_opacity = 0.95
+selected_item_border = "#00F0FF"
+selected_item_border_width = 1
+item_info_foreground = "#00F0FF"
+item_info_background = "#07191C"
+running_dot = "#F5FF00"
+cpu_alert = "#FF3D71"
+cpu_alert_background = "#2A0814"
+border_width = 1
+border = "#0E3A40"
+scanlines = 0.4  # soft CRT scanlines, 0 = off
+crt = 0.5  # phosphor glow and vignette, 0 = off

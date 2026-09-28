@@ -1,0 +1,20 @@
+# motherfucker theme: Baby Pink — soft pink glass, a blush selection,
+# raspberry highlights.
+[style]
+panel_background = "#FFE6EF"
+panel_opacity = 0.9
+panel_foreground = "#6B3A50"
+item_foreground = "#6B3A50"
+selected_item_foreground = "#4E2439"
+item_foreground_highlight = "#E0457B"  # raspberry
+selected_item_foreground_highlight = "#C2185B"
+icon_foreground = "#F48FB1"
+selected_item_background = "#FFB3CC"
+selected_item_opacity = 0.7
+item_info_foreground = "#A63D6B"
+item_info_background = "#FFD1E1"
+running_dot = "#F06292"
+cpu_alert = "#C62828"
+cpu_alert_background = "#FFD6D6"
+border_width = 1
+border = "#F8BBD0"

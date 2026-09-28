@@ -69,7 +69,10 @@ file means built-in defaults (bad lines are reported on stderr and skipped).
   `selected_item_border`/`selected_item_border_width` (inset stroke,
   default 0)/`selected_item_foreground_highlight`, `input_font_size`,
   `cpu_alert`/`cpu_alert_background` (the ⚠ CPU badge), `running_dot`
-  (the theme picker's active-row dot; app rows no longer draw one).
+  (the theme picker's active-row dot; app rows no longer draw one),
+  `scanlines` (soft CRT scanlines over the whole panel, 0.0–1.0,
+  default 0 = off), `crt` (phosphor glow in `item_foreground_highlight`
+  plus a darkened vignette, 0.0–1.0, default 0 = off).
   Colors are `"#rrggbb"`; the highlight keys color the query-matched
   characters.
 

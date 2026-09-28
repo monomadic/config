@@ -1,0 +1,24 @@
+# motherfucker theme: Plasma — Toxic's sibling: near-black, plasma-globe magenta,
+# cyan matches on the selection.
+[style]
+panel_background = "#080308"
+panel_opacity = 0.94
+panel_foreground = "#FFD6FB"
+item_foreground = "#B393AE"
+selected_item_foreground = "#FF1FE6"
+item_foreground_highlight = "#FF1FE6"
+selected_item_foreground_highlight = "#00F0FF"
+icon_foreground = "#FF1FE6"
+selected_item_background = "#2E0A2A"
+selected_item_opacity = 0.95
+selected_item_border = "#FF1FE6"
+selected_item_border_width = 1
+item_info_foreground = "#FF1FE6"
+item_info_background = "#1C081A"
+running_dot = "#00F0FF"
+cpu_alert = "#FF3D3D"
+cpu_alert_background = "#2E0808"
+border_width = 1
+border = "#3D0F38"
+scanlines = 0.4  # soft CRT scanlines, 0 = off
+crt = 0.5  # phosphor glow and vignette, 0 = off
