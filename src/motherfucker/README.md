@@ -60,7 +60,8 @@ file means built-in defaults (bad lines are reported on stderr and skipped).
   `panel_opacity`/`panel_padding`/`panel_corner_radius`, `border`/
   `border_width` (panel stroke, default 0), `outer_border`/
   `outer_border_width`/`outer_border_opacity` (the ring *outside* the panel,
-  default width 0), `item_foreground`/`item_font_size`/
+  default width 0)/`outer_border_tint` (0.0–1.0, mixes the ring toward
+  `panel_background` so it picks up the theme), `item_foreground`/`item_font_size`/
   `item_foreground_highlight`, `icon_foreground` (glyph column + search
   icon), `item_info_foreground`/`item_info_background` (the inline tag
   pill; a background makes it filled instead of outlined),

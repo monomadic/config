@@ -20,3 +20,5 @@ cpu_alert = "#FF2D8E"
 cpu_alert_background = "#3A0B2A"
 border_width = 1
 border = "#2B1250"  # deep violet hairline, reads as an edge not an outline
+scanlines = 0.4  # soft CRT scanlines, 0 = off
+crt = 0.5  # phosphor glow and vignette, 0 = off

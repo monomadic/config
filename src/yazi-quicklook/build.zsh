@@ -38,11 +38,12 @@ esac
 
 echo "Building Go binary for darwin/$go_arch..."
 
+cd "$src_dir"
 CGO_ENABLED=1 GOOS=darwin GOARCH="$go_arch" GOCACHE="$go_cache" go build \
 	-trimpath \
 	-ldflags="-s -w" \
 	-o "$build_dir/$binary_name" \
-	"$src_dir"
+	.
 
 echo "Creating app bundle..."
 

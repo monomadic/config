@@ -111,6 +111,10 @@ pub struct Style {
     pub outer_border: (f64, f64, f64),
     pub outer_border_width: f64,
     pub outer_border_opacity: f64,
+    /// How far `outer_border` is mixed toward `panel_background`, 0.0 (pure
+    /// `outer_border`) to 1.0 (the panel color), so the ring picks up the
+    /// theme.
+    pub outer_border_tint: f64,
     /// Fill behind the CPU warning badge; `None` = `cpu_alert` at 0.16.
     pub cpu_alert_background: Option<(f64, f64, f64)>,
     /// Sigil-mode input badge (the colored box holding `=`, `!`, …).
@@ -158,6 +162,7 @@ impl Default for Style {
             outer_border: (1.0, 1.0, 1.0),
             outer_border_width: 0.0,
             outer_border_opacity: 0.25,
+            outer_border_tint: 0.0,
             cpu_alert_background: None,
             sigil_background: None,
             sigil_foreground: None,
@@ -868,6 +873,10 @@ fn apply_style(style: &mut Style, key: &str, val: &str, line: &str) {
         "outer_border_opacity" => match num() {
             Ok(v) => style.outer_border_opacity = v.clamp(0.0, 1.0),
             Err(_) => warn(line, "expected a number"),
+        },
+        "outer_border_tint" => match num() {
+            Ok(v) => style.outer_border_tint = v.clamp(0.0, 1.0),
+            Err(_) => warn(line, "expected a number 0.0-1.0"),
         },
         "item_info_foreground" => match parse_color(val) {
             Some(c) => style.item_info_foreground = Some(c),

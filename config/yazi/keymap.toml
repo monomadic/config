@@ -1,11 +1,11 @@
 # ucp — copy/paste with progress notifications
 [[mgr.prepend_keymap]]
-on = ["<Space>", "c"]
+on = [",", "c"]
 run = "plugin ucp copy notify"
 desc = "Copy"
 
 [[mgr.prepend_keymap]]
-on = ["<Space>", "p"]
+on = [",", "p"]
 run = "plugin ucp paste notify"
 desc = "Paste"
 
@@ -22,8 +22,8 @@ run = "plugin smart-enter"
 desc = "Open files or enter directories"
 
 # ─────────────────────────────────────────────────────────────────────────
-# <Space> root menu — top-level hub that funnels into sub-menus.
-#   <Space><Space>  quicklook    f  file→pane…    m  media…    o  open…    e  encode/edit…
+# , leader — shares the prefix with the , sort chords (m/M b/B s/S) further down.
+#   <Space> quicklook    ,c copy  ,p paste    ,f file…    ,i media…    ,o open…    ,v video…
 # ─────────────────────────────────────────────────────────────────────────
 
 [[mgr.prepend_keymap]]
@@ -32,108 +32,108 @@ run = "quit"
 desc = "Quit back to the shell"
 
 [[mgr.prepend_keymap]]
-on = ["<Space>", "<Space>"]
+on = "<Space>"
 for = "macos"
-run = "shell -- ~/.local/bin/yazi-quicklook %h"
+run = "shell --orphan -- ~/.local/bin/yazi-quicklook %h"
 desc = "Quicklook"
 
 [[mgr.prepend_keymap]]
-on = ["<Space>", "f", "d"]
+on = [",", "f", "d"]
 for = "macos"
 run = '''shell --block -- kitten dndkitten dnd'''
 desc = "drop target (mouse drop)"
 
-# <Space> f p/P m/M — paste the yank list into the cwd through spill.
+# , f p/P m/M — paste the yank list into the cwd through spill.
 # Lowercase is the plain transfer, uppercase adds xxhash64 verification.
 [[mgr.prepend_keymap]]
-on = ["<Space>", "f", "p"]
+on = [",", "f", "p"]
 for = "unix"
 run = "plugin spill-paste -- copy none"
 desc = "Spill: copy"
 
 [[mgr.prepend_keymap]]
-on = ["<Space>", "f", "P"]
+on = [",", "f", "P"]
 for = "unix"
 run = "plugin spill-paste -- copy hash"
 desc = "Spill: verified copy"
 
 [[mgr.prepend_keymap]]
-on = ["<Space>", "f", "m"]
+on = [",", "f", "m"]
 for = "unix"
 run = "plugin spill-paste -- move size"
 desc = "Spill: move"
 
 [[mgr.prepend_keymap]]
-on = ["<Space>", "f", "M"]
+on = [",", "f", "M"]
 for = "unix"
 run = "plugin spill-paste -- move hash"
 desc = "Spill: verified move"
 
 [[mgr.prepend_keymap]]
-on = ["<Space>", "m", "a"]
+on = [",", "i", "a"]
 for = "unix"
 run = '''shell --orphan -- /Users/nom/.local/bin/kitty-launch --tab --cwd %d1 --title " media-audit " -- /Users/nom/.local/bin/media-audit %s'''
 desc = "Media: audit"
 
-# <Space> m — media
+# , i — media (,m is sort by mtime)
 [[mgr.prepend_keymap]]
-on = ["<Space>", "m", "r"]
+on = [",", "i", "r"]
 for = "unix"
 run = '''shell --orphan -- /Users/nom/.local/bin/kitty-launch --window --cwd %d1 --title " rename video " -- /Users/nom/.local/bin/rename-video --color --icons %s'''
 desc = "Media: auto-rename"
 
 [[mgr.prepend_keymap]]
-on = ["<Space>", "m", "t"]
+on = [",", "i", "t"]
 for = "unix"
 run = '''shell --orphan -- /Users/nom/.local/bin/kitty-launch --window --hold --cwd %d1 --title " tag from url " -- zsh -c 'for f; do /Users/nom/.local/bin/yt-dlp-refresh-metadata "$f"; done' _ %s'''
 desc = "Media: tag from url"
 
-# <Space> o — open
+# , o — open
 [[mgr.prepend_keymap]]
-on = ["<Space>", "o", "d"]
+on = [",", "o", "d"]
 for = "macos"
 run = 'shell -- open "%d"'
 desc = "Open: reveal in finder"
 
 [[mgr.prepend_keymap]]
-on = ["<Space>", "o", "p"]
+on = [",", "o", "p"]
 for = "macos"
 run = 'shell -- open "%d/.."'
 desc = "Open: reveal parent directory in finder"
 
-# <Space> e — encode / edit
+# , v — video encode / edit
 [[mgr.prepend_keymap]]
-on = ["<Space>", "v", "t"]
+on = [",", "v", "t"]
 for = "unix"
 run = '''shell --orphan -- /Users/nom/.local/bin/kitty-launch --window --cwd %d1 --title " trim intro " -- /Users/nom/.local/bin/ffmpeg-lossless-cut %s'''
 desc = "Video: trim (start)"
 
 [[mgr.prepend_keymap]]
-on = ["<Space>", "v", "T"]
+on = [",", "v", "T"]
 for = "unix"
 run = '''shell --orphan -- /Users/nom/.local/bin/kitty-launch --window --cwd %d1 --title " trim outro " -- /Users/nom/.local/bin/ffmpeg-lossless-cut --reverse %s'''
 desc = "Video: trim (end)"
 
 [[mgr.prepend_keymap]]
-on = ["<Space>", "v", "f"]
+on = [",", "v", "f"]
 for = "unix"
 run = '''shell --orphan -- /Users/nom/.local/bin/kitty-launch --window --hold --cwd %d1 -- /Users/nom/.local/bin/fast-start enable %s'''
 desc = "Video: enable faststart"
 
 [[mgr.prepend_keymap]]
-on = ["<Space>", "v", "d"]
+on = [",", "v", "d"]
 for = "unix"
 run = '''shell --orphan -- /Users/nom/.local/bin/kitty-launch --window --hold --cwd %d1 --title " discard duplicate frames " -- /Users/nom/.local/bin/ffmpeg-discard-duplicate-frames %s'''
 desc = "Video: discard duplicate frames (ProRes, CFR)"
 
 [[mgr.prepend_keymap]]
-on = ["<Space>", "v", "]"]
+on = [",", "v", "]"]
 for = "unix"
 run = "shell --block -- /Users/nom/.local/bin/video-rotate-lossless --right %s"
 desc = "Video: rotate right (lossless)"
 
 [[mgr.prepend_keymap]]
-on = ["<Space>", "v", "["]
+on = [",", "v", "["]
 for = "unix"
 run = "shell --block -- /Users/nom/.local/bin/video-rotate-lossless --left %s"
 desc = "Video: rotate left (lossless)"

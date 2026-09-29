@@ -772,7 +772,13 @@ fn apply_outer_border(view: &NSView, style: &config::Style) {
     };
     let o = outer_inset(style);
     layer.setCornerRadius(style.panel_corner_radius + o);
-    let color = rgba(style.outer_border, style.outer_border_opacity);
+    let (b, p, t) = (style.outer_border, style.panel_background, style.outer_border_tint);
+    let tinted = (
+        b.0 + (p.0 - b.0) * t,
+        b.1 + (p.1 - b.1) * t,
+        b.2 + (p.2 - b.2) * t,
+    );
+    let color = rgba(tinted, style.outer_border_opacity);
     unsafe {
         let curve = NSString::from_str("continuous");
         let _: () = msg_send![&*layer, setCornerCurve: &*curve];

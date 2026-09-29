@@ -14,3 +14,5 @@ item_info_background = "#34294F"
 running_dot = "#FF7EDB"  # hot pink
 cpu_alert = "#FF8B39"  # orange
 cpu_alert_background = "#3B2340"
+scanlines = 0.4  # soft CRT scanlines, 0 = off
+crt = 0.5  # phosphor glow and vignette, 0 = off
