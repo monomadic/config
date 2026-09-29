@@ -3,7 +3,7 @@
 #
 # Checks, in the order such bugs usually hide:
 #   deploy    every file in the repo mpv config is actually linked into
-#             ~/.config/mpv (dotter creates per-file symlinks; new files
+#             ~/.config/mpv (deploy creates per-file symlinks; new files
 #             silently do nothing until `deploy` is run)
 #   load      every Lua script loads without errors under the real config
 #   bindings  every script-binding / script-message target in input.conf is

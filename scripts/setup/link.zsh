@@ -2,7 +2,7 @@
 # Link the checkout using only zsh and macOS utilities.
 # Failures are counted, but never stop the remaining mappings.
 ROOT="${${0:A}:h:h:h}"
-integer problems=0 linked=0 unchanged=0
+integer problems=0 linked=0 unchanged=0 pending=0
 mode="${1:-}"
 green='' cyan='' yellow='' reset='' red='' error_reset=''
 if [[ -z "${NO_COLOR:-}" && "${TERM:-}" != dumb ]]; then
@@ -35,6 +35,7 @@ link_file() {
   elif [[ -e "$dst" || -L "$dst" ]]; then
     problem "$dst already exists; move it aside to link $1"
   elif [[ "$mode" == --dry-run ]]; then
+    (( ++pending ))
     print -r -- "${cyan}WOULD LINK:${reset} $dst -> $src"
   elif mkdir -p -- "${dst:h}" && ln -s -- "$src" "$dst"; then
     (( ++linked ))
@@ -64,5 +65,9 @@ source "$ROOT/Deployfile" || problem 'could not finish reading Deployfile'
 summary_color="$green"
 [[ "$mode" == --dry-run ]] && summary_color="$cyan"
 (( problems )) && summary_color="$yellow"
-print -r -- "${summary_color}Links: $linked created, $unchanged unchanged, $problems problems${mode:+ ($mode)}.${reset}"
+if [[ "$mode" == --dry-run ]]; then
+  print -r -- "${summary_color}Dry run: $pending links to create, $unchanged already correct, $problems problems.${reset}"
+else
+  print -r -- "${summary_color}Links: $linked created, $unchanged unchanged, $problems problems${mode:+ ($mode)}.${reset}"
+fi
 (( problems == 0 ))
