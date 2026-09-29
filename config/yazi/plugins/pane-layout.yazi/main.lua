@@ -1,12 +1,12 @@
 --- @sync entry
 
 local function configured_ratio()
-	local ratio = rt and rt.mgr and rt.mgr.ratio or MANAGER.ratio
+	local ratio = rt.mgr.ratio
 
 	return {
-		parent = ratio.parent,
-		current = ratio.current,
-		preview = ratio.preview,
+		parent = ratio[1],
+		current = ratio[2],
+		preview = ratio[3],
 	}
 end
 

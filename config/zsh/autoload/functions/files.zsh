@@ -150,3 +150,10 @@ function cd-up() {
 	cd ..
 	zle && zle reset-prompt
 }
+
+# bin/fzf-worktrees prints the chosen worktree; only a function can cd the shell
+fzf-worktrees() {
+  local dir
+  dir=$(command fzf-worktrees "$@") || return
+  [[ -n $dir && -d $dir ]] && builtin cd -- "$dir"
+}

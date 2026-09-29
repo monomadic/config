@@ -1,0 +1,118 @@
+#!/usr/bin/env zsh
+# Browse every linked git worktree under the current directory: which project
+# it belongs to, its branch, and how much disk it takes.
+#
+#   enter    print the worktree path (the fzf-worktrees shell function cds there)
+#   ctrl-x   git worktree remove (refuses a dirty tree)
+#   alt-x    force remove, dirty or orphaned
+#   tab      mark several
+#
+# A script cannot cd its parent shell; config/zsh/autoload/functions/worktrees.zsh
+# wraps this command to do that. Run outside the wrapper it just prints the path.
+
+emulate -L zsh
+setopt pipe_fail no_unset
+
+self=${0:A}
+
+# A linked worktree has a .git *file* pointing into <repo>/.git/worktrees/<name>.
+# Submodules have one too, but theirs points into .git/modules/.
+list_worktrees() {
+  local root=${1:-.} gitfile wt gitdir common project branch head kb rows=()
+  while IFS= read -r -d '' gitfile; do
+    wt=${gitfile:h}
+    gitdir=$(sed -n 's/^gitdir: //p' "$gitfile" 2>/dev/null)
+    [[ $gitdir == */worktrees/* ]] || continue
+    [[ $gitdir == /* ]] || gitdir=$wt/$gitdir
+    common=${gitdir%/worktrees/*}
+    if [[ ${common:t} == .git ]]; then
+      project=${common:h:t}
+    else
+      project=${${common:t}%.git}
+    fi
+    branch='?'
+    if [[ -r $gitdir/HEAD ]]; then
+      head=$(<"$gitdir/HEAD")
+      if [[ $head == 'ref: refs/heads/'* ]]; then
+        branch=${head#ref: refs/heads/}
+      else
+        branch="(${head[1,8]})"
+      fi
+    else
+      branch='(orphaned)'
+    fi
+    kb=$(du -sk -- "$wt" 2>/dev/null | cut -f1)
+    rows+=("${kb:-0}"$'\t'"$wt"$'\t'"$project"$'\t'"$branch")
+  done < <(fd --hidden --no-ignore --type f --glob '.git' --print0 --search-path "$root" 2>/dev/null)
+
+  (( ${#rows} )) || return 0
+  local row size
+  local -a f
+  for row in ${(On)rows}; do
+    f=("${(@ps:\t:)row}")
+    kb=$f[1]
+    if (( kb >= 1048576 )); then
+      size=$(printf '%.1fG' $(( kb / 1048576.0 )))
+    elif (( kb >= 1024 )); then
+      size=$(printf '%.0fM' $(( kb / 1024.0 )))
+    else
+      size="${kb}K"
+    fi
+    # field 1 is the raw path (hidden); the rest is display
+    printf '%s\t\e[33m%7s\e[0m  \e[36m%-20s\e[0m  \e[32m%-28s\e[0m  \e[2m%s\e[0m\n' \
+      "$f[2]" "$size" "$f[3]" "$f[4]" "${f[2]#./}"
+  done
+}
+
+remove_worktrees() {
+  local force=0
+  [[ ${1:-} == --force ]] && { force=1; shift }
+  (( $# )) || return 0
+
+  print -r -- "Remove $# worktree(s)$( (( force )) && print ' (FORCED — uncommitted changes are lost)'):"
+  print -rl -- "  "${^@}
+  local reply
+  read -r "reply?Proceed? [y/N] "
+  [[ $reply == [yY] ]] || return 0
+
+  local wt failed=0
+  for wt in "$@"; do
+    if (( force )); then
+      git -C "$wt" worktree remove --force -- "${wt:A}" 2>/dev/null || rm -rf -- "$wt"
+    else
+      git -C "$wt" worktree remove -- "${wt:A}" || failed=1
+    fi
+  done
+  if (( failed )); then
+    read -r "reply?Some were not removed (alt-x forces). Press enter. "
+  fi
+}
+
+case ${1:-} in
+  --list)   shift; list_worktrees "$@"; exit ;;
+  --remove) shift; remove_worktrees "$@"; exit ;;
+esac
+
+for dep in fd fzf git; do
+  command -v $dep >/dev/null || { print -u2 "fzf-worktrees: $dep not found"; exit 1 }
+done
+
+selected=$(
+  "$self" --list . |
+    fzf --ansi --multi \
+      --delimiter=$'\t' --with-nth=2.. \
+      --layout=reverse --height=70% \
+      --prompt='worktree > ' \
+      --header=$'enter:cd  ctrl-x:remove  alt-x:force remove  tab:mark\n   size  project               branch' \
+      --preview='git -C {1} status -sb 2>&1 | head -40; echo; git -C {1} log --oneline -8 2>/dev/null' \
+      --preview-window='right,40%,wrap' \
+      --bind="ctrl-x:execute(${(q)self} --remove {+1})+reload(${(q)self} --list .)" \
+      --bind="alt-x:execute(${(q)self} --remove --force {+1})+reload(${(q)self} --list .)" \
+      --accept-nth=1 \
+      "$@"
+) || exit $?
+
+# with several marked, enter goes to the first
+picked=("${(@f)selected}")
+[[ -n ${picked[1]:-} ]] || exit 1
+print -r -- "${picked[1]:A}"
