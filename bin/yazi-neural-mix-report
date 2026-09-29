@@ -1,0 +1,50 @@
+#!/bin/zsh
+# Yazi music action: keep reports/stems in temporary storage, never beside tracks.
+emulate -L zsh
+set -u
+set -o pipefail
+export PATH="$HOME/.local/bin:/opt/homebrew/bin:/usr/local/bin:$PATH"
+
+if (( $# == 0 )); then
+  print -u2 -- "Usage: ${0:t} <music-file> [music-file ...]"
+  exit 2
+fi
+
+project="${SRC_PATH:-$HOME/src}/djstudio-study"
+cli="$project/bin/neural-mix-track"
+if [[ ! -x "$cli" ]]; then
+  print -u2 -- "Neural Mix track tool not found: $cli"
+  exit 1
+fi
+trap 'exit 130' INT
+trap 'exit 143' TERM
+failures=0
+for track in "$@"; do
+  if [[ ! -f "$track" ]]; then
+    print -u2 -- "Skipping missing file: $track"
+    (( failures += 1 ))
+    continue
+  fi
+  track="${track:a}"
+  run_dir=$(mktemp -d /tmp/neural-mix-report.XXXXXX) || exit 1
+  report_dir="$run_dir/report"
+  print -r -- "Analyzing: $track"
+  print -r -- "Output: $report_dir"
+  "$cli" "$track" --out "$report_dir" --stem-format flac 2>&1 | tee "$run_dir/run.log"
+  result=${pipestatus[1]}
+  if (( result == 130 || result == 143 )); then
+    exit "$result"
+  fi
+  if (( result == 0 || result == 2 )) && [[ -f "$report_dir/report.html" ]]; then
+    print -r -- "Report: $report_dir/report.html"
+    open "$report_dir/report.html" || print -u2 -- "Open the report manually using the path above."
+    if (( result == 2 )); then
+      print -u2 -- "Partial report: some models failed; see the report and $run_dir/run.log"
+      (( failures += 1 ))
+    fi
+  else
+    print -u2 -- "Report failed. Details: $run_dir/run.log"
+    (( failures += 1 ))
+  fi
+done
+(( failures == 0 ))

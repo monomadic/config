@@ -135,8 +135,9 @@ return { groups = {
 	},
 	{
 		group = "Audio",
-		when = { ext = { "flac" } },
-		{ desc = "FLAC Stems Sidecar", run = kitty("--window --hold", "lossless flac sidecar", each(BIN .. "vdjstems make --roformer --flac")), orphan = true },
+		when = { kind = "audio" },
+		{ desc = "Neural Mix: track report (temporary)", run = kitty("--tab --hold", "Neural Mix report", BIN .. "yazi-neural-mix-report %s"), orphan = true },
+		{ desc = "FLAC Stems Sidecar", run = kitty("--window --hold", "lossless flac sidecar", each(BIN .. "vdjstems make --roformer --flac")), orphan = true, when = { ext = { "flac" } } },
 	},
 	{
 		group = "File",

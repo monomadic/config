@@ -5,6 +5,10 @@
 #   enter    print the worktree path (the fzf-worktrees shell function cds there)
 #   ctrl-x   git worktree remove (refuses a dirty tree)
 #   alt-x    force remove, dirty or orphaned
+#   ctrl-b   demote to a branch: commit loose work, name a detached HEAD,
+#            then remove the directory. Nothing is lost but ignored files
+#   alt-d    have the AI describe the changes against the main worktree
+#            (backend and model as in git-sync: GC_BACKEND, GC_CLAUDE_MODEL)
 #   tab      mark several
 #
 # A script cannot cd its parent shell; config/zsh/autoload/functions/worktrees.zsh
@@ -12,6 +16,8 @@
 
 emulate -L zsh
 setopt pipe_fail no_unset
+
+zmodload zsh/datetime   # $EPOCHREALTIME, for round-trip timing
 
 self=${0:A}
 
@@ -88,7 +94,186 @@ remove_worktrees() {
   fi
 }
 
+# Keep the work, drop the directory. Loose changes become a WIP commit and a
+# detached HEAD gets a branch, so the worktree can be removed without --force.
+demote_worktrees() {
+  (( $# )) || return 0
+
+  print -r -- "Demote $# worktree(s) to branches (uncommitted work is committed as WIP):"
+  print -rl -- "  "${^@}
+  local reply
+  read -r "reply?Proceed? [y/N] "
+  [[ $reply == [yY] ]] || return 0
+
+  local wt branch failed=0
+  for wt in "$@"; do
+    if ! git -C "$wt" rev-parse --git-dir >/dev/null 2>&1; then
+      print -r -- "  $wt: orphaned, its repository is gone — skipped"
+      failed=1; continue
+    fi
+    branch=$(git -C "$wt" symbolic-ref --quiet --short HEAD)
+    if [[ -z $branch ]]; then
+      branch=worktree/${${wt:A}:t}
+      if git -C "$wt" show-ref --verify --quiet "refs/heads/$branch"; then
+        branch+=-$(git -C "$wt" rev-parse --short HEAD)
+      fi
+      git -C "$wt" switch --quiet -c "$branch" || { failed=1; continue }
+    fi
+    if [[ -n $(git -C "$wt" status --porcelain) ]]; then
+      git -C "$wt" add -A &&
+        git -C "$wt" commit --quiet --no-verify -m "WIP: demoted from worktree ${${wt:A}:t}" ||
+        { print -r -- "  $wt: commit failed — left in place"; failed=1; continue }
+    fi
+    if git -C "$wt" worktree remove -- "${wt:A}"; then
+      print -r -- "  $wt -> branch $branch"
+    else
+      failed=1
+    fi
+  done
+  read -r "reply?$( (( failed )) && print 'Some were not demoted. ')Press enter. "
+}
+
+# Everything the worktree holds that the main worktree's HEAD does not:
+# its commits since they diverged, plus uncommitted and untracked work.
+describe_worktree() {
+  local wt=$1 main base main_branch
+  git -C "$wt" rev-parse --git-dir >/dev/null 2>&1 ||
+    { print -r -- "$wt: orphaned, its repository is gone"; return 1 }
+  main=${"$(git -C "$wt" worktree list --porcelain | sed -n '1s/^worktree //p')"}
+  base=$(git -C "$wt" merge-base HEAD "$(git -C "$main" rev-parse HEAD)" 2>/dev/null) ||
+    { print -r -- "$wt: no common ancestor with $main"; return 1 }
+  main_branch=$(git -C "$main" symbolic-ref --quiet --short HEAD || print detached)
+
+  local prompt
+  prompt=$(
+    print -r -- "Worktree: ${wt:A}"
+    print -r -- "Branch: $(git -C "$wt" symbolic-ref --quiet --short HEAD || print detached)"
+    print -r -- "Compared against: $main_branch in $main"
+    print -r -- $'\n## Commits not in '"$main_branch"
+    git -C "$wt" log --no-color --format='%h %s' "$base..HEAD"
+    print -r -- $'\n## Uncommitted and untracked files'
+    git -C "$wt" status --porcelain
+    print -r -- $'\n## Diff stat'
+    git -C "$wt" diff --no-color --stat "$base"
+    print -r -- $'\n## Diff (may be truncated)'
+    git -C "$wt" diff --no-color "$base" | head -c ${FZF_WORKTREES_DIFF_BYTES:-200000}
+  )
+
+  if [[ -z $(git -C "$wt" log --format=%h "$base..HEAD") && -z $(git -C "$wt" status --porcelain) ]]; then
+    print -r -- "${wt:A} has no changes against $main_branch."
+    return 0
+  fi
+
+  # untracked files are in no diff; send their contents too
+  local f
+  prompt+=$'\n\n## Untracked file contents (may be truncated)\n'
+  prompt+=$(
+    git -C "$wt" ls-files --others --exclude-standard | head -20 | while IFS= read -r f; do
+      print -r -- "--- $f"
+      if [[ -f $wt/$f ]] && grep -Iq . -- "$wt/$f" 2>/dev/null; then
+        head -c 4000 -- "$wt/$f"
+      else
+        print -r -- "(binary or empty)"
+      fi
+    done
+  )
+
+  local system="You are shown what a git worktree contains that the main worktree does not. Describe it for the person deciding whether to keep, merge or delete the worktree: one summary sentence, then a short bullet list of what changed and why it seems to have been done, then one line on how finished it looks (uncommitted work, WIP commits, TODOs). Plain text, under 200 words."
+
+  # Backend, model and invocation follow git-sync, down to the variable names.
+  local backend=${GC_BACKEND:-} claude_bin
+  local -a bundled
+  if command -v claude >/dev/null 2>&1; then
+    claude_bin=claude
+  else
+    bundled=( "$HOME/Library/Application Support/Claude/claude-code"/*/claude.app/Contents/MacOS/claude(Nn-*) )
+    claude_bin=${bundled[-1]:-}
+  fi
+  if [[ -z $backend ]]; then
+    if [[ -n $claude_bin ]]; then
+      backend=claude
+    else
+      backend=codex
+    fi
+  fi
+
+  local tmp=$(mktemp -d)
+  trap "rm -rf ${(q)tmp}" EXIT
+  print -r -- "$prompt" > $tmp/prompt
+  local -a spin=()
+  command -v gum >/dev/null && spin=(gum spin --spinner dot --title "Describing ${wt:t} vs $main_branch..." --)
+  local started=$EPOCHREALTIME
+
+  case $backend in
+    claude)
+      [[ -n $claude_bin ]] || { print -r -- "claude not found"; return 1 }
+      # Stripped of the Claude Code harness and of any parent session's
+      # environment; see git-sync for what each flag saves.
+      local -a claude_env=(
+        CLAUDECODE CLAUDE_CODE_ENTRYPOINT CLAUDE_CODE_SESSION_ID
+        CLAUDE_CODE_CHILD_SESSION CLAUDE_CODE_EXECPATH CLAUDE_AGENT_SDK_VERSION
+        CLAUDE_CODE_OAUTH_SCOPES CLAUDE_CODE_SDK_HAS_OAUTH_REFRESH
+        CLAUDE_CODE_SDK_HAS_HOST_AUTH_REFRESH ANTHROPIC_BASE_URL
+        USE_STAGING_OAUTH USE_LOCAL_OAUTH
+      )
+      local -a claude_args=(
+        --print
+        --output-format json
+        --model "${GC_CLAUDE_MODEL:-claude-haiku-4-5-20251001}"
+        --system-prompt "$system"
+        --tools ""
+        --strict-mcp-config
+        --mcp-config '{"mcpServers":{}}'
+        --setting-sources ""
+        --disable-slash-commands
+        --no-session-persistence
+      )
+      if ! $spin zsh -c "env ${(j: :)${(@)claude_env/#/-u }} MAX_THINKING_TOKENS=0 ${(q)claude_bin} ${(j: :)${(@q)claude_args}} < $tmp/prompt > $tmp/json 2> $tmp/err"; then
+        print -r -- "Claude failed: $(<$tmp/err)$(<$tmp/json)"
+        return 1
+      fi
+      # a soft failure still exits 0 and explains itself in .result
+      if [[ $(jq -r '.is_error // false' $tmp/json 2>/dev/null) == true ]]; then
+        print -r -- "Claude failed: $(jq -r '.result // .subtype // "unknown error"' $tmp/json)"
+        return 1
+      fi
+      jq -r '.result // empty' $tmp/json > $tmp/out 2>/dev/null
+      ;;
+    codex)
+      print -r -- "$system"$'\n\n'"$(<$tmp/prompt)" > $tmp/prompt.codex
+      if ! $spin zsh -c "codex exec --skip-git-repo-check -c model_reasoning_effort=${(q)${GC_REASONING:-low}} --output-last-message $tmp/out - < $tmp/prompt.codex > /dev/null 2> $tmp/err"; then
+        print -r -- "Codex failed: $(<$tmp/err)"
+        return 1
+      fi
+      ;;
+    *)
+      print -r -- "Unknown backend: $backend"
+      return 1
+      ;;
+  esac
+  [[ -s $tmp/out ]] || { print -r -- "$backend returned an empty description"; return 1 }
+
+  print -r -- "${wt:A}  ($(git -C "$wt" symbolic-ref --quiet --short HEAD || print detached) vs $main_branch)"
+  print
+  if command -v gum >/dev/null; then
+    gum style --border rounded --border-foreground 63 --padding "0 1" --width 100 "$(<$tmp/out)"
+  else
+    cat $tmp/out
+  fi
+
+  local usage
+  usage=$(jq -r 'if .usage then .usage | [((.input_tokens // 0) + (.cache_creation_input_tokens // 0) + (.cache_read_input_tokens // 0)), (.output_tokens // 0)] | @tsv else empty end' $tmp/json 2>/dev/null)
+  print
+  if [[ -n $usage ]]; then
+    printf '  %d in · %d out · %.1fs\n' ${usage%%$'\t'*} ${usage##*$'\t'} $(( EPOCHREALTIME - started ))
+  else
+    printf '  %.1fs\n' $(( EPOCHREALTIME - started ))
+  fi
+}
+
 case ${1:-} in
+  --describe) shift; describe_worktree "$@"; exit ;;
+  --demote) shift; demote_worktrees "$@"; exit ;;
   --list)   shift; list_worktrees "$@"; exit ;;
   --remove) shift; remove_worktrees "$@"; exit ;;
 esac
@@ -103,11 +288,13 @@ selected=$(
       --delimiter=$'\t' --with-nth=2.. \
       --layout=reverse --height=70% \
       --prompt='worktree > ' \
-      --header=$'enter:cd  ctrl-x:remove  alt-x:force remove  tab:mark\n   size  project               branch' \
+      --header=$'enter:cd  alt-d:describe  ctrl-b:demote to branch  ctrl-x:remove  alt-x:force remove  tab:mark\n   size  project               branch' \
       --preview='git -C {1} status -sb 2>&1 | head -40; echo; git -C {1} log --oneline -8 2>/dev/null' \
       --preview-window='right,40%,wrap' \
       --bind="ctrl-x:execute(${(q)self} --remove {+1})+reload(${(q)self} --list .)" \
       --bind="alt-x:execute(${(q)self} --remove --force {+1})+reload(${(q)self} --list .)" \
+      --bind="ctrl-b:execute(${(q)self} --demote {+1})+reload(${(q)self} --list .)" \
+      --bind="alt-d:execute(${(q)self} --describe {1}; read -r \"?Press enter. \")" \
       --accept-nth=1 \
       "$@"
 ) || exit $?
