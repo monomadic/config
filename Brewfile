@@ -33,7 +33,6 @@ brew "shfmt"
 brew "uni" # unicode database
 
 # Dotfiles and machine bootstrap
-brew "dotter"
 brew "fileicon" # app icon overrides during deploy
 #brew "mas" # Mac App Store CLI
 

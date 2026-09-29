@@ -1,6 +1,4 @@
-# Is an installed src/ tool out of date? Shared by bin/dotter-deploy
-# (`deploy.sh --upgrade`) and bin/update, so both give the same answer and
-# share one record of what was last installed.
+# Is an installed src/ tool out of date? Used by bin/update.
 #
 # Source with $DOTFILES_DIR set to the repo root.
 #

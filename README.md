@@ -1,90 +1,72 @@
 # Dotfiles
 
-macOS dotfiles. Package installation is Homebrew's job, file placement is
-[Dotter](https://github.com/SuperCuber/dotter)'s job, and which packages are
-active on a given machine lives in `dotter/local.toml`.
+macOS dotfiles deployed by plain zsh. No Git, Homebrew, Python, or other
+installed tools are needed to create the links.
 
-## Bootstrap a fresh machine
+## First install
 
-One line, nothing installed beforehand — it sets up the Xcode Command Line
-Tools, installs Homebrew, clones this repo, installs the Brewfile, and deploys:
+Download and run with macOS's built-in curl:
 
-```bash
-curl -fsSL https://raw.githubusercontent.com/monomadic/config/master/scripts/setup/bootstrap.sh | bash
+```sh
+curl -fsSL https://raw.githubusercontent.com/monomadic/config/master/scripts/setup/bootstrap.sh -o /tmp/dotfiles-bootstrap.zsh
+/bin/zsh -f /tmp/dotfiles-bootstrap.zsh
 ```
 
-The repo lands in `~/config` by default. To put it anywhere else:
+Bootstrap downloads a repository archive to `~/config` and runs the linker.
+Set `DOTFILES_DIR` when running it to choose another destination. An existing
+checkout with a Linkfile is reused; another existing destination is left alone.
+The downloaded archive has no Git history. It is not automatically updated.
+The remote command uses the version published to master, so local changes must
+be pushed before they are available to another machine.
 
-```bash
-DOTFILES_DIR="$HOME/src/config" bash -c "$(curl -fsSL https://raw.githubusercontent.com/monomadic/config/master/scripts/setup/bootstrap.sh)"
+## Deploy and extend
+
+From an existing checkout:
+
+```sh
+scripts/setup/deploy.sh --dry-run   # preview links and conflicts
+scripts/setup/deploy.sh             # create links
+scripts/setup/check.sh              # check mapping syntax and source paths
 ```
 
-Nothing in the repo assumes a fixed location: every script resolves the
-checkout from its own path, and `$DOTFILES_DIR` is exported from `.zshenv` by
-resolving the symlink back to wherever you cloned it.
+After deployment, `deploy` runs the same linker. In an already-open shell that
+still has the old alias, run `unalias deploy` first.
 
-Already cloned? Run the same script from the checkout:
+[Linkfile](Linkfile) is ordinary zsh:
 
-```bash
-scripts/setup/bootstrap.sh
+```sh
+link_file config/zsh/zshrc.zsh "$HOME/.zshrc"
+link_file config/kitty/kitty.conf "$HOME/.config/kitty/kitty.conf"
+link_tree bin "$HOME/.local/bin"
 ```
 
-## Packages
+Add a call to extend deployment. Comment out a call to skip it. `link_file` can
+also link a whole directory; `link_tree` links each file recursively, including
+hidden files, so destination directories can also contain installed binaries
+and app state. Linkfile is trusted shell code, not a custom manifest language.
 
-- [Brewfile](Brewfile) — installed by bootstrap. Everything the shell, editor,
-  and this repo's config actually depend on.
-- [Brewfile.optional](Brewfile.optional) — large apps nothing here depends on
-  (messaging clients, Spotify, Journey, vapoursynth). Not installed by
-  bootstrap; pull them in when you want them:
+Correct links are left alone. Missing sources, conflicting files or links, and
+failed writes are reported and skipped; other mappings continue. The final
+exit status is nonzero if any failed. A shell syntax error must be fixed before
+the Linkfile can run. `--check` checks sources, while `--dry-run` also checks
+existing targets. Neither writes links.
 
-```bash
-brew bundle --file "$DOTFILES_DIR/Brewfile.optional"
-```
+There are no profiles, host overrides, state files, forced replacements, or
+automatic cleanup. Removing a mapping leaves its old link in place. If you move
+the checkout, remove the old links yourself before deploying again. Existing
+Dotter-created links to the same files already work; old Dotter caches and local
+profiles are unused. Deployment does not remove them or uninstall Dotter.
 
-Careful with `brew bundle cleanup` against the main Brewfile alone — it will
-now see the optional apps as unlisted. Pass both files, or skip cleanup.
+Edits to linked files take effect immediately. Deploy again after adding files
+or changing mappings. Deploy does not install or upgrade applications.
 
-## Day-to-day
+## Install software separately
 
-```bash
-scripts/setup/packages.sh list            # what's deployed on this machine
-scripts/setup/packages.sh enable helix    # turn a package on
-scripts/setup/packages.sh disable marta   # turn one off
-scripts/setup/deploy.sh                   # apply changes
-scripts/setup/deploy.sh --upgrade         # Yazi plugins, yt-dlp, brew upgrade, stale src/ rebuilds
-scripts/setup/deploy.sh --icons           # reapply macOS app icons
-scripts/setup/deploy.sh --full            # --icons plus --upgrade
-scripts/setup/check.sh                    # preflight, run automatically by deploy
-```
-
-Dotter **symlinks**, so editing a file under `config/` changes live config
-immediately. A deploy is only needed when the *mapping* changes — a new
-package, a new file entry, or a changed target path.
-
-## Dotter layout
-
-Two files, and only two:
-
-- [dotter/global.toml](dotter/global.toml) — every package, as one
-  `[<name>.files]` section mapping repo path → target path. Alphabetical,
-  grouped by purpose, one syntax throughout.
-- `dotter/local.toml` — this machine's package selection plus variable
-  overrides. Gitignored; created from
-  [dotter/local.toml.example](dotter/local.toml.example) on bootstrap.
-
-Adding a tool means: create `config/<tool>/`, add a `[<tool>.files]` section to
-`global.toml`, then `scripts/setup/packages.sh enable <tool>` and deploy.
-
-Deploy runs `check.sh` first unless `DOTTER_SKIP_HEALTHCHECK=1` is set. A bare
-deploy only symlinks config; `--upgrade` is the flag that reaches outside the
-repo, and every step it runs is non-fatal and individually skippable
-(`DOTTER_SKIP_YAZI_PACKAGES=1`, `DOTTER_SKIP_YTDLP=1`, `DOTTER_SKIP_BREW=1`,
-`DOTTER_SKIP_SRC=1`). Its `src/` step rebuilds only tools already installed on
-this machine whose build inputs have changed — it never installs something new.
-
-On macOS, `--icons` runs
-[scripts/setup/apply-file-icons.sh](scripts/setup/apply-file-icons.sh); edit the
-`ICON_MAPPINGS` array there to change which apps get custom icons.
+- `brew bundle --file Brewfile` installs shell/editor dependencies once Homebrew is installed.
+- `brew bundle --file Brewfile.optional` installs optional apps.
+- `scripts/install/install-<name>.sh` builds and installs individual tools.
+- `update` browses tool updates; `update --all` installs pending tool updates.
+- `scripts/setup/apply-file-icons.sh` applies the optional icon overrides.
 
 ## Structure
 
@@ -105,7 +87,7 @@ On macOS, `--icons` runs
 - `_quarantine/`: commands dropped from PATH but kept in git history — not
   deployed, not referenced, not added to
 
-Config directories kept in-tree but not deployed through Dotter yet:
+Config directories kept in-tree but not deployed by Linkfile:
 `beatportdl`, `compressor`, `git`, `homebrew`, `iterm`, `ollama`, `python`,
 `tag-media`.
 

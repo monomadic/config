@@ -77,7 +77,7 @@ fi
 
 # Regenerate the zsh completion. brew's keg ships one, but unlinking the keg
 # above removes it from site-functions, and the uv build ships none — so the
-# repo carries its own copy in config/zsh/completions (on fpath via Dotter),
+# repo carries its own copy in config/zsh/completions (on fpath via Deployment),
 # built from the installed yt-dlp's option parser so it tracks the real version.
 DOTFILES_ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 UV_PY="$HOME/.local/share/uv/tools/yt-dlp/bin/python"

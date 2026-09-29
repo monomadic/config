@@ -1,7 +1,7 @@
 # VirtualDJ config
 
 VirtualDJ reads everything from `~/Library/Application Support/VirtualDJ/`.
-Dotter symlinks two directories from this package into it:
+Deployment symlinks two directories from this package into it:
 
 | Repo path | Deployed to |
 |---|---|

@@ -2,14 +2,14 @@
 """
 vdj-settings — read and write individual VirtualDJ settings
 
-settings.xml is deliberately NOT managed by Dotter. VirtualDJ rewrites the whole
+settings.xml is deliberately NOT managed by Deployment. VirtualDJ rewrites the whole
 file every time it quits, and it mixes real preferences in with window geometry,
 CoreAudio device indices, session state and auth tokens (internetLogin,
 tidalAccessCode2). Symlinking it into the repo would publish those and churn on
 every session.
 
 Instead: keep the settings worth caring about in a preset file, and write them
-into settings.xml on demand. This never runs during a Dotter deploy.
+into settings.xml on demand. This never runs during a Deployment deploy.
 
 Usage:
   vdj-settings get <key>...              print current values

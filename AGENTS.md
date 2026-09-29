@@ -1,6 +1,6 @@
 # AGENTS.md
 
-Personal dotfiles repo, deployed with [Dotter](https://github.com/SuperCuber/dotter).
+Personal dotfiles repo, deployed with plain zsh via `Linkfile`.
 **macOS only** — Linux config (i3, sway, waybar, foot, weston, refind, ...) has been removed; don't add it back.
 Full layout rules: [docs/STRUCTURE.md](docs/STRUCTURE.md). Bootstrap docs: [README.md](README.md).
 
@@ -8,18 +8,18 @@ Full layout rules: [docs/STRUCTURE.md](docs/STRUCTURE.md). Bootstrap docs: [READ
 
 ## The one thing to understand first
 
-Dotter **symlinks** repo files into place (`default_target_type = "symbolic"`).
+The linker **symlinks** repo files into place.
 `config/yazi/` IS `~/.config/yazi/` on this machine. Editing a file in this repo
 changes the live config immediately — no build, no deploy. Treat edits to `config/`
 as live changes, and don't "install" anything by copying files out of the repo.
 
 A deploy run is only needed when the *mapping* changes: a new package, a new
-file entry in `dotter/global.toml`, or a changed target path.
+call in `Linkfile`, or a changed target path.
 
 ## The repo is location-independent
 
 Nothing assumes `~/config`. `scripts/**` scripts resolve the root from their own
-path (`dirname $0/../..`), `bin/dotter-deploy` resolves through its
+path (`dirname $0/../..`), `bin/deploy` resolves through its
 symlink with `${0:A}` (`:h:h` — it sits one level down), and `.zshenv` derives
 `$DOTFILES_DIR` the same way.
 When you write a new script, follow that pattern — never hardcode `$HOME/config`,
@@ -38,55 +38,31 @@ script that already has a login shell's `PATH`, prefer the bare name.
 
 ## How deployment works
 
-Two manifests, one syntax:
+`Linkfile` is plain zsh sourced by `scripts/setup/link.zsh`:
 
-- `dotter/global.toml` — every package as a `[<name>.files]` section mapping repo path → target path. Alphabetical, grouped by purpose. Use the long `{ target = ..., type = ..., recurse = ... }` form only when overriding defaults.
-- `dotter/local.toml` — **gitignored**; this machine's package selection plus variable overrides. Never expect it in git; never commit it.
-- `dotter/local.toml.example` — the single tracked template (there is no longer a per-platform set); optional packages stay listed but commented out so it doubles as an inventory.
-- Some `config/<tool>/` dirs are intentionally source-only (not wired into Dotter yet): beatportdl, compressor, git, homebrew, iterm, ollama, python, tag-media.
-
-## Commands
-
-```bash
-scripts/setup/bootstrap.sh      # full machine setup: CLT, Homebrew, Brewfile, clone, deploy
-scripts/setup/check.sh          # preflight: validates manifests, source paths, package names
-scripts/setup/packages.sh list  # show every package and whether it is on for this machine
-scripts/setup/packages.sh enable <name>   # edit local.toml without hand-syncing lists
-scripts/setup/deploy.sh         # run Dotter deploy (wraps bin/dotter-deploy)
-scripts/setup/deploy.sh --upgrade # syncs Yazi packages, repairs yt-dlp, brew upgrade, rebuilds stale src/ tools
-scripts/setup/deploy.sh --icons   # reapply macOS app icon overrides
-scripts/setup/deploy.sh --full    # --icons plus --upgrade
+```zsh
+link_file config/zsh/zshrc.zsh "$HOME/.zshrc"
+link_tree bin "$HOME/.local/bin"
 ```
 
-A bare deploy only symlinks config — that is the fast, safe default. `--upgrade`
-is the one that touches the outside world, and each of its steps has an escape
-hatch: `DOTTER_SKIP_YAZI_PACKAGES=1`, `DOTTER_SKIP_YTDLP=1`, `DOTTER_SKIP_BREW=1`,
-`DOTTER_SKIP_SRC=1`. Every step is non-fatal — an unreachable tap or a failed
-build warns and the run continues, because the job that matters is the symlinking.
+`link_file` links a file or whole directory; `link_tree` links files recursively.
+Add or comment out calls directly. There is no package/profile system, parser,
+state database, host override, or pruning. Existing conflicts are preserved and
+reported, while the remaining mappings continue. Final status is nonzero on
+failure. Do not restore the old deployment system.
 
-The `src/` rebuild step is deliberately narrow: it only rebuilds a tool that is
-**already installed** on this machine (a deploy is the wrong place to acquire new
-software) and only when a real build input — `*.rs`, `*.go`, `Cargo.toml`,
-`go.mod`, or the installer itself — changed since the install. READMEs
-and design mockups don't count, or every doc edit would rebuild the world. Add a
-new tool to the `specs` table in `bin/dotter-deploy` when it gets an installer.
+- `scripts/setup/bootstrap.sh`: download archive if needed, then link; built-in macOS tools only.
+- `scripts/setup/deploy.sh` or `deploy`: link files only.
+- `scripts/setup/deploy.sh --dry-run`: preview links and conflicts.
+- `scripts/setup/check.sh`: validate shell syntax and mapping sources.
 
-"Changed" is decided by `bin/lib/install-staleness.zsh`, shared with
-`update` (bare: the fzf browser over `scripts/install/`; `update <app>`: that
-one, name matched case- and punctuation-insensitively; `update --all`: every
-pending update): a content hash recorded in
-`~/.local/state/fzf-app-store/` (the command's old name) after each install,
-falling back to git history when there is no record. Never raw mtimes — a
-`git mv` resets them and makes every installed tool look stale.
+Application installation, upgrades and icon overrides are separate explicit
+commands. There is no CI. Verify with `check.sh` and shell syntax checks on
+changed scripts. Test linker behavior in a temporary home, not the live home.
 
-A source tree with uncommitted, unstaged or untracked files — in `src/` here or
-a `$SRC_PATH` checkout — is **always** stale: the installer builds the working
-tree as it is, and the version reads `<version>-unstaged`. That holds for
-`deploy.sh --upgrade` too, so commit to stop the rebuilds.
-
-`deploy.sh` runs `check.sh` automatically unless `DOTTER_SKIP_HEALTHCHECK=1`.
-There is no CI. For config and script changes, verification = `check.sh` passing,
-plus `zsh -n` / `bash -n` on any shell script you touched.
+`update` uses `bin/lib/install-staleness.zsh` to track installed tool inputs.
+Its records live in `~/.local/state/fzf-app-store/`. Preserve that independent
+workflow when changing deployment.
 
 ## The src/ side: real code, real builds
 
@@ -95,7 +71,7 @@ plus `zsh -n` / `bash -n` on any shell script you touched.
 `motherfucker`, `neuroserver-select-preset`, `topaz-select-preset`; Go: `spill`, `iospeed`, `open-in-forklift`, `obsbot-rtsp-widget`,
 `system-uptime-widget`; Swift: the `src/utils/` video ML CLIs `avinterp`,
 `avupscale`, `avremove`). These are the only parts of the repo with a
-build/install step and tests — Dotter does not touch them. `src/utils/` is a
+build/install step and tests — Deployment does not build them. `src/utils/` is a
 group directory like `src/jobs/`: each tool under it is its own Swift package
 with its own `install-<name>.sh`.
 
@@ -132,8 +108,7 @@ Adding another is three lines: source the driver and call
 `git_source_install <name> <url> <cargo|go>`. Repos that ship
 `packaging/build-app.sh` (switchblade, abner) use `app <AppName>` instead: the
 install is `/Applications/<AppName>.app`, built by that script, and
-`~/.local/bin/<name>` is a shim into the bundle's launcher. Add the name to the loop in
-`upgrade_git_source_tools` in `bin/dotter-deploy` so `--upgrade` keeps it current.
+`~/.local/bin/<name>` is a shim into the bundle's launcher.
 
 Everything installs to `~/.local/bin`, including these — *not* `~/.cargo/bin` or
 `~/go/bin`, which is where `cargo install` and `go install` would put them. One
@@ -217,13 +192,9 @@ watch it from another machine, and why quitting stops the jobs. Run it *or*
 
 ## Recipe: add config for a new tool
 
-1. Create `config/<tool>/` — flat, named after the tool itself (`config/helix`, not `config/editors/helix`).
-2. Add a `[<tool>.files]` section to `dotter/global.toml`, in the right alphabetical spot within its group.
-3. Add `"<tool>"` to `dotter/local.toml.example` (commented out unless it should be on by default).
-4. `scripts/setup/packages.sh enable <tool>` if it should be active here, then `scripts/setup/deploy.sh`.
-
-`check.sh` fails on manifest entries pointing at missing repo paths and on
-`local.toml` selecting packages that don't exist in `global.toml`.
+1. Create `config/<tool>/` — flat, named after the tool.
+2. Add `link_file` or `link_tree` calls to `Linkfile`.
+3. Run `scripts/setup/check.sh`, then `scripts/setup/deploy.sh`.
 
 ## Where things go
 
@@ -237,7 +208,7 @@ watch it from another machine, and why quitting stops the jobs. Run it *or*
 | `scripts/setup/` | bootstrap, deploy, and health-check entrypoints |
 | `scripts/install/` | `install-<name>.sh` build+install scripts for `src/` |
 | `scripts/tweaks/` | one-shot macOS `defaults write` tweaks — never run by deploy |
-| `dotter/` | deployment manifests only |
+| `Linkfile` | plain zsh deployment calls |
 | `src/<tool>/` | small personal utility source trees (Rust for the menu bar widgets and `leaf`, Go for the rest) — build via `scripts/install/install-<name>.sh` |
 | `$SRC_PATH` (default `~/src`) | checkouts of *separate* upstream repos, cloned and kept current by their installers. Outside this repo on purpose |
 | `assets/` | fonts, icons, and colour LUTs (`assets/LUTs/` deploys into Resolve and Final Cut) |
@@ -248,7 +219,7 @@ watch it from another machine, and why quitting stops the jobs. Run it *or*
 
 - **No new domain buckets under `config/`** (`editors/`, `media/`, `windowing/`...). A few legacy ones exist; don't add files to them — use `config/<tool>/`.
 - **`bin/` is the only home for commands.** There is no second command directory — the old `bin/` vs `config/zsh/bin/` split is gone, and so is the rule about picking between them. A new command goes in `bin/`, whatever language it is in.
-- `bin/` deploys as one symlink **per file** into `~/.local/bin/`, which also holds binaries the `scripts/install/` scripts build. So a new command must not collide with an installed binary name (`pimped`, `leaf`, the widgets, pipx/uv shims) — Dotter refuses to overwrite an unmanaged file and the deploy fails.
+- `bin/` deploys as one symlink **per file** into `~/.local/bin/`, which also holds binaries the `scripts/install/` scripts build. So a new command must not collide with an installed binary name (`pimped`, `leaf`, the widgets, pipx/uv shims) — the linker skips conflicting files, reports them, and continues.
 - Retiring a command means `git mv bin/<cmd> _quarantine/bin/`, not deleting it, and removing every reference first. Nothing in `_quarantine/` may be referenced from live config.
 - Executables meant to be invoked as commands are **extensionless**. Use `.zsh`/`.sh`/`.py` only for sourced or clearly single-language utilities.
 - Local config templates are checked in as `*.example`; the live file is gitignored.

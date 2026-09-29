@@ -27,7 +27,7 @@ export XDG_CONFIG_HOME=$CONFIG_DIR
 # points at wherever the repo was actually cloned. Falls back to ~/config when
 # this file was copied rather than linked.
 export DOTFILES_DIR=${${${(%):-%N}:A}:h:h:h}
-[[ -f $DOTFILES_DIR/dotter/global.toml ]] || export DOTFILES_DIR=$HOME/config
+[[ -f $DOTFILES_DIR/Linkfile ]] || export DOTFILES_DIR=$HOME/config
 export ZSH_DOTFILES_DIR=$DOTFILES_DIR/config/zsh
 
 # Where third-party source gets checked out — the installers under

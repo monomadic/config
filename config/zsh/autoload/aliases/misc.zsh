@@ -15,15 +15,6 @@ alias .ssh-m4="kitten ssh nom@m4.local"
 alias .ssh-m3="kitten ssh nom@m3.local"
 
 # ============================================================================
-# Dotter (dotfile manager)
-# ============================================================================
-
-alias deploy='dotter-deploy'
-alias dd-force='cd $DOTFILES_DIR && dotter --force --cache-directory ~/.config/dotter/cache --cache-file ~/.config/dotter/cache.toml deploy --global-config dotter/global.toml --local-config dotter/local.toml'
-alias dw='cd $DOTFILES_DIR && dotter --cache-directory ~/.config/dotter/cache --cache-file ~/.config/dotter/cache.toml watch --global-config dotter/global.toml --local-config dotter/local.toml'
-alias dotter-packages='$DOTFILES_DIR/scripts/setup/packages.sh'
-
-# ============================================================================
 # Misc Utilities
 # ============================================================================
 
