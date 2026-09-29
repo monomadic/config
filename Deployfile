@@ -1,3 +1,8 @@
+# Active calls match this machine's former dotter/local.toml selection.
+# Unselected tools remain commented out below; uncomment to enable them.
+# Dotter itself is retired. Its colorscheme/zk_path variables had no consumers
+# in these symbolic mappings, so no template engine is needed.
+
 # Plain zsh, sourced by scripts/setup/link.zsh.
 # Add a call to extend deployment; comment it out to skip it.
 # link_file links a file or whole directory. link_tree links each file below it.
@@ -38,7 +43,7 @@ link_file config/kitty/quick-access-terminal.conf "$HOME/.config/kitty/quick-acc
 link_file config/kitty/tab_bar.py "$HOME/.config/kitty/tab_bar.py"
 link_file config/kitty/themes/1984-dark "$HOME/.config/kitty/themes/1984-dark"
 
-link_file config/tmux/tmux.conf "$HOME/.tmux.conf"
+# link_file config/tmux/tmux.conf "$HOME/.tmux.conf"
 
 link_tree config/zellij "$HOME/.config/zellij"
 
@@ -47,18 +52,18 @@ link_tree config/zellij "$HOME/.config/zellij"
 link_file config/chordpro-tui/chordpro-tui.toml "$HOME/.config/chordpro-tui/chordpro-tui.toml"
 link_tree config/helix "$HOME/.config/helix"
 link_file config/leaf/config.toml "$HOME/.config/leaf/config.toml"
-link_tree config/micro "$HOME/.config/micro"
+# link_tree config/micro "$HOME/.config/micro"
 
 # --- File managers ------------------------------------------------------------
 
-link_tree config/broot "$HOME/.config/broot"
-link_tree config/lsd "$HOME/.config/lsd"
+# link_tree config/broot "$HOME/.config/broot"
+# link_tree config/lsd "$HOME/.config/lsd"
 
 link_file config/marta/conf.marco "$HOME/Library/Application Support/org.yanex.marta/conf.marco"
 link_file config/marta/favorites.marco "$HOME/Library/Application Support/org.yanex.marta/favorites.marco"
 link_file config/marta/Themes/Black.theme "$HOME/Library/Application Support/org.yanex.marta/Themes/Black.theme"
 
-link_file 'src/open-in-forklift/Open In Forklift.app' "$HOME/Applications/Open In Forklift.app"
+# link_file 'src/open-in-forklift/Open In Forklift.app' "$HOME/Applications/Open In Forklift.app"
 
 link_tree config/yazi "$HOME/.config/yazi"
 
@@ -72,36 +77,45 @@ link_file config/gitui/vim.ron "$HOME/.config/gitui/key_bindings.ron"
 
 link_tree config/hammerspoon "$HOME/.hammerspoon"
 link_tree config/karabiner/assets/complex_modifications "$HOME/.config/karabiner/assets/complex_modifications"
-link_file config/macos-shortcuts/shortcuts.toml "$HOME/.config/macos-shortcuts/shortcuts.toml"
+# link_file config/macos-shortcuts/shortcuts.toml "$HOME/.config/macos-shortcuts/shortcuts.toml"
 link_file config/skhd/skhd.conf "$HOME/.config/skhd/skhdrc"
 link_tree config/switch "$HOME/.switch"
 link_tree config/switchblade "$HOME/.config/switchblade"
 
 # --- Media --------------------------------------------------------------------
 
-link_file config/cointop/config.toml "$HOME/.config/cointop/config.toml"
+# link_file config/cointop/config.toml "$HOME/.config/cointop/config.toml"
 
 # Resolve scans subfolders of its LUT dir and shows each as a category, so the
 # repo's LUTs land in a "Custom" category alongside the bundled vendor sets
 # rather than replacing them. The LUT dir is world-writable, so no sudo needed.
-link_file assets/LUTs "/Library/Application Support/Blackmagic Design/DaVinci Resolve/LUT/Custom"
+# link_file assets/LUTs "/Library/Application Support/Blackmagic Design/DaVinci Resolve/LUT/Custom"
 
 # Final Cut's Custom LUT effect scans <Application Support>/ProApps/Custom LUTs.
 # Only .cube and .mga are recognised; the effect lists them flat, so no
 # subfolders here.
-link_file assets/LUTs "$HOME/Library/Application Support/ProApps/Custom LUTs"
+# link_file assets/LUTs "$HOME/Library/Application Support/ProApps/Custom LUTs"
 
-link_file config/gomu/gomu.conf "$HOME/.config/gomu/gomu.conf"
+# link_file config/gomu/gomu.conf "$HOME/.config/gomu/gomu.conf"
 link_tree config/mpv "$HOME/.config/mpv"
 link_tree config/virtualdj/Mappers "$HOME/Library/Application Support/VirtualDJ/Mappers"
 link_tree config/virtualdj/Pads "$HOME/Library/Application Support/VirtualDJ/Pads"
-link_tree config/yt-dlp "$HOME/.config/yt-dlp"
+link_file config/yt-dlp/config "$HOME/.config/yt-dlp/config"
+link_file config/yt-dlp/plugins/__init__.py "$HOME/.config/yt-dlp/plugins/__init__.py"
+link_file config/yt-dlp/plugins/faphouse/yt_dlp_plugins/extractor/faphouse.py "$HOME/.config/yt-dlp/plugins/faphouse/yt_dlp_plugins/extractor/faphouse.py"
+link_file config/yt-dlp/plugins/faphouse/yt_dlp_plugins/extractor/hdsex.py "$HOME/.config/yt-dlp/plugins/faphouse/yt_dlp_plugins/extractor/hdsex.py"
+link_file config/yt-dlp/plugins/faphouse/yt_dlp_plugins/extractor/onlyfans.py "$HOME/.config/yt-dlp/plugins/faphouse/yt_dlp_plugins/extractor/onlyfans.py"
+link_file config/yt-dlp/plugins/faphouse/yt_dlp_plugins/extractor/pimpbunny.py "$HOME/.config/yt-dlp/plugins/faphouse/yt_dlp_plugins/extractor/pimpbunny.py"
+link_file config/yt-dlp/plugins/faphouse/yt_dlp_plugins/extractor/xhamster.py "$HOME/.config/yt-dlp/plugins/faphouse/yt_dlp_plugins/extractor/xhamster.py"
+link_file config/yt-dlp/plugins/faphouse/yt_dlp_plugins/extractor/xvideos_red.py "$HOME/.config/yt-dlp/plugins/faphouse/yt_dlp_plugins/extractor/xvideos_red.py"
+link_file config/yt-dlp/plugins/faphouse/yt_dlp_plugins/postprocessor/titlecase.py "$HOME/.config/yt-dlp/plugins/faphouse/yt_dlp_plugins/postprocessor/titlecase.py"
+link_file config/yt-dlp/plugins/threads/yt_dlp_plugins/extractor/threads.py "$HOME/.config/yt-dlp/plugins/threads/yt_dlp_plugins/extractor/threads.py"
 
 # --- Misc tooling -------------------------------------------------------------
 
-link_tree config/crush "$HOME/.config/crush"
-link_tree config/dprint "$HOME/.config/dprint"
-link_tree config/elio "$HOME/Library/Application Support/elio"
+# link_tree config/crush "$HOME/.config/crush"
+# link_tree config/dprint "$HOME/.config/dprint"
+# link_tree config/elio "$HOME/Library/Application Support/elio"
 link_file config/motherfucker/config.toml "$HOME/.config/motherfucker/config.toml"
 link_tree config/motherfucker/themes "$HOME/.config/motherfucker/themes"
-link_tree config/rclone "$HOME/.config/rclone"
+# link_tree config/rclone "$HOME/.config/rclone"

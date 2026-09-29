@@ -20,5 +20,5 @@ bug in zshenv worth fixing.)
 ### Rename `autoload/` — skip
 
 Nothing in it is fpath-`autoload`ed; it's all sourced, so the name is a misnomer. But
-renaming is cosmetic, forces a `Linkfile` mapping change plus a redeploy that re-points a
+renaming is cosmetic, forces a `Deployfile` mapping change plus a redeploy that re-points a
 live symlink (`~/.zsh/autoload`), and risks leaving a dangling old symlink. Risk > value.

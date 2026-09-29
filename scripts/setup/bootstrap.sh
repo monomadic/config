@@ -7,10 +7,10 @@ set -e
 
 # A copy inside a checkout uses that checkout; a downloaded copy uses the default.
 ROOT="${${0:A}:h:h:h}"
-if [[ ! -f "$ROOT/Linkfile" ]]; then
+if [[ ! -f "$ROOT/Deployfile" ]]; then
   ROOT="${DOTFILES_DIR:-$HOME/config}"
 fi
-if [[ ! -f "$ROOT/Linkfile" ]]; then
+if [[ ! -f "$ROOT/Deployfile" ]]; then
   if [[ -e "$ROOT" || -L "$ROOT" ]]; then
     print -u2 -- "Destination already exists: $ROOT. Choose an empty DOTFILES_DIR."
     exit 1
@@ -20,7 +20,7 @@ if [[ ! -f "$ROOT/Linkfile" ]]; then
   curl -fL https://github.com/monomadic/config/archive/refs/heads/master.tar.gz -o "$temp/config.tar.gz"
   mkdir "$temp/repo"
   tar -xzf "$temp/config.tar.gz" --strip-components=1 -C "$temp/repo"
-  [[ -f "$temp/repo/Linkfile" && -f "$temp/repo/scripts/setup/link.zsh" ]]
+  [[ -f "$temp/repo/Deployfile" && -f "$temp/repo/scripts/setup/link.zsh" ]]
   mkdir -p -- "${ROOT:h}"
   mv -- "$temp/repo" "$ROOT"
 fi

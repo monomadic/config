@@ -59,8 +59,8 @@ link_tree() {
 }
 
 # Check syntax before sourcing: a typo must not execute half a shell statement.
-/bin/zsh -fn "$ROOT/Linkfile" || exit 1
-source "$ROOT/Linkfile" || problem 'could not finish reading Linkfile'
+/bin/zsh -fn "$ROOT/Deployfile" || exit 1
+source "$ROOT/Deployfile" || problem 'could not finish reading Deployfile'
 summary_color="$green"
 [[ "$mode" == --dry-run ]] && summary_color="$cyan"
 (( problems )) && summary_color="$yellow"

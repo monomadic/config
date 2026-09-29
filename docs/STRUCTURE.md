@@ -7,7 +7,7 @@ This repo should optimize for two things:
 
 ## Rules
 
-- `Linkfile` contains plain zsh deployment calls.
+- `Deployfile` contains plain zsh deployment calls.
 - `scripts/setup/` contains bootstrap, deploy, and health-check entrypoints.
 - `scripts/install/` contains the `install-<name>.sh` build+install scripts for `src/`.
 - `scripts/tweaks/` contains one-shot macOS `defaults write` tweaks. Deploy never runs these.
@@ -22,7 +22,7 @@ This repo should optimize for two things:
 - `vendor/bin/` contains retained third-party or custom-built binaries.
 - `_quarantine/` holds commands dropped from PATH but kept in git history. Nothing live may reference it and nothing new should be added to it.
 - This repo targets macOS only. Linux-specific config (i3, sway, waybar, foot, ...) does not belong here.
-- Document source-only config directories in Linkfile comments.
+- Document source-only config directories in Deployfile comments.
 - Secrets and machine-private state do not live in git.
 - Installers, DMGs, `.app` bundles, and archives do not live beside source config.
 - Backups like `.bak`, `_old`, and `big` variants should move to an explicit archive area or be deleted.
@@ -37,7 +37,7 @@ Good fit for this repo:
 - reusable helper scripts
 - thin wrappers around kept vendor binaries
 - package manifests
-- Linkfile mappings
+- Deployfile mappings
 - small personal utility source trees with checked-in deployable binaries
 
 Poor fit for this repo:
@@ -57,7 +57,7 @@ When cleaning up the repo, use this order:
 2. Move installers and large binaries out of the repo root.
 3. Delete backup variants and `_old` directories.
 4. Keep one canonical bootstrap path per platform.
-5. Keep `config/` flat and list source-only directories in Linkfile comments.
+5. Keep `config/` flat and list source-only directories in Deployfile comments.
 
 ## Config Layout
 
@@ -99,7 +99,7 @@ Current source-only directories kept for reference or future deployment:
 
 - Use `setup-*` or `bootstrap-*` for first-run machine provisioning scripts.
 - Use `*.example` for checked-in local config templates.
-- Add or comment out calls in `Linkfile` to select mappings.
+- Add or comment out calls in `Deployfile` to select mappings.
 - Prefer descriptive directory names over personal shorthand when the scope is broader than one tool.
 
 ## Executable Directory

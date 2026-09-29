@@ -14,7 +14,7 @@ curl -fsSL https://raw.githubusercontent.com/monomadic/config/master/scripts/set
 
 Bootstrap downloads a repository archive to `~/config` and runs the linker.
 Set `DOTFILES_DIR` when running it to choose another destination. An existing
-checkout with a Linkfile is reused; another existing destination is left alone.
+checkout with a Deployfile is reused; another existing destination is left alone.
 The downloaded archive has no Git history. It is not automatically updated.
 The remote command uses the version published to master, so local changes must
 be pushed before they are available to another machine.
@@ -32,7 +32,7 @@ scripts/setup/check.sh              # check mapping syntax and source paths
 After deployment, `deploy` runs the same linker. In an already-open shell that
 still has the old alias, run `unalias deploy` first.
 
-[Linkfile](Linkfile) is ordinary zsh:
+[Deployfile](Deployfile) is ordinary zsh:
 
 ```sh
 link_file config/zsh/zshrc.zsh "$HOME/.zshrc"
@@ -43,12 +43,12 @@ link_tree bin "$HOME/.local/bin"
 Add a call to extend deployment. Comment out a call to skip it. `link_file` can
 also link a whole directory; `link_tree` links each file recursively, including
 hidden files, so destination directories can also contain installed binaries
-and app state. Linkfile is trusted shell code, not a custom manifest language.
+and app state. Deployfile is trusted shell code, not a custom manifest language.
 
 Correct links are left alone. Missing sources, conflicting files or links, and
 failed writes are reported and skipped; other mappings continue. The final
 exit status is nonzero if any failed. A shell syntax error must be fixed before
-the Linkfile can run. `--check` checks sources, while `--dry-run` also checks
+the Deployfile can run. `--check` checks sources, while `--dry-run` also checks
 existing targets. Neither writes links.
 
 There are no profiles, host overrides, state files, forced replacements, or
@@ -87,7 +87,7 @@ or changing mappings. Deploy does not install or upgrade applications.
 - `_quarantine/`: commands dropped from PATH but kept in git history — not
   deployed, not referenced, not added to
 
-Config directories kept in-tree but not deployed by Linkfile:
+Config directories kept in-tree but not deployed by Deployfile:
 `beatportdl`, `compressor`, `git`, `homebrew`, `iterm`, `ollama`, `python`,
 `tag-media`.
 

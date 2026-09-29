@@ -1,6 +1,6 @@
 # AGENTS.md
 
-Personal dotfiles repo, deployed with plain zsh via `Linkfile`.
+Personal dotfiles repo, deployed with plain zsh via `Deployfile`.
 **macOS only** — Linux config (i3, sway, waybar, foot, weston, refind, ...) has been removed; don't add it back.
 Full layout rules: [docs/STRUCTURE.md](docs/STRUCTURE.md). Bootstrap docs: [README.md](README.md).
 
@@ -14,7 +14,7 @@ changes the live config immediately — no build, no deploy. Treat edits to `con
 as live changes, and don't "install" anything by copying files out of the repo.
 
 A deploy run is only needed when the *mapping* changes: a new package, a new
-call in `Linkfile`, or a changed target path.
+call in `Deployfile`, or a changed target path.
 
 ## The repo is location-independent
 
@@ -38,7 +38,7 @@ script that already has a login shell's `PATH`, prefer the bare name.
 
 ## How deployment works
 
-`Linkfile` is plain zsh sourced by `scripts/setup/link.zsh`:
+`Deployfile` is plain zsh sourced by `scripts/setup/link.zsh`:
 
 ```zsh
 link_file config/zsh/zshrc.zsh "$HOME/.zshrc"
@@ -193,7 +193,7 @@ watch it from another machine, and why quitting stops the jobs. Run it *or*
 ## Recipe: add config for a new tool
 
 1. Create `config/<tool>/` — flat, named after the tool.
-2. Add `link_file` or `link_tree` calls to `Linkfile`.
+2. Add `link_file` or `link_tree` calls to `Deployfile`.
 3. Run `scripts/setup/check.sh`, then `scripts/setup/deploy.sh`.
 
 ## Where things go
@@ -208,7 +208,7 @@ watch it from another machine, and why quitting stops the jobs. Run it *or*
 | `scripts/setup/` | bootstrap, deploy, and health-check entrypoints |
 | `scripts/install/` | `install-<name>.sh` build+install scripts for `src/` |
 | `scripts/tweaks/` | one-shot macOS `defaults write` tweaks — never run by deploy |
-| `Linkfile` | plain zsh deployment calls |
+| `Deployfile` | plain zsh deployment calls |
 | `src/<tool>/` | small personal utility source trees (Rust for the menu bar widgets and `leaf`, Go for the rest) — build via `scripts/install/install-<name>.sh` |
 | `$SRC_PATH` (default `~/src`) | checkouts of *separate* upstream repos, cloned and kept current by their installers. Outside this repo on purpose |
 | `assets/` | fonts, icons, and colour LUTs (`assets/LUTs/` deploys into Resolve and Final Cut) |
