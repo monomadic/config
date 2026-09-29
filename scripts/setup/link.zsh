@@ -4,13 +4,22 @@
 ROOT="${${0:A}:h:h:h}"
 integer problems=0 linked=0 unchanged=0
 mode="${1:-}"
+green='' cyan='' yellow='' reset='' red='' error_reset=''
+if [[ -z "${NO_COLOR:-}" && "${TERM:-}" != dumb ]]; then
+  if [[ -t 1 ]]; then
+    green=$'\e[32m' cyan=$'\e[36m' yellow=$'\e[33m' reset=$'\e[0m'
+  fi
+  if [[ -t 2 ]]; then
+    red=$'\e[31m' error_reset=$'\e[0m'
+  fi
+fi
 case "$mode" in
   ''|--dry-run|--check) ;;
-  *) print -u2 'Usage: link.zsh [--dry-run|--check]'; exit 2 ;;
+  *) print -ru2 -- "${red}Usage: link.zsh [--dry-run|--check]${error_reset}"; exit 2 ;;
 esac
 
 problem() {
-  print -u2 -- "SKIP: $*"
+  print -ru2 -- "${red}SKIP:${error_reset} $*"
   (( ++problems ))
   return 0
 }
@@ -26,9 +35,10 @@ link_file() {
   elif [[ -e "$dst" || -L "$dst" ]]; then
     problem "$dst already exists; move it aside to link $1"
   elif [[ "$mode" == --dry-run ]]; then
-    print -r -- "LINK: $dst -> $src"
+    print -r -- "${cyan}WOULD LINK:${reset} $dst -> $src"
   elif mkdir -p -- "${dst:h}" && ln -s -- "$src" "$dst"; then
     (( ++linked ))
+    print -r -- "${green}LINK:${reset} $dst -> $src"
   else
     problem "could not link $dst"
   fi
@@ -51,5 +61,8 @@ link_tree() {
 # Check syntax before sourcing: a typo must not execute half a shell statement.
 /bin/zsh -fn "$ROOT/Linkfile" || exit 1
 source "$ROOT/Linkfile" || problem 'could not finish reading Linkfile'
-print -- "Links: $linked created, $unchanged unchanged, $problems problems${mode:+ ($mode)}."
+summary_color="$green"
+[[ "$mode" == --dry-run ]] && summary_color="$cyan"
+(( problems )) && summary_color="$yellow"
+print -r -- "${summary_color}Links: $linked created, $unchanged unchanged, $problems problems${mode:+ ($mode)}.${reset}"
 (( problems == 0 ))
