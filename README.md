@@ -1,27 +1,17 @@
 # Dotfiles
 
-macOS dotfiles deployed by plain zsh. No Git, Homebrew, Python, or other
-installed tools are needed to create the links.
+MacOS dotfiles deployed by plain zshell
 
-## First install
-
-Download and run with macOS's built-in curl:
+## Setup
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/monomadic/config/master/scripts/setup/bootstrap.sh -o /tmp/dotfiles-bootstrap.zsh
-/bin/zsh -f /tmp/dotfiles-bootstrap.zsh
+curl -fsSL https://raw.githubusercontent.com/monomadic/config/master/scripts/setup/bootstrap.sh | /bin/zsh -f
 ```
 
-Bootstrap downloads a repository archive to `~/config` and runs the linker.
-Set `DOTFILES_DIR` when running it to choose another destination. An existing
-checkout with a Deployfile is reused; another existing destination is left alone.
-The downloaded archive has no Git history. It is not automatically updated.
-The remote command uses the version published to master, so local changes must
-be pushed before they are available to another machine.
+- downloads a repository archive to `~/config` and runs the linker
+- set `DOTFILES_DIR` to point elsewhere
 
-## Deploy and extend
-
-From an existing checkout:
+## Deploy
 
 ```sh
 scripts/setup/deploy.sh --dry-run   # preview links and conflicts

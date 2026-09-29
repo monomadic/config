@@ -42,7 +42,7 @@ grid_layout = "square"
 # Ideal tile size: width picks the column count (and, in flexible mode,
 # the nominal row height). In fixed mode tiles stretch so the columns
 # exactly fill the window; width:height sets the aspect (240:135 = 16:9).
-tile_width = 240.0
+tile_width = 200.0
 tile_height = 135.0
 # Flexible rows justify by scaling their height; these caps (fractions of
 # the nominal tile height) keep one odd row from towering or vanishing —
@@ -51,8 +51,8 @@ row_height_min = 0.62
 row_height_max = 1.6
 gap = 2.0  # space between tiles
 
-thumb_width = 448  # ~2:1 — keeps the ultrawide hedge
-thumb_height = 320  # was 224: portrait clips (9:16) were fit-constrained to
+thumb_width = 360  # ~2:1 — keeps the ultrawide hedge
+thumb_height = 360  # was 224: portrait clips (9:16) were fit-constrained to
 # ~126px wide in the old 2:1 box before being upscaled into the tile — this
 # gives them ~180px instead. Landscape/ultrawide are unaffected (still
 # width-constrained at 448). Regenerates the thumbnail cache on next run.
