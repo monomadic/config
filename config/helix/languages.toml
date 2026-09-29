@@ -50,3 +50,12 @@ command = "tombi"
 
 [language-server.xml]
 command = "lemminx-osx-aarch_64"
+
+# The repo's Deployfile (read by scripts/setup/link.zsh). It has no grammar of
+# its own; bash's is close enough to colour verbs, paths and comments.
+[[language]]
+name = "deployfile"
+scope = "source.deployfile"
+file-types = [{ glob = "Deployfile" }]
+comment-token = "#"
+grammar = "bash"

@@ -1,0 +1,22 @@
+#compdef update
+# Completes the apps `update` supports. The list comes from `update --names`,
+# so it follows scripts/install/ and the descriptions in bin/update.
+
+_update_apps() {
+  local name desc
+  local -a apps
+  while IFS=$'\t' read -r name desc; do
+    [[ -n "$name" ]] && apps+=("${name//:/\\:}:${desc//:/\\:}")
+  done < <(update --names 2>/dev/null)
+  _describe -t apps 'app' apps
+}
+
+_arguments -s \
+  '(-a --all)'{-a,--all}'[run every installer that has an update waiting]' \
+  '(-i --browse)'{-i,--browse}'[browse in fzf, with the arguments as the initial query]' \
+  '(-l --list)'{-l,--list}'[list the apps with an update waiting, and run nothing]' \
+  '--install[include the apps that are not installed]' \
+  '(-n --dry-run)'{-n,--dry-run}'[name what would run, and run nothing]' \
+  '--no-fetch[do not git fetch the $SRC_PATH checkouts first]' \
+  '(- *)'{-h,--help}'[show help]' \
+  '*:app:_update_apps'

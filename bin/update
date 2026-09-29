@@ -350,6 +350,15 @@ last_update_of() {
   git -C "$DOTFILES_DIR" log -1 "$date" --format="$fmt" -- "${paths[@]}" 2>/dev/null
 }
 
+# "<name>\t<description>" per app, for config/zsh/completions/_update.
+list_names() {
+  local f name
+  for f in $(installer_files); do
+    name="$(install_entry_name "$f")"
+    print -r -- "$name"$'\t'"$(description_of "$f" "$name")"
+  done
+}
+
 # Runs one installer and records what it built. $2 = 1 pauses afterwards, for
 # the fzf browser, which would otherwise wipe the output straight away.
 run_installer() {
@@ -519,6 +528,7 @@ main() {
     case "$1" in
       -l|--list)       all=1 dry_run=1 ;;
       --tsv)           list_entries; return ;;
+      --names)         list_names; return ;;
       --preview)       preview_entry "$2"; return ;;
       --run)           run_installer "$2" 1; return ;;
       --install)       install=1 ;;
