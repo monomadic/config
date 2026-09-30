@@ -182,7 +182,8 @@ engine = "􀢾"  # [search_engines] entries that set no icon of their own
 "Open Sorted All" = "$HOME/.local/bin/fd-media --sort-created | $HOME/.local/bin/switchblade --fast-fullscreen"
 "Open Tower (index)" = "cat /Volumes/Tower/Movies/Porn/.index | $HOME/.local/bin/switchblade --fast-fullscreen"
 "Open Tower (live)" = "$HOME/.local/bin/switchblade --fast-fullscreen /Volumes/Tower/Movies/Porn/Downloads"
-"Config" = "/Users/nom/.local/bin/kitty-launch --cwd /Users/nom/.config/switchblade -- hx switchblade.toml"
+"Config (Local)" = "/Users/nom/.local/bin/kitty-launch --cwd /Users/nom/.config/switchblade -- hx switchblade.toml"
+# "Config (Default)" = "$HOME/.local/bin/kitty-launch --cwd $HOME/src/switchblade -- hx switchblade.toml"
 "Build" = "/Users/nom/.local/bin/kitty-launch --interactive -- update switchblade"
 #"Build (Debug)" = "SB_DEBUG=1 /Users/nom/.local/bin/kitty-launch --interactive -- ~/src/switchblade/packaging/build-app.sh --install --open"
 

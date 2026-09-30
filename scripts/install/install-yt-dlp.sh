@@ -34,9 +34,23 @@ set -e
 
 UV_BIN="$HOME/.local/bin/yt-dlp"
 
+# uv is the installer for everything below. Prefer brew; fall back to astral's
+# standalone installer, which drops uv into ~/.local/bin — not necessarily on
+# this shell's PATH yet, hence the export.
 if ! command -v uv >/dev/null 2>&1; then
-  echo "Error: uv not found on PATH (needed to install yt-dlp)" >&2
-  exit 1
+  if command -v brew >/dev/null 2>&1; then
+    echo "Installing uv via Homebrew..."
+    brew install uv
+  else
+    echo "Installing uv via astral.sh..."
+    curl -LsSf https://astral.sh/uv/install.sh | env UV_NO_MODIFY_PATH=1 sh
+    export PATH="$HOME/.local/bin:$PATH"
+  fi
+
+  if ! command -v uv >/dev/null 2>&1; then
+    echo "Error: uv install failed (needed to install yt-dlp)" >&2
+    exit 1
+  fi
 fi
 
 # "Working" means impersonation targets are actually available. A target line

@@ -24,19 +24,45 @@ problem() {
   return 0
 }
 
+# A dangling symlink at the target, or at any directory above it, points at
+# nothing: it blocks mkdir/ln but holds no data, so it is replaced, not kept.
+# Sets REPLY to the dead link.
+typeset -A dead_seen
+dangling_symlink() {
+  local p="$1"
+  while [[ "$p" != / && "$p" != . ]]; do
+    if [[ -L "$p" && ! -e "$p" ]]; then
+      REPLY="$p"
+      return 0
+    fi
+    p="${p:h}"
+  done
+  return 1
+}
+
 link_file() {
-  local src="$ROOT/$1" dst="$2"
+  local src="$ROOT/$1" dst="$2" dead='' REPLY
   if [[ ! -e "$src" ]]; then
     problem "missing source: $1"
+    return 0
   elif [[ "$mode" == --check ]]; then
     return 0
   elif [[ "$src" -ef "$dst" ]]; then
     (( ++unchanged ))
-  elif [[ -e "$dst" || -L "$dst" ]]; then
+    return 0
+  fi
+  dangling_symlink "$dst" && dead="$REPLY"
+  if [[ -z "$dead" && ( -e "$dst" || -L "$dst" ) ]]; then
     problem "$dst already exists; move it aside to link $1"
   elif [[ "$mode" == --dry-run ]]; then
     (( ++pending ))
+    if [[ -n "$dead" && -z "${dead_seen[$dead]:-}" ]]; then
+      dead_seen[$dead]=1
+      print -r -- "${cyan}WOULD REMOVE:${reset} dangling symlink $dead -> $(readlink -- "$dead")"
+    fi
     print -r -- "${cyan}WOULD LINK:${reset} $dst -> $src"
+  elif [[ -n "$dead" ]] && ! { print -r -- "${yellow}REMOVE:${reset} dangling symlink $dead -> $(readlink -- "$dead")"; rm -- "$dead" }; then
+    problem "could not remove dangling symlink $dead"
   elif mkdir -p -- "${dst:h}" && ln -s -- "$src" "$dst"; then
     (( ++linked ))
     print -r -- "${green}LINK:${reset} $dst -> $src"

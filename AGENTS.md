@@ -48,7 +48,9 @@ link_tree bin "$HOME/.local/bin"
 `link_file` links a file or whole directory; `link_tree` links files recursively.
 Add or comment out calls directly. There is no package/profile system, parser,
 state database, host override, or pruning. Existing conflicts are preserved and
-reported, while the remaining mappings continue. Final status is nonzero on
+reported, while the remaining mappings continue. The one exception is a
+dangling symlink at the target or a directory above it: it holds nothing, so
+it is removed (and reported) and the link goes in. Final status is nonzero on
 failure. Do not restore the old deployment system.
 
 - `scripts/setup/bootstrap.sh`: download archive if needed, then link; built-in macOS tools only.
@@ -95,7 +97,7 @@ cd src/obsbot-rtsp-widget && go test ./...
 ### Two kinds of installer
 
 `src/<tool>` builds from a tree inside this repo. Some tools are separate
-repositories of mine instead — `switchblade`, `abner`, `tagform`, `chordpro-tui`, `safesync`, `motherfucker` — and
+repositories of mine instead — `switchblade`, `abner`, `tagform`, `chordpro-tui`, `safesync`, `motherfucker`, `mik-rs` — and
 those clone into `$SRC_PATH` (`~/src` by default, exported from
 `config/zsh/zshenv.zsh`). Their installers share one driver,
 `scripts/install/lib/git-source-install.sh`, which on every run fetches,
@@ -119,6 +121,14 @@ Installers are named `scripts/install/install-<name>.sh` — follow that for new
 `cargo install`/`go build` — it pins the install path the rest of the config expects
 (e.g. `pimped` must be on PATH for the zsh precmd prompt hook in
 `config/zsh/zshrc.zsh` to work).
+
+**mik** (`$SRC_PATH/mik-rs`, `scripts/install/install-mik.sh`) is the one
+git-source install with a second step: after the binary it builds the
+*runtime*, a private copy of Mixed In Key 11.2.6's analysis code, from the
+installed app into `<checkout>/runtime` (git-ignored, proprietary — never
+commit or copy it anywhere). The binary finds that runtime by the checkout path
+it was compiled from, so a moved checkout means re-running the installer.
+`MIK_APP` points it at the app when Spotlight can't.
 
 **safesync** lives at `$SRC_PATH/safesync` ([GitHub](https://github.com/monomadic/safesync))
 and installs through `scripts/install/install-safesync.sh`.
