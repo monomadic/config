@@ -1,4 +1,4 @@
-theme = "carbon-loud" # carbon + banner-style error/warning status messages (see themes/carbon-loud.toml)
+theme = "terminal-loud" # terminal ANSI palette, transparent bg + banner-style error/warning (see themes/terminal-loud.toml)
 
 [editor]
 true-color = true

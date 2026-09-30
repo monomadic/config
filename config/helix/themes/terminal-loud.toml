@@ -1,0 +1,7 @@
+# Follows the terminal: no background, and only the 16 ANSI colours, so
+# whatever `kitty-theme` selects is what Helix draws with.
+inherits = "base16_transparent"
+
+# Banner-style error/warning status messages.
+"error"   = { fg = "black", bg = "light-red", modifiers = ["bold"] }
+"warning" = { fg = "black", bg = "light-yellow", modifiers = ["bold"] }
