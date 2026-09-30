@@ -40,7 +40,9 @@ for file in "$@"; do
   output_file="${file:r}-cut.${file:e}"
 
   echo "Processing '$file'... Cutting $duration_ms ms ($duration_sec seconds)"
-  ffmpeg -i "$file" -ss "$duration_sec" -c copy "$output_file"
+  # -map 0 keeps every stream (extra audio, subtitles, MKV attachments);
+  # without it ffmpeg picks one stream per type.
+  ffmpeg -nostdin -i "$file" -ss "$duration_sec" -map 0 -c copy "$output_file"
 done
 
 echo "Done!"

@@ -1,9 +1,11 @@
 #!/usr/bin/env zsh
 # ffmpeg-trim-at-keyframe
 #
-# Losslessly trims the first N frames by seeking to the nearest *previous* keyframe
-# (fast seek, stream-copy). This avoids broken GOP decode at the start, but the cut
-# point will be <= the requested time (i.e., you may keep a little extra at the front).
+# Losslessly trims the first N frames by cutting at the nearest *previous* keyframe
+# (stream-copy). This avoids broken GOP decode at the start, but the cut point will
+# be <= the requested time (i.e., you may keep a little extra at the front).
+# If the previous keyframe is the start of the file, that would trim nothing, so
+# the cut snaps forward to the next keyframe instead. The actual cut is reported.
 #
 # Usage:
 #   ffmpeg-trim-at-keyframe <frames> <input> [output]
@@ -35,7 +37,9 @@ ARGS
 
 BEHAVIOR
   - Computes seconds = frames / avg_frame_rate (from ffprobe)
-  - Seeks to nearest previous keyframe at/just before that timestamp (fast seek)
+  - Cuts at the nearest previous keyframe at/just before that timestamp
+  - If that keyframe is the start of the file, cuts at the next keyframe instead
+  - Reports the number of frames actually trimmed
   - Stream-copies all streams (-map 0 -c copy), no quality loss
 
 EXAMPLES
@@ -73,12 +77,61 @@ print(f"{float(t):.9f}")
 PY
 )
 
-# Keyframe-aligned trim: -ss BEFORE -i, then stream copy.
-ffmpeg -hide_banner -loglevel error \
-  -ss "$sec" -i "$in" \
+# Keyframes up to a little past the target. The cut can only land on one of
+# these, so pick it here rather than letting ffmpeg's seek decide silently.
+keyframes=("${(@f)$(ffprobe -v error -select_streams v:0 \
+  -read_intervals "%$(( sec + 120 ))" \
+  -show_entries packet=pts_time,flags -of csv=p=0 -- "$in" |
+  awk -F, '$1 ~ /^[0-9.]+$/ && $2 ~ /K/ { print $1 }' | sort -n)}")
+
+first="${keyframes[1]:-}"
+[[ -n "$first" ]] || { print -u2 "no keyframes found in: $in"; exit 1; }
+
+cut="" snapped="previous"
+for k in "${keyframes[@]}"; do
+  (( k <= sec + 0.0005 )) && cut="$k"
+done
+
+# The previous keyframe is the start of the file: cutting there trims nothing.
+# Snap forward to the first keyframe after the target instead.
+if [[ -z "$cut" ]] || (( cut <= first )); then
+  cut="" snapped="next"
+  for k in "${keyframes[@]}"; do
+    (( k > sec + 0.0005 )) && { cut="$k"; break; }
+  done
+fi
+
+[[ -n "$cut" ]] || {
+  print -u2 "no keyframe to cut at: the only keyframe within ~${sec}s (+120s) is the start of the file"
+  exit 1
+}
+
+cut_frames=$(python3 -c 'import sys; from fractions import Fraction as F; print(round((float(sys.argv[1]) - float(sys.argv[2])) * F(sys.argv[3])))' "$cut" "$first" "$fps")
+
+# Seek a hair past the keyframe: -ss before -i lands on the keyframe at or
+# before the timestamp, and the rounded pts can fall just short of it.
+# Outside MP4/MOV, ffmpeg also pulls the seek back by 3/23s when the video has
+# B-frames, which lands a whole GOP early (on MKV: trims nothing) — so clear
+# that, without reaching the following keyframe.
+margin=0.001
+format=$(ffprobe -v error -show_entries format=format_name -of default=nk=1:nw=1 -- "$in")
+delay=$(ffprobe -v error -select_streams v:0 -show_entries stream=has_b_frames \
+  -of default=nk=1:nw=1 -- "$in" | head -n1)
+if [[ "$format" != *mov* && "$delay" == <1-> ]]; then
+  margin=0.14
+  for k in "${keyframes[@]}"; do
+    (( k > cut )) && { (( (k - cut) / 2 < margin )) && margin=$(( (k - cut) / 2 )); break; }
+  done
+fi
+
+ffmpeg -hide_banner -loglevel error -nostdin \
+  -ss "$(( cut + margin ))" -i "$in" \
   -map 0 -c copy -movflags +faststart \
   -- "$out"
 
 print -r -- "Wrote: $out"
 print -r -- "Requested trim: ${frames} frames (~${sec}s @ ${fps} fps)"
-print -r -- "Actual trim: keyframe-aligned (may be slightly less than requested)"
+print -r -- "Actual trim: ${cut_frames} frames (${cut}s, ${snapped} keyframe)"
+if [[ "$snapped" == next ]]; then
+  print -r -- "Note: no keyframe before the requested point, so more was trimmed than requested"
+fi
