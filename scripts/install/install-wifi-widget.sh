@@ -4,7 +4,7 @@
 # SNR rather than bars, band and link rate, an internet check that tells a dead
 # uplink from a weak signal, and the nearby networks list.
 #
-# Like job-monitor, and unlike the other menu bar tools here, it installs as a
+# Like job-folder, and unlike the other menu bar tools here, it installs as a
 # real .app in ~/Applications and loads NO LaunchAgent. macOS only hands the
 # Wi-Fi network name to a process with Location permission, only a bundle can
 # be granted that permission, and only when the app is started through

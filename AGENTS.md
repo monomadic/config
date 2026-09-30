@@ -78,7 +78,7 @@ with its own `install-<name>.sh`.
 New menu bar widgets go in Rust, against `objc2` directly — `battery-widget` and
 `free-disk-space-widget` are the reference implementations. No wrapper library, no
 vendored fork, no `.app` bundle, except where macOS permissions require one.
-`job-monitor` needs a bundle for notifications, so its installer *generates* the
+`job-folder` needs a bundle for notifications, so its installer *generates* the
 `.app` into `~/Applications`. `wifi-widget` needs a bundle for Location access:
 `src/wifi-widget/bundle.sh` generates `target/release/WiFi Widget.app` and
 `scripts/install/install-wifi-widget.sh` copies it to `~/Applications`, opened
@@ -151,44 +151,42 @@ Starlight *Mini* is not one of them: it is a three-part coreml model that
 The encoder writes fragmented MP4/MOV on purpose: it is what lets the TUI show
 live frames and what makes `--resume` possible.
 
-**The jobs queue** is infrastructure other tools can build on: drop a
-`TARGET.job` shell script into `~/jobs` and it runs. Anything that needs "run
-this later / on the server" should write a `.job` file (or ship one with
-`send-job`) instead of inventing its own daemon.
+**The jobs queue** is infrastructure other tools can build on: a workflow is
+a folder in `~/jobs` with a `job.sh`, and a file dropped in its `input/` runs
+through it (see `job-folder` below). Anything that needs "run this later / on
+the server" should install a workflow and queue files with
+`send-job [--job job.sh] <workflow> <files...>` instead of inventing its own
+daemon — `topaz-job` and `interpolate-resolve-job` are the examples: each
+generates a `job.sh` for its settings (one workflow per preset / fps) and hands
+it and the inputs to `send-job`, which copies (hidden temp in the jobs root,
+then an atomic `mv` into `input/`) or, with `--link`, symlinks.
 
-**A job is a folder, and the folder it sits in is its state** — `_ready`,
-`_running`, `_paused`, `_ok`, `_failed`. There is no lock file, no pause flag
-and no status protocol, which means moving a folder is also how the queue is
-*commanded*: drag a running job to `_paused` and the runner stops its process
-group, drag it back and it resumes, drag it to `_failed` and it is terminated.
-That works from Finder or from another machine over SMB, and the filesystem's
-own permissions are the access control. Contract details:
-`src/jobs/job-daemon/README.md`.
-
-`src/jobs/` is a cargo workspace — the one nested directory under `src/`,
-because these crates share a lockfile, a target dir and pinned objc2 versions,
-and because `job-monitor` must *not* depend on the job loop:
+`src/jobs/` is a cargo workspace — the one nested directory under `src/` —
+because its two crates share a lockfile, a target dir and pinned objc2
+versions:
 
 | | |
 |---|---|
-| `src/jobs/job-daemon` | the only thing that runs jobs *for the folder protocol*. `--once` under a launchd WatchPaths trigger, or resident |
-| `src/jobs/job-monitor` | the menu bar UI, for the local queue and for folders mounted over SMB. A normal `.app` you launch and quit; links no runner, but commands the queue by moving folders |
-| `src/jobs/job-folder` | the variation: runner and menu in one process, queue held in memory. A `.app` with no agent — the queue runs while it is open |
-| `src/jobs/job-core` | the shared library — the model, the filesystem observer, the rows and the icon |
+| `src/jobs/job-folder` | the queue: one folder per workflow (`job.sh` + `input/` + `output/`), runner and menu in one process. A `.app` with no agent — the queue runs while it is open |
+| `src/jobs/job-core` | the drawing: menu rows, the menu bar icon, progress parsing |
 
-In the daemon/monitor pair the UI is a client, never a runner: a crate with no
-job loop linked into it cannot claim a job however it is launched, and it
-doesn't need to, because every command is a folder move. Any number of UIs can
-watch one queue, locally or across the LAN.
-
-`job-folder` deliberately makes the opposite trade, for the machine you are
-sitting at: one process runs the jobs and draws the menu, so the queue is a
-`Vec<Job>` behind a mutex, pause is a `SIGSTOP` on the way back from the click,
-and reordering is a splice. It keeps the `.job` drop folder (so `send-job` and
-`topaz-job` are unchanged) and stages payloads through `ready/` → `done/`, but
-writes no `.status` and no state directories — which is also why nothing can
-watch it from another machine, and why quitting stops the jobs. Run it *or*
-`job-daemon` on a given folder, never both.
+The older `.job` system — `job-daemon` running jobs whose folder was their
+state (`_ready`/`_running`/…), `job-monitor` watching it over SMB — was retired
+on 2026-09-30; its source is in git history. Don't bring back `.job` files or
+state directories. A **job folder** is any directory under `~/jobs` (or
+`$JOBS_DIR`) holding a `job.sh`; the script is the workflow and the folder is
+its queue. Drop files into `input/` and each runs through `job.sh`, oldest
+first, one at a time per folder, with `$INPUT` (absolute path), `$INPUT_DIR`,
+`$INPUT_FILE`, `$INPUT_NAME` (no extension) and `$OUTPUT_DIR` set, cwd the job
+folder. stdout/stderr append to `stdout.log`/`stderr.log` under a per-run
+header. The input stays in `input/` while it runs, then moves to `done/` or
+`failed/` — so a restart re-queues whatever was left, and retry is dragging a
+file back. Get files in by copying to `~/jobs` and then `mv`-ing into
+`input/` (an atomic rename). Direct drops get light checks: no dotfiles or
+`.part`-style names, size and mtime steady for `$JOB_SETTLE` seconds
+(default 2), and not open for writing by this user's processes.
+Running/held/paused state lives only in memory, so quitting stops the jobs, and
+no second machine can watch the queue.
 
 ## Recipe: add config for a new tool
 

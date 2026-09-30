@@ -1,10 +1,9 @@
 //! The queue as menu rows.
 //!
-//! Same rows as the folder-watching apps draw — `job_core::row` owns the
-//! drawing, so a queue looks the same whichever app is showing it. What differs
-//! is behind the buttons: every one of these is an [`Act::Call`] carrying a job
-//! id and a verb back into this process, where a `SIGSTOP` or a `Vec` splice
-//! answers it before the row redraws.
+//! `job_core::row` owns the drawing; this builds what each row says. Every
+//! button is an [`Act::Call`] carrying a job id and a verb back into this
+//! process, where a `SIGSTOP` or a `Vec` splice answers it before the row
+//! redraws.
 
 use job_core::row::{Act, Action, Glyph, Kind, Progress, RowSpec, ago_phrase, duration, short_duration};
 
@@ -100,7 +99,7 @@ fn active_row(job: &Job) -> RowSpec {
         elapsed.map(duration).unwrap_or_default()
     };
 
-    RowSpec::new(if paused { Kind::Paused } else { Kind::Running }, job.name.clone())
+    RowSpec::new(if paused { Kind::Paused } else { Kind::Running }, job.label())
         .caption(elapsed.map(short_duration).unwrap_or_default())
         .value(value)
         .progress(match job.progress {
@@ -112,7 +111,7 @@ fn active_row(job: &Job) -> RowSpec {
         })
         .log(job.last_line.clone())
         .open(job.dir.clone())
-        .actions(job.dir.clone(), active_actions(job, paused))
+        .actions(active_actions(job, paused))
 }
 
 fn active_actions(job: &Job, paused: bool) -> Vec<Action> {
@@ -125,11 +124,7 @@ fn active_actions(job: &Job, paused: bool) -> Vec<Action> {
         Action::call(Glyph::Stop, token(job.id, Verb::Stop)),
     ];
     if let Some(log) = job.log_path() {
-        actions.push(Action {
-            glyph: Glyph::Log,
-            act: Act::Open(log),
-            back: None,
-        });
+        actions.push(Action::log(log));
     }
     actions
 }
@@ -138,7 +133,7 @@ fn active_actions(job: &Job, paused: bool) -> Vec<Action> {
 /// position in the queue, which is the one number worth showing.
 fn waiting_row(job: &Job, position: usize) -> RowSpec {
     let held = job.phase == Phase::Held;
-    RowSpec::new(if held { Kind::Paused } else { Kind::Queued }, job.name.clone())
+    RowSpec::new(if held { Kind::Paused } else { Kind::Queued }, job.label())
         .caption(format!("{}", position + 1))
         .value(if held {
             "held".to_string()
@@ -148,8 +143,8 @@ fn waiting_row(job: &Job, position: usize) -> RowSpec {
             String::new()
         })
         .progress(Progress::Track)
-        .reveal(job.dir.clone())
-        .actions(job.dir.clone(), vec![
+        .reveal(job.input.clone())
+        .actions(vec![
             // First, because it is the one that changes the queue rather than
             // the job, and the queue is what you opened this list to arrange.
             Action::call(Glyph::Top, token(job.id, Verb::Top)),
@@ -175,20 +170,16 @@ fn finished_row(job: &Job) -> RowSpec {
 
     let mut actions = vec![Action::call(Glyph::Retry, token(job.id, Verb::Retry))];
     if let Some(log) = job.log_path() {
-        actions.push(Action {
-            glyph: Glyph::Log,
-            act: Act::Open(log),
-            back: None,
-        });
+        actions.push(Action::log(log));
     }
 
-    RowSpec::new(if ok { Kind::Done } else { Kind::Failed }, job.name.clone())
+    RowSpec::new(if ok { Kind::Done } else { Kind::Failed }, job.label())
         .caption(job.elapsed().map(short_duration).unwrap_or_default())
         .value(value)
         .alert(!ok)
         // A finished job's bar is full: it ran to its end, well or badly, and
         // the red fill says which.
         .progress(Progress::Fraction(1.0))
-        .reveal(job.dir.clone())
-        .actions(job.dir.clone(), actions)
+        .reveal(job.input.clone())
+        .actions(actions)
 }

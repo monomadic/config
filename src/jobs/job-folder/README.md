@@ -1,9 +1,8 @@
 # job-folder
 
-The jobs queue and its menu bar in one process. Drop a `NAME.job` script into
-`~/jobs` and it runs — same contract as [`job-daemon`](../job-daemon), same rows
-as [`job-monitor`](../job-monitor) — but the queue itself lives in memory, in
-the app you are looking at.
+A job queue where every workflow is a folder. Put a `job.sh` in a directory
+under `~/jobs`, drop files into its `input/`, and each one runs through the
+script. The queue and its menu bar live in one process.
 
 ```bash
 scripts/install/install-job-folder.sh
@@ -13,93 +12,85 @@ Builds the crate, assembles `~/Applications/Job Folder.app`, and ad-hoc signs
 it. No LaunchAgent: **the queue runs while the app is open and stops when you
 quit it.** Add it to Login Items if you want it always on.
 
-## Why
+## A job folder
 
-The daemon-and-monitor pair keeps a job's state in the folder it sits in, so
-that a runner here and a monitor on another machine can agree without ever
-talking to each other. It is a good design and it buys a real thing — you can
-watch and command an encode queue across the LAN over nothing but SMB.
+```
+~/jobs/interpolate-60fps/
+  job.sh        the workflow — run once per input
+  input/        drop files here; each is a run, oldest first
+  output/       $OUTPUT_DIR, the script's to fill
+  done/         inputs whose run succeeded
+  failed/       inputs whose run failed or was stopped
+  stdout.log    every run's stdout, appended under a header
+  stderr.log    every run's stderr, same
+```
 
-It also costs exactly what you would expect, once you are sitting at the machine
-doing the work:
+Any non-hidden directory under the root with a `job.sh` counts, picked up live.
+`input/` and `output/` are created for you; `done/` and `failed/` appear when
+first needed.
 
-- Pause is a `rename` that the runner has to notice.
-- The row you pressed doesn't change until a poll comes round — 2s locally, up
-  to a minute through the SMB directory cache.
-- Queue order is the alphabet, so reordering means renaming folders.
-- "Is it still running?" is answered by *inference* — silence, a heartbeat, a
-  pid in a `.status` file — because nothing watching the folder is the job's
-  parent.
-
-This app makes the other trade. One process runs the jobs and draws the menu, so
-the queue is a `Vec<Job>` behind a mutex:
+`job.sh` runs with its folder as the working directory and:
 
 | | |
 |---|---|
-| pause | `SIGSTOP` to the process group, on the way back from the click |
-| resume | `SIGCONT`, same |
-| stop | `SIGTERM`, then `SIGKILL` after ten seconds |
-| hold | a queued job is skipped until you say otherwise |
-| ↑ | move a queued job to the front — a `Vec` splice |
-| retry | a finished job goes back to the end of the queue |
+| `$INPUT` | the input's absolute path |
+| `$INPUT_DIR` | the directory it is in (the folder's `input/`) |
+| `$INPUT_FILE` | its file name |
+| `$INPUT_NAME` | its file name without the extension |
+| `$OUTPUT_DIR` | the folder's `output/` |
+| `$JOB_DIR` | the job folder itself |
 
-Every one of those is true the instant it is pressed, and the menu **stays open
-and redraws itself** — while the shape of the list holds, each row is handed a
-fresh spec rather than the menu being rebuilt under your pointer.
+plus `TERM=dumb`, `NO_COLOR=1`, `CLICOLOR=0`. If `job.sh` is executable it runs
+as-is (its shebang counts); if not, through `/bin/bash`. Exit status alone
+decides pass or fail. The last line of stdout shows in the menu row, and a
+percentage in it drives the progress bar.
 
-There is no "not running" state and no "no output 41m" warning, because neither
-is a question here: we are holding the child. A job that is in the list is
-running; one that isn't has already become an outcome.
+```bash
+#!/bin/bash
+set -euo pipefail
+ffmpeg -nostdin -i "$INPUT" -vf minterpolate=fps=60 "$OUTPUT_DIR/$INPUT_NAME.60fps.mkv"
+```
 
-## What it gives up
+## The queue
 
-**The network.** Nothing on disk says what any job is doing, so no second
-machine can watch this queue, and there is no dragging a folder to `_paused`
-from Finder. If you want that, run `job-daemon` and watch it with
-`job-monitor` — that is what they are for. Run one or the other on a given
-folder, never both.
+- **One run per folder at a time**, oldest input first — a folder's logs never
+  interleave. The **Workers** submenu (and `$JOB_CONCURRENCY`, 1–8, default 2)
+  caps how many folders run at once.
+- **An input stays in `input/` while it runs**, then moves to `done/` or
+  `failed/`. Anything left in `input/` when the app starts is queued again.
+  Retry is dragging a file back into `input/` (or the row's retry button).
+- **Dragging a queued file out of `input/` dequeues it.**
+- Whether a file is queued, held, running or paused is held in memory only.
+  Row buttons act immediately: pause/resume are `SIGSTOP`/`SIGCONT` to the job's
+  process group, stop is `SIGTERM` then `SIGKILL` after ten seconds, ↑ moves a
+  queued file to the front.
+- Quitting sends `SIGTERM` to every running job — an encode nothing is watching
+  is worse than one that stopped. Its input is still in `input/`.
 
-**Everything but the payload, on quit.** Quitting sends `SIGTERM` to every
-running job (an encode nobody is watching, with no row left to stop it from, is
-worse than one that stopped). Whatever hadn't finished is still in `ready/`, and
-starts again from the top next launch.
+`$JOBS_DIR` moves the root, `$JOB_NICE` (0–20) lowers the jobs' priority.
 
-## The folder
+## Getting files in whole
 
-Two directories, and neither is a state machine:
+The intended way in is to copy to `~/jobs` first, then `mv` into the job
+folder's `input/`. That last step is a rename on one volume, so the file
+appears complete in a single step.
 
-| | |
-|---|---|
-| `~/jobs/TARGET.job` (+ `TARGET`) | dropped, not yet picked up |
-| `~/jobs/ready/<date>-<name>/` | the job's payload while it is the queue's: the script, its target file, its logs |
-| `~/jobs/done/<date>-<name>/` | the same folder once it has finished, however it finished |
+A file dropped straight into `input/` is still covered by some light checks.
+It is only queued once all of these hold:
 
-No `.status`, no `_paused`, no `_ok` and `_failed` — whether a folder in
-`ready/` is queued, running, held or suspended is not written down anywhere,
-because the only thing that needs to know is holding it in memory. `done/` is
-where payloads go, not a verdict: which of them failed is in the menu, and in
-the exit status the job already reported.
+1. **It is visible and not a download in progress.** Dotfiles, `._*`, and
+   names ending `.part`, `.partial`, `.crdownload`, `.download`, `.tmp`,
+   `.temp` are skipped. `rsync` writes to a hidden temporary and renames it
+   when complete, so an `rsync` into `input/` is safe too.
+2. **Its size and mtime have held still** for `$JOB_SETTLE` seconds (default
+   2). Raise it if you copy straight in from a slow share.
+3. **No process of this user has it open for writing** (`lsof`). This catches a
+   stalled Finder or `cp` copy. Writers belonging to other users, such as the
+   SMB server, are invisible without root; (2) covers those.
 
-`$JOBS_DIR` moves the root, `$JOB_CONCURRENCY` (1–8, default 2) and `$JOB_NICE`
-(0–20) work as they do in the daemon, and the concurrency is also the
-**Workers** submenu — how many jobs may run at once, changed live.
-
-The drop folder is still watched, and deliberately so: `send-job`, `topaz-job`
-and the mpv Topaz workflow queue work by writing a file, from this machine or
-over a mounted share, and none of them should have to know a process exists. A
-dropped file is staged once its size has held steady for two seconds.
-
-## Jobs run exactly as the daemon runs them
-
-Same environment, to the letter, so a `.job` script written for one works under
-the other: `TARGET_FILE`, `JOB_NAME`, `JOB_FILE`, `JOB_DIR`, `JOB_RUN_DIR`, and
-`TERM=dumb` / `NO_COLOR=1` / `CLICOLOR=0`. stdout goes to `$JOB_NAME.log` in the
-run folder *and* into the row's last-line display; stderr goes to
-`$JOB_NAME.error.log` and stays out of the row — plenty of tools log there, and
-a warning is not what the job is doing. Exit status alone decides pass or fail.
-
-Each job leads its own process group, which is what makes pause and stop reach
-the encoder underneath rather than the shell wrapping it.
+Inputs are files; directories in `input/` are ignored. A symlink to a file
+counts — `send-job --link` queues that way — and filing it into `done/` or
+`failed/` moves the link, never the file it points at.
 
 ## Preferences
 

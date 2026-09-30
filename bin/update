@@ -65,7 +65,6 @@ typeset -A artifact_for=(
   cargo              "$HOME/.cargo/bin/cargo-recursive-clean"
   go-apps            "$HOME/go/bin/cgasm"
   wasmtime           "$HOME/.wasmtime/bin/wasmtime"
-  job-monitor        "$HOME/Applications/Job Monitor.app"
   job-folder         "$HOME/Applications/Job Folder.app"
   wifi-widget        "$HOME/Applications/WiFi Widget.app"
   propainter         "$HOME/src/scrubber/.venv"
@@ -75,11 +74,9 @@ typeset -A artifact_for=(
   yt-dlp             "$HOME/.local/share/uv/tools/yt-dlp"
 )
 
-# src/ subdirectory, when it isn't src/<name>. One workspace, three installers;
+# src/ subdirectory, when it isn't src/<name>. The jobs workspace;
 # and the Swift tools under the src/utils/ group.
 typeset -A src_for=(
-  job-daemon   jobs
-  job-monitor  jobs
   job-folder   jobs
   avinterp     utils/avinterp
   avremove     utils/avremove
@@ -104,9 +101,7 @@ typeset -A about_for=(
   dupchk                     "Finds duplicate files by size"
   free-disk-space-widget     "Menu bar free disk space meter"
   go-apps                    "Small Go command-line tools"
-  job-daemon                 "Runs the jobs queue in the background"
   job-folder                 "Jobs queue and its menu bar, in one app"
-  job-monitor                "Menu bar view of the jobs queue"
   menu-tidy                  "Hides menu bar clutter"
   motherfucker               "Spotlight replacement and app launcher"
   neuroserver-select-preset  "Previews and encodes Topaz Starlight presets"

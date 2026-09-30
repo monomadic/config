@@ -1,27 +1,12 @@
-//! job-folder — the jobs queue and its menu in one process.
+//! job-folder — a folder-per-workflow job queue and its menu, in one process.
 //!
-//! `job-daemon` and `job-monitor` are two programs that never speak: the runner
-//! writes a folder, the menu reads it back, and the folder in between is the
-//! whole protocol. That buys something real — a monitor on another machine sees
-//! exactly what the runner sees, over nothing more than SMB — and it costs
-//! exactly what you would expect. A pause is a `rename` the runner has to
-//! notice. The row you pressed doesn't change until a poll comes round. The
-//! order of the queue is the alphabet, so changing it means renaming folders.
-//! And every question about a job — is it alive, has it gone quiet, did it
-//! stall — is answered by inference, because nothing here is its parent.
-//!
-//! This is the other trade. One process runs the jobs and draws the menu, so
-//! the queue is a `Vec<Job>` behind a mutex and a button press is a method
-//! call: pause is `SIGSTOP` on the way back from the click, reordering is a
-//! splice, and "is it running" is not a question — we are holding the child.
-//! The menu updates itself while it is open, because the model it is drawing is
-//! in the same address space.
-//!
-//! What is given up is the network. There is no state on disk for a second
-//! machine to read, so nothing can watch this queue from anywhere else, and
-//! nothing survives the process but the payload folders. That is the deal:
-//! [`job-monitor`](../job-monitor) for a queue you share, this for one you
-//! stand in front of.
+//! Any directory under `~/jobs` (or `$JOBS_DIR`) with a `job.sh` in it is a
+//! workflow. Drop files into its `input/` and each one runs through the script,
+//! oldest first, with `$INPUT`, `$INPUT_DIR`, `$INPUT_FILE`, `$INPUT_NAME` and
+//! `$OUTPUT_DIR` set. The folder is the whole interface — anything that can
+//! write a file, locally or over a share, can queue work — and the queue itself
+//! is a `Vec<Job>` in this process, so pause is `SIGSTOP` on the way back from
+//! the click and reordering is a splice. See [`queue`] for the folder layout.
 
 mod notify;
 mod queue;

@@ -1,8 +1,5 @@
-# The queue and its menu in one process.
-#
-# This one *does* link a job loop, which is exactly why it is not job-monitor:
-# it runs the jobs it shows, so it may hold them in memory and answer a button
-# by signalling a process rather than by moving a folder and waiting to be told.
+# The queue and its menu in one process: it runs the jobs it shows, so it holds
+# them in memory and answers a button by signalling a process.
 
 [package]
 name = "job-folder"

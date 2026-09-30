@@ -3,21 +3,20 @@
 # Build and install job-folder (src/jobs/job-folder): the jobs queue and its
 # menu bar in one process.
 #
-# Unlike job-daemon, this installs NO LaunchAgent — the queue runs while the app
-# is open and stops when you quit it, because the queue lives in the app's
-# memory rather than in the folder. Add it to Login Items if you want it always
-# on.
+# This installs NO LaunchAgent — the queue runs while the app is open and stops
+# when you quit it, because the queue lives in the app's memory. Add it to
+# Login Items if you want it always on (scripts/setup/server.sh does).
 #
-# Like job-monitor, it installs as a real .app bundle in ~/Applications:
+# It installs as a real .app bundle in ~/Applications:
 # UNUserNotificationCenter refuses to work without a bundle identifier, and a
 # bundle is what makes it a normal app with a Quit item rather than a service.
 #
 # The bundle is generated here, never checked in (the repo holds no .app
 # bundles). Re-running rebuilds and replaces it in place.
 #
-# They mean different things by a job folder and both would try to run what
-# lands in it, so this uninstalls job-daemon first if it's loaded — same
-# direction job-daemon's own installer already retires job-folder in.
+# job-daemon and job-monitor, the retired generation of this queue (the .job
+# drop contract; source in git history), are uninstalled first wherever they
+# are still installed.
 #
 # Run as your normal user, NOT under sudo.
 
@@ -37,6 +36,8 @@ INSTALL_DIR="${JOB_INSTALL_DIR:-$HOME/.local/bin}"
 LAUNCH_AGENTS_DIR="${JOB_LAUNCH_AGENTS_DIR:-$HOME/Library/LaunchAgents}"
 JOB_DAEMON_LABEL="${JOB_DAEMON_LABEL:-com.jayu.job-daemon}"
 JOB_DAEMON_BINARY="$INSTALL_DIR/job-daemon"
+JOB_MONITOR_BUNDLE_ID="com.jayu.job-monitor"
+JOB_MONITOR_APP="$APPS_DIR/Job Monitor.app"
 
 require_command() {
   if ! command -v "$1" >/dev/null 2>&1; then
@@ -80,10 +81,10 @@ write_info_plist() {
 EOF
 }
 
-# job-daemon and job-folder both claim jobs dropped in the folder; only one
-# should run at a time. Mirrors job-daemon's own SUPERSEDED_LABELS retirement,
-# in the other direction.
-uninstall_job_daemon() {
+# The retired generation: job-daemon's LaunchAgent and binary, and the Job
+# Monitor app. Nothing feeds them any more, and a daemon left loaded would
+# still run any .job file that turned up in ~/jobs.
+uninstall_retired() {
   local gui_domain="gui/$(id -u)"
   local old_plist="$LAUNCH_AGENTS_DIR/$JOB_DAEMON_LABEL.plist"
 
@@ -98,6 +99,15 @@ uninstall_job_daemon() {
     echo "Removing job-daemon binary $JOB_DAEMON_BINARY ..."
     rm -f "$JOB_DAEMON_BINARY"
   fi
+
+  if [[ -d "$JOB_MONITOR_APP" ]]; then
+    echo "Removing $JOB_MONITOR_APP ..."
+    if pgrep -x job-monitor >/dev/null 2>&1; then
+      osascript -e "quit app id \"$JOB_MONITOR_BUNDLE_ID\"" >/dev/null 2>&1 || pkill -x job-monitor || true
+      sleep 1
+    fi
+    rm -rf "$JOB_MONITOR_APP"
+  fi
 }
 
 main() {
@@ -111,7 +121,7 @@ main() {
     exit 1
   fi
 
-  uninstall_job_daemon
+  uninstall_retired
 
   echo "Building job-folder (release) ..."
   (cd "$WORKSPACE" && cargo build --release --bin job-folder)
@@ -137,12 +147,12 @@ main() {
   echo "Signing (ad-hoc) ..."
   codesign --force --sign - --identifier "$BUNDLE_ID" "$APP_BUNDLE"
 
-  mkdir -p "$JOBS_ROOT/ready" "$JOBS_ROOT/done"
+  mkdir -p "$JOBS_ROOT"
 
   echo
   echo "Installed $APP_NAME."
   echo "  Bundle: $APP_BUNDLE"
-  echo "  Queue:  $JOBS_ROOT  (ready/ while working, done/ when finished)"
+  echo "  Queue:  $JOBS_ROOT/<workflow>/  (job.sh + input/ -> output/)"
   echo
   echo "Open it with:  open -a \"$APP_NAME\""
   echo "The queue runs while it is open. Quitting stops the jobs."

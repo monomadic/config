@@ -1,27 +1,28 @@
 #!/usr/bin/env zsh
 # interpolate-resolve-job
-# Queue DaVinci Resolve interpolation instead of running it here: writes one
-# NAME.job script per input into the jobs folder, where job-folder (or
-# job-daemon) picks it up and runs it.
+# Queue DaVinci Resolve interpolation instead of running it here: sets up a
+# job-folder workflow for the settings (fps, quality, codec) and queues each
+# input on it.
 #
 #   interpolate-resolve-job [options] [fps] <input-file>...
 #
-# All this writes is the job: a short script calling the deployed
-# interpolate-resolve on $TARGET_FILE. Getting it into a jobs folder — which
-# folder, whether there is room, the atomic drop — is send-job's work, and it
-# is handed over with --reference, so nothing is copied: Resolve reads the
-# source where it lies and writes its output beside it, exactly as the
-# interactive command does. That is the point, with multi-gigabyte files on a
-# local disk and the queue running on this machine — and also the one thing to
-# keep in mind when send-job asks where to send it, since a referenced job only
-# makes sense to a runner that can see that path.
+# The workflow is named for the work — interpolate-resolve-60fps,
+# interpolate-resolve-120fps-speed-warp-prores — so two renders of one clip
+# land in different queues, and each folder can be reused by dropping more
+# files into its input/. Its job.sh calls the deployed interpolate-resolve on
+# $INPUT and writes into $OUTPUT_DIR.
 #
-# The job is named for the work rather than for the file: `clip.mp4.60.job`
-# makes the queue's row read "clip.mp4.60" and keeps two renders of one clip
-# apart.
+# Installing it and queueing the files — which jobs folder, whether there is
+# room, the atomic handoff — is send-job's work. Inputs go by --link unless
+# --copy is given: input/ gets a symlink, and Resolve reads the source where it
+# lies. That is the point with multi-gigabyte files on a local disk and the
+# queue on this machine — and the one thing to keep in mind when send-job asks
+# where to send it, since a link only makes sense to a runner that can see the
+# path it points at.
 #
-# Resolve renders one timeline at a time through the scripting API, so set
-# job-folder's Workers to 1 if you queue these alongside other Resolve work.
+# Resolve renders one timeline at a time through the scripting API. job-folder
+# runs one input per workflow at a time, but different workflows side by side,
+# so set its Workers to 1 if more than one Resolve workflow may be busy.
 
 emulate -L zsh
 setopt extended_glob
@@ -32,14 +33,13 @@ script_name="${0:t}"
 # The *deployed* path, not the repo one: the job runs from job-folder, which
 # knows nothing about where this checkout lives.
 interpolate="${INTERPOLATE_RESOLVE:-$HOME/.local/bin/interpolate-resolve}"
-# send-job does the copy-or-reference dance, the folder search and the atomic
-# drop — no reason to have a second copy of that here.
 send_job="${SEND_JOB:-${0:A:h}/send-job}"
 jobs_dir=""   # only when asked for; otherwise send-job chooses or asks
 
 target_fps=60
 quality=enhanced-better
 use_prores=0
+payload_mode=--link
 dry_run=false
 typeset -a positional=()
 
@@ -47,7 +47,7 @@ usage() {
   cat <<EOF
 $script_name
 
-Queue DaVinci Resolve interpolation as jobs.
+Queue DaVinci Resolve interpolation on a job-folder workflow.
 
 Usage:
   $script_name [options] [fps] <input-file>...
@@ -55,21 +55,22 @@ Usage:
 Arguments:
   [fps]              Target FPS as the first positional (60, 120, 23.976).
                      Defaults to 60.
-  <input-file>       One or more input media files; one job each.
+  <input-file>       One or more input media files; one run each.
 
 Options:
   --fps FPS          Target FPS. Overrides the positional FPS.
   --quality MODE     Optical Flow quality: enhanced-better, speed-warp
   --speed-warp       Shortcut for --quality speed-warp
   --prores           Render ProRes 422 Proxy MOV instead of HEVC MP4
+  --copy             Copy the inputs into the workflow instead of linking them
   --dir DIR          Jobs folder, passed straight to send-job. Without it
                      send-job picks the folder, or asks. Also --dir=DIR.
-  --dry-run          Print each job, write and send nothing
+  --dry-run          Print the workflow, write and send nothing
   -h, --help         Show help
 
 Environment:
   JOBS_DIR             Jobs folder (send-job honours it)
-  SEND_JOB             send-job to hand the job to
+  SEND_JOB             send-job to hand the workflow to
   INTERPOLATE_RESOLVE  Renderer the job calls (default: ~/.local/bin/interpolate-resolve)
 
 Examples:
@@ -119,6 +120,10 @@ while (( $# )); do
       use_prores=1
       shift
       ;;
+    --copy)
+      payload_mode=--copy
+      shift
+      ;;
     --dir)
       (( $# >= 2 )) || die "missing argument for --dir" 2
       jobs_dir="$2"
@@ -158,6 +163,9 @@ if (( ${#positional[@]} > 1 )) && [[ "${positional[1]:l}" =~ '^[0-9]+([.][0-9]+)
 fi
 
 (( ${#positional[@]} )) || { usage >&2; die "no input file given" 2 }
+for input in "${positional[@]}"; do
+  [[ -f "$input" ]] || die "input file not found: $input"
+done
 
 if ! $dry_run && [[ ! -x "$send_job" ]]; then
   send_job="$(command -v send-job)" || die "send-job not found (set \$SEND_JOB)"
@@ -175,14 +183,18 @@ if [[ "$interpolate" == "$HOME"/* ]]; then
 fi
 
 fps_label="${target_fps//./p}"
-label_suffix="$fps_label"
-(( use_prores )) && label_suffix="prores$fps_label"
+workflow="interpolate-resolve-${fps_label}fps"
+[[ "$quality" != enhanced-better ]] && workflow+="-$quality"
 
 typeset -a job_options=( --fps "$target_fps" --quality "$quality" )
 description="${target_fps}fps, $quality"
+# interpolate-resolve's own naming: clip.hevc60.mp4, clip.prores60.mov.
+output_suffix=".hevc$fps_label.mp4"
 if (( use_prores )); then
   job_options+=( --prores )
   description+=", ProRes 422 Proxy"
+  workflow+="-prores"
+  output_suffix=".prores$fps_label.mov"
 fi
 
 option_line=""
@@ -194,49 +206,48 @@ for option in "${job_options[@]}"; do
   fi
 done
 
-staging=""
-cleanup() {
-  [[ -n "$staging" ]] && rm -rf -- "$staging" 2>/dev/null || true
-}
-trap cleanup EXIT INT TERM
+# Resolve renders into a hidden .partial/ folder and the result is renamed into
+# output/ only once it exits cleanly, so a stopped or crashed render never
+# leaves something that looks finished — and a rerun of a finished input is a
+# no-op rather than a second render.
+job_text="#!/bin/zsh
+# DaVinci Resolve interpolation workflow — generated by $script_name
+# $description
+# One file per run: the source is \$INPUT, the result goes in \$OUTPUT_DIR.
+set -euo pipefail
+: \"\${INPUT:?run me through job-folder, or set INPUT and OUTPUT_DIR}\"
+: \"\${OUTPUT_DIR:?run me through job-folder, or set INPUT and OUTPUT_DIR}\"
+name=\"\${INPUT_NAME:-\${\${INPUT:t}:r}}$output_suffix\"
+if [[ -e \"\$OUTPUT_DIR/\$name\" ]]; then
+  print -- \"already done: \$OUTPUT_DIR/\$name\"
+  exit 0
+fi
+mkdir -p -- \"\$OUTPUT_DIR/.partial\"
+rm -f -- \"\$OUTPUT_DIR/.partial/\$name\"
+$renderer_ref$option_line -- \"\${INPUT:A}\" \"\$OUTPUT_DIR/.partial/\$name\"
+mv -- \"\$OUTPUT_DIR/.partial/\$name\" \"\$OUTPUT_DIR/\$name\"
+print -- \"done: \$OUTPUT_DIR/\$name\""
 
-if ! $dry_run; then
-  staging="$(mktemp -d "${TMPDIR:-/tmp}/interpolate-resolve-job.XXXXXX")" \
-    || die "could not make a staging directory"
+if $dry_run; then
+  print -- "workflow: $workflow${jobs_dir:+ -> $jobs_dir}"
+  print -r -- "$job_text"
+  print
+  print -- "inputs (${payload_mode#--}):"
+  for input in "${positional[@]}"; do
+    print -- "  ${input:A}"
+  done
+  exit 0
 fi
 
-for input in "${positional[@]}"; do
-  [[ -f "$input" ]] || die "input file not found: $input"
-  input="${input:A}"
+staging="$(mktemp -d "${TMPDIR:-/tmp}/interpolate-resolve-job.XXXXXX")" \
+  || die "could not make a staging directory"
+trap 'rm -rf -- "$staging" 2>/dev/null || true' EXIT INT TERM
 
-  # The source is named through $TARGET_FILE, never inlined: send-job's
-  # reference preamble points it at the original, and the same job file would
-  # work just as well beside a staged copy.
-  job_text="#!/bin/zsh
-# DaVinci Resolve interpolation job — generated by $script_name
-# $description
-: \"\${TARGET_FILE:?run me through the jobs queue, or set TARGET_FILE}\"
-exec $renderer_ref$option_line -- \"\$TARGET_FILE\""
+print -r -- "$job_text" > "$staging/job.sh" || die "could not write the job script"
+chmod +x "$staging/job.sh" || die "could not make the job script executable"
 
-  # The job is named for the work, not for the file: `clip.mp4.120.job` keeps
-  # two renders of one clip apart in the queue's rows.
-  job_name="${input:t}.$label_suffix.job"
-
-  if $dry_run; then
-    print -- "job: $job_name${jobs_dir:+ -> $jobs_dir}"
-    print -r -- "$job_text"
-    print
-    continue
-  fi
-
-  job_path="$staging/$job_name"
-  print -r -- "$job_text" > "$job_path" || die "could not write job file: $job_path"
-  chmod +x "$job_path" || die "could not make the job executable: $job_path"
-
-  # Everything from here — which jobs folder, free space, the atomic drop — is
-  # send-job's job, and only has to be right in one place.
-  "$send_job" --reference ${jobs_dir:+--dir="$jobs_dir"} -- "$input" "$job_path" \
-    || die "send-job could not queue $job_name"
-done
-
-exit 0
+# Everything from here — which jobs folder, free space, the atomic handoff —
+# is send-job's job, and only has to be right in one place.
+"$send_job" --job "$staging/job.sh" $payload_mode ${jobs_dir:+--dir="$jobs_dir"} \
+  -- "$workflow" "${positional[@]}" \
+  || die "send-job could not queue on $workflow"

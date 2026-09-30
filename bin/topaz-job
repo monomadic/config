@@ -1,27 +1,33 @@
 #!/usr/bin/env zsh
 # topaz-job
-# Turn a video plus a Topaz preset file into a runnable NAME.job script, and put
-# that job where something will run it.
+# Turn a Topaz preset file into a job-folder workflow — a folder whose job.sh
+# encodes any video dropped in its input/ with that preset — and queue a video
+# on it.
 #
 #   topaz-job [mode] [destination] --preset PRESET_FILE [--] INPUT
 #
-# The job file is the artifact. It is machine-agnostic: no cd, no absolute
-# paths, nothing about this host. It names its source purely through
-# job-server's $TARGET_FILE (the job is <video>.job, so TARGET_FILE is the video
-# filename) and its encoder through $HOME, so it runs correctly wherever it
-# sits beside the video — here (--run) and on any render machine (job-server
-# sets TARGET_FILE and executes it in the run folder next to the copied video,
-# as whatever user owns the share).
+# The workflow is named for the preset (topaz-<preset name>, or --workflow
+# NAME), so every video sent with the same preset lands in the same queue, and
+# the folder can be reused by dropping more files into its input/ directly.
 #
-# It deliberately sets no scheduling priority. Whoever runs the job decides
-# that: job-server already runs one job at a time, and a render box wants the
-# machine's full attention.
+# Its job.sh is machine-agnostic: the source is $INPUT, the result goes to
+# $OUTPUT_DIR, and the encoder is named through $HOME, so it runs wherever the
+# workflow folder sits — here, or on a render machine that mounts the share.
+# It passes --resume, so a run that was stopped or interrupted picks up from its
+# partial output rather than starting over, and one already finished is
+# skipped.
 #
-# Modes (what to do with the job):
-#   --send   default. Write the job to a temp dir, then copy the video and the
-#            job into the first reachable jobs folder (via send-job).
-#   --save   Write NAME.job beside the video and stop. Nothing runs.
-#   --run    Write NAME.job beside the video and run it here, now.
+# It deliberately sets no scheduling priority. Whoever runs the queue decides
+# that: job-folder runs one input per workflow at a time, and a render box
+# wants the machine's full attention.
+#
+# Modes (what to do with the workflow):
+#   --send   default. Install the workflow in the first reachable jobs folder
+#            and copy the video into its input/ (via send-job).
+#   --save   Install the workflow in the first reachable jobs folder and stop.
+#            Nothing is queued; drop files into its input/ later.
+#   --run    Run the workflow's script on the video here, now, writing the
+#            result beside the video. Nothing is installed.
 #
 # Destinations are tried in order until one is a writable directory, so a job
 # lands on the render share when it is mounted, syncs through iCloud when it is
@@ -30,7 +36,7 @@
 #   $JOBS_DIR             when set (also --dir DIR) — tried first, alone if forced
 #   remote  /Volumes/job  /Volumes/Jobs
 #   cloud   $ICLOUD_HOME/Jobs
-#   local   $HOME/job  $HOME/Jobs
+#   local   $HOME/jobs  $HOME/Jobs
 #
 # --remote / --cloud / --local restrict the search to one group; $TOPAZ_JOB_ORDER
 # (default "remote,cloud,local") reorders the automatic search.
@@ -53,17 +59,18 @@ set -euo pipefail
 
 script_name="${0:t}"
 
-# The *deployed* encoder path, not the repo one: the job has to make sense on
-# whatever machine ends up running it.
+# The *deployed* encoder path, not the repo one: the workflow has to make sense
+# on whatever machine ends up running it.
 topaz_encode="${TOPAZ_ENCODE:-$HOME/.local/bin/topaz-encode}"
-# send-job does the copy-then-queue dance (payload first, size-verified, job
-# renamed into place last) — no reason to have a second copy of that here.
+# send-job does the workflow install and the copy-then-rename into input/ — no
+# reason to have a second copy of that here.
 send_job="${SEND_JOB:-${0:A:h}/send-job}"
 
 mode=send
 forced_dir=""
 group=""
 preset_file=""
+workflow=""
 input=""
 dry_run=false
 
@@ -71,26 +78,27 @@ usage() {
   cat <<EOF
 $script_name
 
-Build a Topaz encode job from a video and a preset file, and hand it to a runner.
+Build a job-folder workflow from a Topaz preset file, and queue a video on it.
 
 Usage:
   $script_name [--send|--save|--run] [--dir DIR|--remote|--cloud|--local] \\
-      --preset PRESET_FILE [--] INPUT
+      [--workflow NAME] --preset PRESET_FILE [--] INPUT
 
 Modes:
-  --send             Copy the video and the job into a jobs folder (default)
-  --save             Write NAME.job beside the video and stop
-  --run              Write NAME.job beside the video and run it here
+  --send             Install the workflow and queue the video on it (default)
+  --save             Install the workflow and stop
+  --run              Run the workflow's script on the video here
 
-Destination (--send only):
+Destination (--send and --save):
   --dir DIR          Use exactly this folder (also --dir=DIR, or \$JOBS_DIR)
   --remote           Only /Volumes/job, /Volumes/Jobs
   --cloud            Only \$ICLOUD_HOME/Jobs
-  --local            Only \$HOME/job, \$HOME/Jobs
+  --local            Only \$HOME/jobs, \$HOME/Jobs
 
 Other:
   --preset FILE      Preset file (required; also --preset=FILE)
-  --dry-run          Print the job and the chosen destination, change nothing
+  --workflow NAME    Workflow folder name (default: topaz-<preset name>)
+  --dry-run          Print the workflow and the chosen destination, change nothing
   -h, --help         Show help
 
 Environment:
@@ -142,6 +150,15 @@ while (( $# )); do
       preset_file="${1#--preset=}"
       shift
       ;;
+    --workflow)
+      (( $# >= 2 )) || die "missing argument for --workflow" 2
+      workflow="$2"
+      shift 2
+      ;;
+    --workflow=*)
+      workflow="${1#--workflow=}"
+      shift
+      ;;
     --dry-run)
       dry_run=true
       shift
@@ -169,17 +186,19 @@ while (( $# )); do
 done
 
 [[ -n "$preset_file" ]] || { usage >&2; die "no preset file given (--preset)" 2 }
-[[ -n "$input" ]] || { usage >&2; die "no input file given" 2 }
 [[ -f "$preset_file" ]] || die "preset file not found: $preset_file"
-[[ -f "$input" ]] || die "input file not found: $input"
+# --save installs a workflow and nothing else, so it needs no video.
+if [[ "$mode" != save ]]; then
+  [[ -n "$input" ]] || { usage >&2; die "no input file given" 2 }
+fi
+if [[ -n "$input" ]]; then
+  [[ -f "$input" ]] || die "input file not found: $input"
+  input="${input:A}"
+fi
 
 if [[ -n "$forced_dir" && -n "$group" ]]; then
   die "--dir and --$group are mutually exclusive" 2
 fi
-
-input="${input:A}"
-input_name="${input:t}"
-input_dir="${input:h}"
 
 # --- preset file ------------------------------------------------------------
 
@@ -206,10 +225,20 @@ done < "$preset_file"
 [[ -n "${preset[preset_name]:-}" ]] || die "preset file has no preset_name: $preset_file"
 [[ -n "${preset[filter_complex]:-}" ]] || die "preset file has no filter_complex: $preset_file"
 
+# topaz-<preset name>, lowercased, with every run of anything else a single
+# dash: a folder name that survives SMB, the shell and a Finder glance alike.
+if [[ -z "$workflow" ]]; then
+  slug="${(L)preset[preset_name]}"
+  slug="${slug//[^a-z0-9]##/-}"
+  slug="${${slug##-##}%%-##}"
+  workflow="topaz-${slug[1,60]%%-##}"
+fi
+[[ "$workflow" != */* && "$workflow" != .* ]] || die "not a workflow name: $workflow" 2
+
 # --- job script -------------------------------------------------------------
 
-# Reference the encoder through $HOME when it lives there, so the job survives a
-# different user account on the render machine.
+# Reference the encoder through $HOME when it lives there, so the workflow
+# survives a different user account on the render machine.
 encoder_ref="${(qq)topaz_encode}"
 if [[ "$topaz_encode" == "$HOME"/* ]]; then
   rest="${topaz_encode#$HOME/}"
@@ -230,59 +259,54 @@ done
 
 # job_args is flag/value pairs; flags come from the whitelist above and need no
 # quoting, values always get it.
-command_line="$encoder_ref"
+command_line="$encoder_ref --resume"
 for (( i = 1; i <= ${#job_args[@]}; i += 2 )); do
   command_line+=" ${job_args[i]} ${(qq)job_args[i + 1]}"
 done
-# The source is the one thing the job must not hardcode.
-command_line+=' -- "$TARGET_FILE"'
+# The source and the destination are the two things the job must not hardcode.
+command_line+=' --output-dir "$OUTPUT_DIR" -- "$INPUT"'
 
 job_text="#!/bin/zsh
-# Topaz encode job — generated by $script_name
+# Topaz encode workflow — generated by $script_name
 # ${preset[preset_name]}
-# Runs beside the video it encodes; no cd, source from \$TARGET_FILE.
-: \"\${TARGET_FILE:?run me through job-server, or set TARGET_FILE}\"
+# One video per run: the source is \$INPUT, the result goes in \$OUTPUT_DIR.
+: \"\${INPUT:?run me through job-folder, or set INPUT and OUTPUT_DIR}\"
+: \"\${OUTPUT_DIR:?run me through job-folder, or set INPUT and OUTPUT_DIR}\"
 exec $command_line"
 
-# Never name a local `path` in zsh — it shadows the special array tied to $PATH.
-write_job() {
-  local dir="$1" dest
-  dest="$dir/$input_name.job"
-  print -r -- "$job_text" > "$dest" || die "could not write job file: $dest"
-  chmod +x "$dest" || die "could not make the job executable: $dest"
-  print -r -- "$dest"
-}
-
 if $dry_run; then
-  print -- "job: $input_name.job"
+  print -- "workflow: $workflow"
   print -r -- "$job_text"
 fi
 
-# --- save / run -------------------------------------------------------------
+staging=""
+cleanup() {
+  [[ -n "$staging" ]] && rm -rf -- "$staging" 2>/dev/null || true
+}
+trap cleanup EXIT INT TERM
 
-if [[ "$mode" == save ]]; then
-  if $dry_run; then
-    exit 0
-  fi
-  job_path="$(write_job "$input_dir")"
-  print -- "saved $job_path"
-  exit 0
-fi
+write_job() {
+  staging="$(mktemp -d "${TMPDIR:-/tmp}/topaz-job.XXXXXX")" || die "could not make a staging directory"
+  print -r -- "$job_text" > "$staging/job.sh" || die "could not write the job script"
+  chmod +x "$staging/job.sh" || die "could not make the job script executable"
+}
+
+# --- run --------------------------------------------------------------------
 
 if [[ "$mode" == run ]]; then
-  if $dry_run; then
-    exit 0
-  fi
-  job_path="$(write_job "$input_dir")"
-  print -- "running $job_path"
-  # Same contract job-server gives it: cwd is the video's folder, source named
-  # by $TARGET_FILE.
-  cd -- "$input_dir"
-  export TARGET_FILE="$input_name"
-  exec "$job_path"
+  $dry_run && exit 0
+  write_job
+  print -- "running $workflow on ${input:t}"
+  # The environment job-folder gives it, with the video's own folder standing
+  # in for both input/ and output/: the result lands beside the source.
+  cd -- "${input:h}"
+  INPUT="$input" INPUT_DIR="${input:h}" INPUT_FILE="${input:t}" \
+    INPUT_NAME="${${input:t}:r}" OUTPUT_DIR="${input:h}" JOB_DIR="$staging" \
+    "$staging/job.sh"
+  exit $?
 fi
 
-# --- send: find a jobs folder ----------------------------------------------
+# --- send / save: find a jobs folder ----------------------------------------
 
 if [[ ! -x "$send_job" ]]; then
   send_job="$(command -v send-job)" || die "send-job not found (set \$SEND_JOB)"
@@ -294,7 +318,7 @@ group_dirs() {
   case "$1" in
     remote) print -r -- /Volumes/job; print -r -- /Volumes/Jobs ;;
     cloud)  print -r -- "$icloud_home/Jobs" ;;
-    local)  print -r -- "$HOME/job"; print -r -- "$HOME/Jobs" ;;
+    local)  print -r -- "$HOME/jobs"; print -r -- "$HOME/Jobs" ;;
     *)      die "unknown destination group: $1" 2 ;;
   esac
 }
@@ -315,10 +339,10 @@ fi
 
 (( ${#candidates[@]} )) || die "no destination to try"
 
-job_path=""
-if ! $dry_run; then
-  job_path="$(write_job "${TMPDIR:-/tmp}")"
-fi
+$dry_run || write_job
+
+typeset -a payload=()
+[[ "$mode" == send ]] && payload=( "$input" )
 
 sent=""
 for dir in "${candidates[@]}"; do
@@ -332,7 +356,7 @@ for dir in "${candidates[@]}"; do
   fi
 
   if $dry_run; then
-    print -- "would send to $dir"
+    print -- "would $mode to $dir/$workflow"
     sent="$dir"
     break
   fi
@@ -341,7 +365,7 @@ for dir in "${candidates[@]}"; do
   # --copy and an explicit --dir: the destination is already decided here, and
   # a job bound for a render machine has to take its video with it — neither
   # question send-job would otherwise ask is open.
-  if "$send_job" "$input" "$job_path" --copy --dir="$dir"; then
+  if "$send_job" --job "$staging/job.sh" --copy --dir="$dir" -- "$workflow" "${payload[@]}"; then
     sent="$dir"
     break
   fi
@@ -349,17 +373,18 @@ for dir in "${candidates[@]}"; do
 done
 
 if [[ -z "$sent" ]]; then
-  print -u2 -- "$script_name: nowhere to send the job. Tried:"
+  print -u2 -- "$script_name: nowhere to put the workflow. Tried:"
   for dir in "${candidates[@]}"; do
     print -u2 -- "  $dir"
   done
   exit 1
 fi
 
-if $dry_run; then
-  exit 0
-fi
+$dry_run && exit 0
 
-rm -f -- "$job_path" 2>/dev/null || true
-print -- "sent $input_name + $input_name.job to $sent"
+if [[ "$mode" == send ]]; then
+  print -- "sent ${input:t} to $sent/$workflow"
+else
+  print -- "saved $sent/$workflow"
+fi
 exit 0

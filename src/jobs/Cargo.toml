@@ -1,14 +1,5 @@
-# The jobs toolchain: a drop-folder job queue, its menu bar face, a viewer for
-# watching one over the network, and a single-process variation of the whole
-# thing for the machine you are sitting at.
-#
-# One workspace rather than one crate, deliberately. job-monitor does not
-# depend on job-daemon, so the runner is not linked into the UI at all — a
-# binary with no job loop in it cannot claim a job however it is launched, and
-# it doesn't need to: every command is a folder move. job-folder is the crate
-# that *does* link a loop into its UI, which is exactly why it is a separate
-# binary rather than a flag. A workspace keeps those boundaries while sharing
-# one lockfile, one target directory and one set of pinned objc2 versions.
+# The jobs toolchain: job-folder, the queue and its menu bar in one process,
+# and job-core, the menu rows and the icon it draws.
 #
 # The objc2 family has to agree across members: job-core hands NSImage and
 # NSView across the crate boundary, so a version skew would be a type error
@@ -16,7 +7,7 @@
 
 [workspace]
 resolver = "3"
-members = ["job-core", "job-daemon", "job-folder", "job-monitor"]
+members = ["job-core", "job-folder"]
 
 [workspace.package]
 version = "0.1.0"
@@ -24,7 +15,6 @@ edition = "2024"
 
 [workspace.dependencies]
 job-core = { path = "job-core" }
-job-daemon = { path = "job-daemon" }
 block2 = "0.6.2"
 libc = "0.2"
 objc2 = "0.6.4"

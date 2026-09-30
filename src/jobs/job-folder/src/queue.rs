@@ -1,35 +1,37 @@
 //! The queue, in memory, in the same process as the menu that shows it.
 //!
-//! `job-daemon` keeps a job's state in the folder it sits in, so that a runner
-//! here and a monitor on another machine can agree without talking. That is the
-//! right trade for a shared queue and the wrong one for a queue you are
-//! standing in front of: every command is a `rename` somebody else has to
-//! notice, and every answer waits on a poll.
-//!
-//! Here the process that runs the jobs is the process that draws the menu, so
-//! the model is a `Vec<Job>` behind a mutex. Pause is a `SIGSTOP` on the way
-//! back from the click. Reordering the queue is moving an element. Nothing is
-//! written down to be read back, so nothing can disagree.
-//!
-//! The disk keeps only what a job genuinely needs on it:
+//! A *job folder* is any directory under the jobs root that holds a `job.sh`.
+//! The script is the workflow; the folder around it is its queue:
 //!
 //! | on disk | |
 //! |---|---|
-//! | `TARGET.job` at the top level | dropped, not yet picked up |
-//! | `ready/<date>-<name>/` | the job's payload while it is ours: the script, its target file, its logs |
-//! | `done/<date>-<name>/` | the same folder once the job has finished, however it finished |
+//! | `job.sh` | run once per input, with `$INPUT` and friends set |
+//! | `input/` | drop files here — each one is a run, in arrival order |
+//! | `output/` | `$OUTPUT_DIR`, the script's to fill |
+//! | `done/` | inputs whose run succeeded, moved here afterwards |
+//! | `failed/` | inputs whose run failed or was stopped |
+//! | `stdout.log`, `stderr.log` | every run's output, appended under a header |
 //!
-//! Two folders, and neither is a state machine. Whether a job in `ready/` is
-//! queued, running, held or suspended is not written anywhere, because the only
-//! thing that needs to know is holding it in memory. There is no `.status`, no
-//! `_paused`, and no way to command the queue by dragging — that is the price
-//! of this design, and [`README.md`](../README.md) says so plainly.
+//! An input stays in `input/` while it runs, so `$INPUT_DIR` never moves under
+//! the script, and anything still in `input/` when the app starts is simply
+//! queued again: a file that never got moved out is a run that never finished,
+//! which is all the state worth recovering. Retrying is dragging a file back.
 //!
-//! What survives a crash is the payload. Anything left in `ready/` when the app
-//! next starts is queued again from the top: the folder is a job that didn't
-//! get to finish, which is all the state worth recovering.
+//! The intended way in is to copy to the jobs root first and then `mv` into
+//! `input/` — a rename on one volume, so the file arrives whole. The checks in
+//! [`Jobs::consider`] are light insurance for a direct copy.
+//!
+//! Whether a file in `input/` is queued, held, running or suspended is not
+//! written anywhere — the only thing that needs to know is holding it here, as
+//! a `Vec<Job>` behind a mutex. Pause is a `SIGSTOP` on the way back from the
+//! click; reordering is moving an element.
+//!
+//! Files in one job folder run one at a time, oldest first, so a workflow's
+//! logs never interleave and a folder of drops is worked through in order.
+//! The Workers setting caps how many *folders* run at once.
 
-use std::fs::{self, File};
+use std::collections::{HashMap, HashSet};
+use std::fs::{self, File, OpenOptions};
 use std::io::{Read, Write};
 use std::os::unix::fs::PermissionsExt;
 use std::os::unix::process::CommandExt;
@@ -40,29 +42,29 @@ use std::thread;
 use std::time::{Duration, Instant, SystemTime};
 
 use job_core::clock;
-use job_core::observe::{job_name, parse_progress, target_file};
+use job_core::progress::parse_progress;
 
-/// Where a job's payload lives while it is the queue's, and where it goes when
-/// it is finished with. Deliberately unprefixed, and deliberately not the
-/// daemon's `_ready`: the two tools mean different things by a folder, and a
-/// name that could be mistaken for the other's is a queue running twice.
-pub const READY: &str = "ready";
+pub const SCRIPT: &str = "job.sh";
+pub const INPUT: &str = "input";
+pub const OUTPUT: &str = "output";
 pub const DONE: &str = "done";
+pub const FAILED: &str = "failed";
+pub const STDOUT_LOG: &str = "stdout.log";
+pub const STDERR_LOG: &str = "stderr.log";
 
 /// How often the scheduler looks at itself. Only the queue's own bookkeeping —
 /// starting a job when a slot frees, escalating a stop that was ignored — runs
 /// on this; every command is applied the moment it is pressed.
 const TICK: Duration = Duration::from_millis(250);
 
-/// How often the inbox is scanned for dropped `.job` files. This is the one
-/// thing that still has to be discovered from the filesystem, because the whole
-/// point of the drop folder is that anything can write to it.
+/// How often the job folders are scanned for new inputs.
 const SCAN: Duration = Duration::from_secs(1);
 
-/// A dropped file whose size holds steady this long is taken to have finished
-/// copying. `send-job` ships data files first, but a plain `cp` over the network
-/// is the case this exists for.
-const SETTLE: Duration = Duration::from_secs(2);
+/// How long an input's size and mtime must hold still before it is taken to
+/// have finished arriving. Short, because inputs are expected to arrive by
+/// rename; `$JOB_SETTLE` (seconds) overrides it for copying straight into
+/// `input/` from a slow share.
+const DEFAULT_SETTLE: Duration = Duration::from_secs(2);
 
 /// How long a stopped job gets to exit on its own before it is killed.
 const TERM_GRACE: Duration = Duration::from_secs(10);
@@ -104,12 +106,15 @@ impl Phase {
     }
 }
 
+/// One input through one job folder's script.
 #[derive(Clone, Debug)]
 pub struct Job {
     pub id: u64,
-    pub name: String,
-    /// The payload folder: under `ready/` until it finishes, `done/` after.
+    /// The job folder: the one holding `job.sh`.
     pub dir: PathBuf,
+    /// The input file — in `input/` until the run ends, then in `done/` or
+    /// `failed/`.
+    pub input: PathBuf,
     pub phase: Phase,
     pub queued_at: SystemTime,
     pub started: Option<SystemTime>,
@@ -130,8 +135,22 @@ pub struct Job {
 }
 
 impl Job {
+    /// The job folder's name — the workflow.
+    pub fn workflow(&self) -> String {
+        file_name(&self.dir)
+    }
+
+    pub fn file(&self) -> String {
+        file_name(&self.input)
+    }
+
+    /// `workflow · file`, for a row.
+    pub fn label(&self) -> String {
+        format!("{} · {}", self.workflow(), self.file())
+    }
+
     pub fn log_path(&self) -> Option<PathBuf> {
-        let path = self.dir.join(format!("{}.log", self.name));
+        let path = self.dir.join(STDOUT_LOG);
         path.is_file().then_some(path)
     }
 
@@ -157,8 +176,8 @@ pub enum Event {
 
 pub struct Queue {
     /// Every job the app knows about, in order. For the ones waiting, the order
-    /// *is* the priority: the scheduler takes the first [`Phase::Queued`] entry
-    /// it finds, so moving an element is all reordering the queue amounts to.
+    /// *is* the priority: the scheduler takes the first startable entry, so
+    /// moving an element is all reordering the queue amounts to.
     pub jobs: Vec<Job>,
     pub concurrency: usize,
     /// The whole queue held: running jobs carry on, nothing new starts.
@@ -168,6 +187,7 @@ pub struct Queue {
 }
 
 impl Queue {
+    #[cfg(test)]
     pub fn running(&self) -> usize {
         self.jobs.iter().filter(|job| job.phase.active()).count()
     }
@@ -189,6 +209,13 @@ impl Queue {
 
     fn index_of(&self, id: u64) -> Option<usize> {
         self.jobs.iter().position(|job| job.id == id)
+    }
+
+    /// True if `input` is already a job that hasn't finished.
+    fn has_input(&self, input: &Path) -> bool {
+        self.jobs
+            .iter()
+            .any(|job| !job.phase.finished() && job.input == input)
     }
 }
 
@@ -240,21 +267,57 @@ pub fn untoken(token: u64) -> Option<(u64, Verb)> {
     Verb::from_code(token & 0b111).map(|verb| (token >> 3, verb))
 }
 
+/// What an input looked like when last seen: if this holds still for the
+/// settle window, the file has finished arriving.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+struct Fingerprint {
+    size: u64,
+    modified: Option<SystemTime>,
+}
+
+impl Fingerprint {
+    fn of(path: &Path) -> Option<Self> {
+        let meta = fs::metadata(path).ok()?;
+        meta.is_file().then(|| Self {
+            size: meta.len(),
+            modified: meta.modified().ok(),
+        })
+    }
+}
+
+/// The scanner's memory: files seen in an `input/` but not yet queued.
+#[derive(Default)]
+struct Arrivals {
+    /// When each candidate's fingerprint last changed.
+    pending: HashMap<PathBuf, (Fingerprint, Instant)>,
+    /// Inputs whose run ended but which could not be moved out of `input/`.
+    /// Skipped until they go, or they would be run again every scan.
+    stuck: HashSet<PathBuf>,
+}
+
 /// The queue and the folder it draws its work from.
 pub struct Jobs {
     pub root: PathBuf,
+    settle: Duration,
     state: Mutex<Queue>,
+    arrivals: Mutex<Arrivals>,
 }
 
 impl Jobs {
-    /// Prepare the folder, take back anything a previous run left behind, and
-    /// start the two threads that keep the queue moving.
+    /// Start the two threads that keep the queue moving: one scanning the job
+    /// folders, one starting what they find.
     pub fn start(root: PathBuf) -> Arc<Self> {
-        let _ = fs::create_dir_all(root.join(READY));
-        let _ = fs::create_dir_all(root.join(DONE));
+        Self::start_with(root, configured_settle())
+    }
+
+    fn start_with(root: PathBuf, settle: Duration) -> Arc<Self> {
+        let _ = fs::create_dir_all(&root);
+        // Absolute, because it ends up in every script's environment.
+        let root = fs::canonicalize(&root).unwrap_or(root);
 
         let jobs = Arc::new(Self {
             root,
+            settle,
             state: Mutex::new(Queue {
                 jobs: Vec::new(),
                 concurrency: configured_concurrency(),
@@ -262,9 +325,8 @@ impl Jobs {
                 events: Vec::new(),
                 next_id: 1,
             }),
+            arrivals: Mutex::new(Arrivals::default()),
         });
-
-        jobs.reclaim();
 
         let scheduler = Arc::clone(&jobs);
         thread::spawn(move || {
@@ -274,10 +336,10 @@ impl Jobs {
             }
         });
 
-        let watcher = Arc::clone(&jobs);
+        let scanner = Arc::clone(&jobs);
         thread::spawn(move || {
             loop {
-                watcher.ingest_inbox();
+                scanner.scan();
                 thread::sleep(SCAN);
             }
         });
@@ -299,44 +361,112 @@ impl Jobs {
         std::mem::take(&mut self.lock().events)
     }
 
-    pub fn ready_dir(&self) -> PathBuf {
-        self.root.join(READY)
-    }
-
-    pub fn done_dir(&self) -> PathBuf {
-        self.root.join(DONE)
-    }
-
-    /// Everything a previous run was in the middle of. A folder in `ready/` is
-    /// a job that never finished — whether it was queued, running or suspended
-    /// when the app went is not recorded anywhere, and putting it back in the
-    /// queue is the only answer that can't be wrong.
-    fn reclaim(&self) {
-        let Ok(entries) = fs::read_dir(self.ready_dir()) else {
-            return;
+    /// Every job folder under the root, alphabetically.
+    pub fn job_folders(&self) -> Vec<PathBuf> {
+        let Ok(entries) = fs::read_dir(&self.root) else {
+            return Vec::new();
         };
         let mut dirs: Vec<PathBuf> = entries
             .flatten()
             .map(|entry| entry.path())
-            .filter(|path| path.is_dir() && find_job_file(path).is_some())
+            .filter(|path| !is_hidden(path) && path.join(SCRIPT).is_file())
             .collect();
-        // Alphabetical is date order, so a recovered queue keeps the order it
-        // was dropped in.
         dirs.sort();
-        for dir in dirs {
-            self.enrol(dir);
-        }
+        dirs
     }
 
-    /// Add a payload folder to the back of the queue.
-    fn enrol(&self, dir: PathBuf) -> u64 {
+    /// One pass over every job folder: queue what has finished arriving, and
+    /// forget queued inputs that have been taken away.
+    fn scan(&self) {
+        let folders = self.job_folders();
+
+        // A queued file dragged out of `input/` — or a whole job folder
+        // removed — is a dequeue. Only waiting jobs: a running one's input
+        // going missing is the script's business, and it will say so.
+        self.lock()
+            .jobs
+            .retain(|job| !job.phase.waiting() || job.input.is_file());
+
+        let mut seen = HashSet::new();
+        for dir in &folders {
+            // A folder that has just gained a `job.sh` gets the rest of its
+            // shape, so the first thing anyone sees in it is where to drop.
+            for sub in [INPUT, OUTPUT] {
+                let _ = fs::create_dir(dir.join(sub));
+            }
+            let mut candidates: Vec<(PathBuf, Option<SystemTime>)> = fs::read_dir(dir.join(INPUT))
+                .into_iter()
+                .flatten()
+                .flatten()
+                .map(|entry| entry.path())
+                .filter(|path| is_candidate(path))
+                .map(|path| {
+                    let modified = fs::metadata(&path).and_then(|meta| meta.modified()).ok();
+                    (path, modified)
+                })
+                .collect();
+            // Oldest first, so a batch dropped together queues in the order it
+            // was written rather than the alphabet.
+            candidates.sort_by(|a, b| a.1.cmp(&b.1).then_with(|| a.0.cmp(&b.0)));
+            for (path, _) in candidates {
+                seen.insert(path.clone());
+                self.consider(dir, path);
+            }
+        }
+
+        // Forget anything no longer there, so it is judged afresh if it returns.
+        let mut arrivals = self.arrivals.lock().unwrap_or_else(|err| err.into_inner());
+        arrivals.pending.retain(|path, _| seen.contains(path));
+        arrivals.stuck.retain(|path| seen.contains(path));
+    }
+
+    /// Queue `path` once it has finished arriving.
+    fn consider(&self, dir: &Path, path: PathBuf) {
+        if self.lock().has_input(&path) {
+            return;
+        }
+        let Some(now) = Fingerprint::of(&path) else { return };
+
+        let settled = {
+            let mut arrivals = self.arrivals.lock().unwrap_or_else(|err| err.into_inner());
+            if arrivals.stuck.contains(&path) {
+                return;
+            }
+            match arrivals.pending.get(&path) {
+                Some((before, since)) if *before == now => since.elapsed() >= self.settle,
+                _ => {
+                    arrivals.pending.insert(path.clone(), (now, Instant::now()));
+                    self.settle.is_zero()
+                }
+            }
+        };
+        // Held still for long enough — and nothing on this machine is still
+        // writing it. The second check catches a copy that has stalled rather
+        // than finished, which is the one a quiet file can't tell apart.
+        if !settled || open_for_writing(&path) {
+            return;
+        }
+
+        self.arrivals
+            .lock()
+            .unwrap_or_else(|err| err.into_inner())
+            .pending
+            .remove(&path);
+        self.enrol(dir.to_path_buf(), path);
+    }
+
+    /// Add an input to the back of the queue, unless it is already in it.
+    fn enrol(&self, dir: PathBuf, input: PathBuf) -> Option<u64> {
         let mut queue = self.lock();
+        if queue.has_input(&input) {
+            return None;
+        }
         let id = queue.next_id;
         queue.next_id += 1;
         queue.jobs.push(Job {
             id,
-            name: job_core::observe::run_folder_name(&dir),
             dir,
+            input,
             phase: Phase::Queued,
             queued_at: SystemTime::now(),
             started: None,
@@ -349,45 +479,7 @@ impl Jobs {
             note: None,
             stopping: None,
         });
-        id
-    }
-
-    /// Stage every `.job` file that has finished landing in the drop folder.
-    ///
-    /// This is the one thing still discovered from the filesystem, and it stays
-    /// that way on purpose: `send-job`, `topaz-job` and the mpv Topaz workflow
-    /// all queue work by writing a file, from this machine or across a mounted
-    /// share, and none of them should have to know a process exists.
-    fn ingest_inbox(&self) {
-        for job_file in scan_inbox(&self.root) {
-            if !is_stable(&job_file) {
-                continue;
-            }
-            let target = self.root.join(target_file(&job_file));
-            if target.is_file() && !is_stable(&target) {
-                continue;
-            }
-            self.stage(&job_file);
-        }
-    }
-
-    /// Move a dropped job and its target file into a folder of their own.
-    fn stage(&self, job_file: &Path) {
-        let name = job_name(job_file);
-        let target = target_file(job_file);
-        let dir = uniq_dir(self.ready_dir().join(format!("{}-{name}", clock::file_stamp())));
-        if fs::create_dir(&dir).is_err() {
-            return;
-        }
-        if fs::rename(job_file, dir.join(format!("{target}.job"))).is_err() {
-            let _ = fs::remove_dir(&dir);
-            return;
-        }
-        let beside = self.root.join(&target);
-        if beside.exists() {
-            let _ = fs::rename(&beside, dir.join(&target));
-        }
-        self.enrol(dir);
+        Some(id)
     }
 
     /// Start whatever the free slots allow, and escalate any stop that has been
@@ -408,19 +500,26 @@ impl Jobs {
             }
 
             if !queue.paused {
-                let mut running = queue.running();
+                // One run per job folder at a time: its logs are shared, and a
+                // folder of drops is a list to work through, not a race.
+                let mut busy: HashSet<PathBuf> = queue
+                    .jobs
+                    .iter()
+                    .filter(|job| job.phase.active())
+                    .map(|job| job.dir.clone())
+                    .collect();
                 let concurrency = queue.concurrency;
-                for index in 0..queue.jobs.len() {
-                    if running >= concurrency {
+                for job in queue.jobs.iter_mut() {
+                    if busy.len() >= concurrency {
                         break;
                     }
-                    if queue.jobs[index].phase != Phase::Queued {
+                    if job.phase != Phase::Queued || busy.contains(&job.dir) {
                         continue;
                     }
-                    queue.jobs[index].phase = Phase::Running;
-                    queue.jobs[index].started = Some(SystemTime::now());
-                    starting.push(queue.jobs[index].id);
-                    running += 1;
+                    job.phase = Phase::Running;
+                    job.started = Some(SystemTime::now());
+                    busy.insert(job.dir.clone());
+                    starting.push(job.id);
                 }
             }
         }
@@ -431,8 +530,7 @@ impl Jobs {
     }
 
     /// Apply a row button. Runs on the main thread, straight off the click, and
-    /// every branch of it is either a memory write or a signal — which is the
-    /// entire reason this app exists.
+    /// every branch of it is a memory write, a signal, or one `rename`.
     pub fn command(self: &Arc<Self>, id: u64, verb: Verb) {
         match verb {
             Verb::Pause => {
@@ -513,32 +611,28 @@ impl Jobs {
         }
     }
 
-    /// Put a finished job back in the queue: its payload moves out of `done/`
-    /// and it goes to the back, where a job queued now belongs.
+    /// Put a finished job's input back in `input/`, at the back of the queue —
+    /// exactly what dragging it back from Finder does, minus the settle wait.
     fn retry(&self, id: u64) {
-        let Some((index, dir)) = ({
-            let queue = self.lock();
-            queue
-                .index_of(id)
-                .filter(|index| queue.jobs[*index].phase.finished())
-                .map(|index| (index, queue.jobs[index].dir.clone()))
-        }) else {
+        // Held across the rename, so the scanner can't see the file land in
+        // `input/` before the job does and queue it a second time.
+        let mut queue = self.lock();
+        let Some(index) = queue
+            .index_of(id)
+            .filter(|index| queue.jobs[*index].phase.finished())
+        else {
             return;
         };
+        let (dir, input) = (queue.jobs[index].dir.clone(), queue.jobs[index].input.clone());
 
-        let folder = dir.file_name().unwrap_or_default().to_os_string();
-        let back = uniq_dir(self.ready_dir().join(&folder));
-        if fs::rename(&dir, &back).is_err() {
-            let mut queue = self.lock();
-            if let Some(job) = queue.find(id) {
-                job.note = Some("could not requeue".to_string());
-            }
+        let back = uniq_file(dir.join(INPUT).join(input.file_name().unwrap_or_default()));
+        if fs::rename(&input, &back).is_err() {
+            queue.jobs[index].note = Some("could not requeue".to_string());
             return;
         }
 
-        let mut queue = self.lock();
         let mut job = queue.jobs.remove(index);
-        job.dir = back;
+        job.input = back;
         job.phase = Phase::Queued;
         job.queued_at = SystemTime::now();
         job.started = None;
@@ -551,23 +645,31 @@ impl Jobs {
         queue.jobs.push(job);
     }
 
-    /// File a job away: it stops being work and becomes an outcome, and its
-    /// folder moves to `done/`.
+    /// File a job away: its input moves to `done/` or `failed/`, and the row
+    /// becomes an outcome.
     fn finish(&self, id: u64, ok: bool, note: Option<String>) {
-        let Some(dir) = ({
+        let Some((dir, input)) = ({
             let queue = self.lock();
             queue
                 .jobs
                 .iter()
                 .find(|job| job.id == id && !job.phase.finished())
-                .map(|job| job.dir.clone())
+                .map(|job| (job.dir.clone(), job.input.clone()))
         }) else {
             return;
         };
 
-        let folder = dir.file_name().unwrap_or_default().to_os_string();
-        let destination = uniq_dir(self.done_dir().join(&folder));
-        let moved = fs::rename(&dir, &destination).is_ok();
+        let bin = dir.join(if ok { DONE } else { FAILED });
+        let _ = fs::create_dir_all(&bin);
+        let destination = uniq_file(bin.join(input.file_name().unwrap_or_default()));
+        let moved = !input.exists() || fs::rename(&input, &destination).is_ok();
+        if !moved {
+            self.arrivals
+                .lock()
+                .unwrap_or_else(|err| err.into_inner())
+                .stuck
+                .insert(input.clone());
+        }
 
         let mut queue = self.lock();
         let Some(job) = queue.find(id) else { return };
@@ -575,16 +677,20 @@ impl Jobs {
         job.finished = Some(SystemTime::now());
         job.pgid = None;
         job.stopping = None;
-        job.note = note;
-        if moved {
-            job.dir = destination;
+        job.note = if moved {
+            note
+        } else {
+            Some("could not move input".to_string())
+        };
+        if moved && destination.exists() {
+            job.input = destination;
         }
-        let name = job.name.clone();
+        let name = job.label();
         queue.events.push(Event::Finished { name, ok });
     }
 
-    /// Forget the finished jobs. Their folders stay in `done/` — this is the
-    /// list being cleared, not the work.
+    /// Forget the finished jobs. Their inputs stay in `done/` and `failed/` —
+    /// this is the list being cleared, not the work.
     pub fn clear_finished(&self) {
         self.lock().jobs.retain(|job| !job.phase.finished());
     }
@@ -601,8 +707,8 @@ impl Jobs {
     ///
     /// A queue that lives in one process dies with it, so quitting has to say
     /// so to the jobs as well: an orphaned encode nothing is watching would go
-    /// on burning the machine for hours with no row left to stop it from. What
-    /// it was working on stays in `ready/`, and starts again next launch.
+    /// on burning the machine for hours with no row left to stop it from. Its
+    /// input is still in `input/`, and runs again next launch.
     pub fn shutdown(&self) {
         let mut queue = self.lock();
         for job in queue.jobs.iter_mut().filter(|job| job.phase.active()) {
@@ -618,46 +724,49 @@ impl Jobs {
 /// waits on it — there is no supervision loop, because there is nothing to
 /// watch for: a command reaches the process directly.
 fn run(jobs: Arc<Jobs>, id: u64) {
-    let Some((name, dir)) = jobs.read(|queue| {
+    let Some((dir, input)) = jobs.read(|queue| {
         queue
             .jobs
             .iter()
             .find(|job| job.id == id)
-            .map(|job| (job.name.clone(), job.dir.clone()))
+            .map(|job| (job.dir.clone(), job.input.clone()))
     }) else {
         return;
     };
 
-    let Some(job_file) = find_job_file(&dir) else {
-        jobs.finish(id, false, Some("no .job file in its folder".to_string()));
-        return;
-    };
-    let target = target_file(&job_file);
+    let script = dir.join(SCRIPT);
+    let input_dir = input.parent().map(Path::to_path_buf).unwrap_or_default();
+    let input_file = file_name(&input);
+    let input_name = input
+        .file_stem()
+        .map(|stem| stem.to_string_lossy().into_owned())
+        .unwrap_or_else(|| input_file.clone());
+    let output_dir = dir.join(OUTPUT);
+    let _ = fs::create_dir_all(&output_dir);
 
-    if let Ok(meta) = fs::metadata(&job_file) {
-        let mut perms = meta.permissions();
-        perms.set_mode(perms.mode() | 0o100);
-        let _ = fs::set_permissions(&job_file, perms);
-    }
-    let executable = fs::metadata(&job_file).is_ok_and(|meta| meta.permissions().mode() & 0o111 != 0);
+    // Every run appends under a header, so one log per folder stays readable.
+    let header = format!("\n=== {} {input_file} ===\n", clock::timestamp());
+    let out_log = append(&dir.join(STDOUT_LOG), &header);
+    let err_log = append(&dir.join(STDERR_LOG), &header);
 
+    // Run as-is if it's executable, so its shebang counts; through bash if not,
+    // so a script saved without +x still works.
+    let executable = fs::metadata(&script).is_ok_and(|meta| meta.permissions().mode() & 0o111 != 0);
     let mut command = if executable {
-        Command::new(&job_file)
+        Command::new(&script)
     } else {
         let mut command = Command::new("/bin/bash");
-        command.arg(&job_file);
+        command.arg(&script);
         command
     };
-    // The same contract job-daemon runs jobs under, to the letter: a `.job`
-    // script written for one has to work under the other, or the drop folder
-    // stops being a shared interface.
     command
         .current_dir(&dir)
-        .env("JOB_NAME", &name)
-        .env("TARGET_FILE", &target)
-        .env("JOB_FILE", &job_file)
-        .env("JOB_DIR", &jobs.root)
-        .env("JOB_RUN_DIR", &dir)
+        .env("INPUT", &input)
+        .env("INPUT_DIR", &input_dir)
+        .env("INPUT_FILE", &input_file)
+        .env("INPUT_NAME", &input_name)
+        .env("OUTPUT_DIR", &output_dir)
+        .env("JOB_DIR", &dir)
         .env("TERM", "dumb")
         .env("NO_COLOR", "1")
         .env("CLICOLOR", "0")
@@ -706,23 +815,21 @@ fn run(jobs: Arc<Jobs>, id: u64) {
         }
     }
 
-    // stdout is the job talking: it goes to the log file *and* into the model,
-    // so the row can show the last line without anything reading the file back.
+    // stdout is the job talking: it goes to the log *and* into the model, so
+    // the row can show the last line without anything reading the file back.
     // stderr is kept beside it but stays out of the row — plenty of tools log
     // there, and a warning is not what the job is doing.
     let stdout = child.stdout.take();
     let stderr = child.stderr.take();
-    let out_path = dir.join(format!("{name}.log"));
-    let err_path = dir.join(format!("{name}.error.log"));
     let watcher = Arc::clone(&jobs);
     let out_pump = thread::spawn(move || {
         if let Some(stream) = stdout {
-            pump(stream, out_path, Some((watcher, id)));
+            pump(stream, out_log, Some((watcher, id)));
         }
     });
     let err_pump = thread::spawn(move || {
         if let Some(stream) = stderr {
-            pump(stream, err_path, None);
+            pump(stream, err_log, None);
         }
     });
 
@@ -737,12 +844,12 @@ fn run(jobs: Arc<Jobs>, id: u64) {
             .find(|job| job.id == id)
             .is_some_and(|job| job.stopping.is_some() || job.note.as_deref() == Some("stopping"))
     });
+
     if let Some(job) = jobs.lock().find(id) {
         job.exit = Some(code);
     }
-    // Exit status alone decides, exactly as it does in the daemon — stderr
-    // output on its own is not a failure. A job we stopped is the one case the
-    // status can't speak for.
+    // Exit status alone decides — stderr output on its own is not a failure. A
+    // job we stopped is the one case the status can't speak for.
     jobs.finish(
         id,
         code == 0 && !stopped,
@@ -750,25 +857,27 @@ fn run(jobs: Arc<Jobs>, id: u64) {
     );
 }
 
-/// Copy a stream to `path`, creating the file only when the first bytes arrive,
-/// and — for stdout — feeding each complete line into the job's row as it lands.
+/// Open `path` for appending and write `text` to it.
+fn append(path: &Path, text: &str) -> Option<File> {
+    let mut file = OpenOptions::new().create(true).append(true).open(path).ok()?;
+    let _ = file.write_all(text.as_bytes());
+    Some(file)
+}
+
+/// Copy a stream to its log and — for stdout — feed each complete line into
+/// the job's row as it lands.
 ///
 /// Carriage returns end a line like newlines: a tool redrawing a progress bar in
 /// place writes `\r`, and what it just drew is the interesting part.
-fn pump(mut stream: impl Read, path: PathBuf, mut model: Option<(Arc<Jobs>, u64)>) {
-    let mut file: Option<File> = None;
+fn pump(mut stream: impl Read, mut file: Option<File>, mut model: Option<(Arc<Jobs>, u64)>) {
     let mut buffer = [0u8; 8192];
     let mut partial = String::new();
     loop {
         match stream.read(&mut buffer) {
             Ok(0) | Err(_) => break,
             Ok(read) => {
-                if file.is_none() {
-                    file = File::create(&path).ok();
-                }
                 if let Some(handle) = file.as_mut() {
                     let _ = handle.write_all(&buffer[..read]);
-                    let _ = handle.flush();
                 }
                 let Some((jobs, id)) = model.as_mut() else {
                     continue;
@@ -811,6 +920,49 @@ fn signal(pgid: i32, signal: i32) {
     }
 }
 
+fn file_name(path: &Path) -> String {
+    path.file_name()
+        .map(|name| name.to_string_lossy().into_owned())
+        .unwrap_or_default()
+}
+
+fn is_hidden(path: &Path) -> bool {
+    path.file_name()
+        .is_some_and(|name| name.to_string_lossy().starts_with('.'))
+}
+
+/// Suffixes that mean "still being written". Dotfiles are skipped too, which is
+/// what makes `rsync` safe for free: it writes a hidden temporary and renames
+/// it into place only once it is whole.
+const PARTIAL: &[&str] = &[".part", ".partial", ".crdownload", ".download", ".tmp", ".temp"];
+
+/// A regular, visible file that isn't a download in progress.
+fn is_candidate(path: &Path) -> bool {
+    if is_hidden(path) || !path.is_file() {
+        return false;
+    }
+    let name = file_name(path).to_lowercase();
+    !PARTIAL.iter().any(|suffix| name.ends_with(suffix))
+}
+
+/// True if any process this user can see has `path` open for writing — a
+/// Finder copy, a `cp`, an encoder still producing it. Writers belonging to
+/// other users (the SMB server's, when this machine hosts the share) are
+/// invisible without root; the settle window is what covers those.
+fn open_for_writing(path: &Path) -> bool {
+    let Ok(output) = Command::new("/usr/sbin/lsof")
+        .args(["-F", "a", "--"])
+        .arg(path)
+        .stderr(Stdio::null())
+        .output()
+    else {
+        return false;
+    };
+    String::from_utf8_lossy(&output.stdout)
+        .lines()
+        .any(|line| line.starts_with('a') && (line.contains('w') || line.contains('u')))
+}
+
 /// The jobs folder: `$JOBS_DIR`, else `~/jobs`.
 pub fn root() -> PathBuf {
     std::env::var_os("JOBS_DIR").map(PathBuf::from).unwrap_or_else(|| {
@@ -821,8 +973,8 @@ pub fn root() -> PathBuf {
     })
 }
 
-/// How much to yield to everything else, as in the daemon: 0 is normal
-/// priority, and this can only ever raise it.
+/// How much to yield to everything else: 0 is normal priority, and this can
+/// only ever raise it.
 fn niceness() -> i32 {
     std::env::var("JOB_NICE")
         .ok()
@@ -839,53 +991,35 @@ fn configured_concurrency() -> usize {
         .clamp(1, MAX_CONCURRENCY)
 }
 
+fn configured_settle() -> Duration {
+    std::env::var("JOB_SETTLE")
+        .ok()
+        .and_then(|raw| raw.trim().parse::<f64>().ok())
+        .filter(|secs| secs.is_finite() && *secs >= 0.0)
+        .map(Duration::from_secs_f64)
+        .unwrap_or(DEFAULT_SETTLE)
+}
+
 pub fn max_concurrency() -> usize {
     MAX_CONCURRENCY
 }
 
-/// Top-level `*.job` files, alphabetically.
-fn scan_inbox(root: &Path) -> Vec<PathBuf> {
-    let Ok(entries) = fs::read_dir(root) else {
-        return Vec::new();
-    };
-    let mut jobs: Vec<PathBuf> = entries
-        .flatten()
-        .map(|entry| entry.path())
-        .filter(|path| {
-            path.is_file()
-                && path
-                    .file_name()
-                    .is_some_and(|name| name.to_string_lossy().ends_with(".job"))
-        })
-        .collect();
-    jobs.sort();
-    jobs
-}
-
-fn find_job_file(dir: &Path) -> Option<PathBuf> {
-    fs::read_dir(dir).ok()?.flatten().find_map(|entry| {
-        let path = entry.path();
-        path.file_name()
-            .is_some_and(|name| name.to_string_lossy().ends_with(".job"))
-            .then_some(path)
-    })
-}
-
-/// True once the file's size has held steady across [`SETTLE`].
-fn is_stable(path: &Path) -> bool {
-    let size = |path: &Path| fs::metadata(path).map(|meta| meta.len()).ok();
-    let Some(first) = size(path) else { return false };
-    thread::sleep(SETTLE);
-    size(path) == Some(first)
-}
-
-/// A non-colliding directory path: appends `-2`, `-3`, … if taken.
-fn uniq_dir(path: PathBuf) -> PathBuf {
+/// A non-colliding file path: `clip.mov` becomes `clip-2.mov`, `clip-3.mov`, …
+fn uniq_file(path: PathBuf) -> PathBuf {
     if !path.exists() {
         return path;
     }
+    let parent = path.parent().map(Path::to_path_buf).unwrap_or_default();
+    let stem = path
+        .file_stem()
+        .map(|stem| stem.to_string_lossy().into_owned())
+        .unwrap_or_default();
+    let ext = path
+        .extension()
+        .map(|ext| format!(".{}", ext.to_string_lossy()))
+        .unwrap_or_default();
     for n in 2..1000 {
-        let candidate = PathBuf::from(format!("{}-{n}", path.display()));
+        let candidate = parent.join(format!("{stem}-{n}{ext}"));
         if !candidate.exists() {
             return candidate;
         }
@@ -900,7 +1034,23 @@ mod tests {
     fn scratch(tag: &str) -> PathBuf {
         let base = std::env::temp_dir().join(format!("job-folder-{tag}-{}", std::process::id()));
         let _ = fs::remove_dir_all(&base);
-        base
+        fs::create_dir_all(&base).unwrap();
+        fs::canonicalize(&base).unwrap()
+    }
+
+    fn workflow(base: &Path, name: &str, script: &str) -> PathBuf {
+        let dir = base.join(name);
+        fs::create_dir_all(dir.join(INPUT)).unwrap();
+        fs::write(dir.join(SCRIPT), script).unwrap();
+        dir
+    }
+
+    fn wait_for(what: &str, mut done: impl FnMut() -> bool) {
+        let deadline = Instant::now() + Duration::from_secs(20);
+        while !done() {
+            assert!(Instant::now() < deadline, "timed out waiting for {what}");
+            thread::sleep(Duration::from_millis(50));
+        }
     }
 
     #[test]
@@ -912,115 +1062,221 @@ mod tests {
         }
     }
 
-    /// The whole contract in one test: a dropped file becomes a folder, the
-    /// folder becomes a queue entry, and the queue entry runs, reports and is
-    /// filed away — with nothing on disk ever saying what state it was in.
     #[test]
-    fn a_dropped_job_runs_and_is_filed_away() {
+    fn partial_and_hidden_files_are_not_inputs() {
+        let base = scratch("candidates");
+        let skipped = [".clip.mov.Xa81", "clip.mov.part", "a.crdownload", "._clip.mov"];
+        for name in skipped.iter().chain(["clip.mov"].iter()) {
+            fs::write(base.join(name), "x").unwrap();
+        }
+        fs::create_dir(base.join("helpers")).unwrap();
+        assert!(is_candidate(&base.join("clip.mov")));
+        assert!(!is_candidate(&base.join("helpers")));
+        for name in skipped {
+            assert!(!is_candidate(&base.join(name)), "{name}");
+        }
+        let _ = fs::remove_dir_all(&base);
+    }
+
+    #[test]
+    fn collisions_get_a_number_before_the_extension() {
+        let base = scratch("uniq");
+        fs::write(base.join("clip.mov"), "").unwrap();
+        fs::write(base.join("clip-2.mov"), "").unwrap();
+        assert_eq!(uniq_file(base.join("clip.mov")), base.join("clip-3.mov"));
+        let _ = fs::remove_dir_all(&base);
+    }
+
+    /// The whole contract in one test: a file dropped in `input/` runs with the
+    /// documented environment, logs are appended, and the input is filed away.
+    #[test]
+    fn a_dropped_input_runs_and_is_filed_away() {
         let base = scratch("run");
-        let jobs = Jobs::start(base.clone());
-        // Held while the staging half is checked, or the queue does its job too
-        // quickly to catch it: a slot is free, so the scheduler would have the
-        // thing running before the assertions got there.
-        jobs.set_paused(true);
+        let dir = workflow(
+            &base,
+            "echo",
+            "#!/bin/bash\n\
+             echo \"$INPUT|$INPUT_DIR|$INPUT_FILE|$INPUT_NAME|$OUTPUT_DIR|$PWD\" > \"$OUTPUT_DIR/$INPUT_NAME.env\"\n\
+             echo 'encoding 45% eta 1:00'\n\
+             echo oops >&2\n",
+        );
+        let jobs = Jobs::start_with(base.clone(), Duration::from_millis(300));
+        fs::write(dir.join(INPUT).join("clip.mov"), "payload").unwrap();
 
-        fs::write(
-            base.join("clip.mov.job"),
-            "#!/bin/bash\necho 'encoding 45% eta 1:00'\nsleep 0.2\n",
-        )
-        .unwrap();
-        fs::write(base.join("clip.mov"), "payload").unwrap();
-
-        // Staged by the app's own watcher: job and target travel together into
-        // one folder, and the drop folder is left clean.
-        let deadline = Instant::now() + Duration::from_secs(20);
-        while jobs.read(|queue| queue.jobs.is_empty()) && Instant::now() < deadline {
-            thread::sleep(Duration::from_millis(50));
-        }
-        let staged = jobs
-            .read(|queue| queue.jobs.first().map(|job| job.dir.clone()))
-            .expect("the dropped job should have been staged");
-        assert!(staged.join("clip.mov.job").is_file());
-        assert!(staged.join("clip.mov").is_file());
-        assert!(!base.join("clip.mov.job").exists());
-        assert_eq!(jobs.read(|queue| queue.queued()), 1);
-
-        // Nothing in the folder says "queued" — that is the point.
-        assert!(!staged.join(".status").exists());
-
-        let id = jobs.read(|queue| queue.jobs[0].id);
-        jobs.set_paused(false);
-        let deadline = Instant::now() + Duration::from_secs(20);
-        loop {
-            let done = jobs.read(|queue| queue.jobs[0].phase.finished());
-            if done || Instant::now() > deadline {
-                break;
-            }
-            thread::sleep(Duration::from_millis(50));
-        }
+        wait_for("the job to finish", || {
+            jobs.read(|queue| queue.jobs.first().is_some_and(|job| job.phase.finished()))
+        });
 
         jobs.read(|queue| {
             let job = &queue.jobs[0];
-            assert_eq!(job.id, id);
             assert_eq!(job.phase, Phase::Finished { ok: true });
             assert_eq!(job.progress, Some(0.45));
-            assert_eq!(job.last_line.as_deref(), Some("encoding 45% eta 1:00"));
-            // The payload moved to done/, logs and all.
-            assert!(job.dir.starts_with(base.join(DONE)));
-            assert!(job.dir.join("clip.log").is_file());
+            assert_eq!(job.label(), "echo · clip.mov");
+            assert_eq!(job.input, dir.join(DONE).join("clip.mov"));
         });
-        assert_eq!(jobs.read(|queue| queue.jobs.len()), 1);
+        assert!(!dir.join(INPUT).join("clip.mov").exists());
+
+        let input = dir.join(INPUT);
+        let env = fs::read_to_string(dir.join(OUTPUT).join("clip.env")).unwrap();
+        assert_eq!(
+            env.trim(),
+            format!(
+                "{}|{}|clip.mov|clip|{}|{}",
+                input.join("clip.mov").display(),
+                input.display(),
+                dir.join(OUTPUT).display(),
+                dir.display(),
+            )
+        );
+        let out = fs::read_to_string(dir.join(STDOUT_LOG)).unwrap();
+        assert!(out.contains("clip.mov ===") && out.contains("encoding 45%"));
+        assert!(fs::read_to_string(dir.join(STDERR_LOG)).unwrap().contains("oops"));
 
         let _ = fs::remove_dir_all(&base);
     }
 
+    /// A symlink is an input like any other — `send-job --link` depends on it —
+    /// and filing it away moves the link, never the file it points at.
+    #[test]
+    fn a_linked_input_runs_and_only_the_link_moves() {
+        let base = scratch("link");
+        let dir = workflow(&base, "w", "#!/bin/bash\ncat \"$INPUT\" > \"$OUTPUT_DIR/$INPUT_FILE\"\n");
+        let source = base.join("source.mov");
+        fs::write(&source, "original").unwrap();
+        let jobs = Jobs::start_with(base.clone(), Duration::ZERO);
+        std::os::unix::fs::symlink(&source, dir.join(INPUT).join("source.mov")).unwrap();
+
+        wait_for("the linked job to finish", || {
+            jobs.read(|queue| queue.jobs.first().is_some_and(|job| job.phase.finished()))
+        });
+        jobs.read(|queue| assert_eq!(queue.jobs[0].phase, Phase::Finished { ok: true }));
+        let filed = dir.join(DONE).join("source.mov");
+        assert!(fs::symlink_metadata(&filed).unwrap().file_type().is_symlink());
+        assert_eq!(fs::read_to_string(&source).unwrap(), "original");
+        assert_eq!(fs::read_to_string(dir.join(OUTPUT).join("source.mov")).unwrap(), "original");
+        let _ = fs::remove_dir_all(&base);
+    }
+
+    /// A failing run files its input under `failed/`, and retry puts it back.
+    #[test]
+    fn failures_are_filed_and_can_be_retried() {
+        let base = scratch("fail");
+        let dir = workflow(&base, "broken", "exit 3\n");
+        let jobs = Jobs::start_with(base.clone(), Duration::ZERO);
+        fs::write(dir.join(INPUT).join("a.wav"), "x").unwrap();
+
+        wait_for("the failure", || {
+            jobs.read(|queue| queue.jobs.first().is_some_and(|job| job.phase.finished()))
+        });
+        let id = jobs.read(|queue| {
+            let job = &queue.jobs[0];
+            assert_eq!(job.phase, Phase::Finished { ok: false });
+            assert_eq!(job.exit, Some(3));
+            assert_eq!(job.input, dir.join(FAILED).join("a.wav"));
+            job.id
+        });
+
+        jobs.set_paused(true);
+        jobs.command(id, Verb::Retry);
+        jobs.read(|queue| {
+            let job = queue.jobs.last().unwrap();
+            assert_eq!(job.phase, Phase::Queued);
+            assert_eq!(job.input, dir.join(INPUT).join("a.wav"));
+        });
+        jobs.set_paused(false);
+        let _ = fs::remove_dir_all(&base);
+    }
+
+    /// A file that keeps growing is not queued until it stops.
+    #[test]
+    fn a_growing_file_waits_until_it_settles() {
+        let base = scratch("settle");
+        let dir = workflow(&base, "w", "true\n");
+        let jobs = Jobs::start_with(base.clone(), Duration::from_millis(1500));
+        jobs.set_paused(true);
+
+        let path = dir.join(INPUT).join("big.mov");
+        let started = Instant::now();
+        while started.elapsed() < Duration::from_secs(3) {
+            let mut file = OpenOptions::new().create(true).append(true).open(&path).unwrap();
+            file.write_all(b"chunk").unwrap();
+            drop(file);
+            thread::sleep(Duration::from_millis(400));
+            assert_eq!(jobs.read(|queue| queue.jobs.len()), 0, "queued while still growing");
+        }
+        wait_for("the settled file to queue", || jobs.read(|queue| queue.jobs.len() == 1));
+        let _ = fs::remove_dir_all(&base);
+    }
+
+    /// One run per job folder at a time; different folders run side by side.
+    #[test]
+    fn one_run_per_folder() {
+        let base = scratch("serial");
+        let slow = "#!/bin/bash\nsleep 1\n";
+        let a = workflow(&base, "a", slow);
+        let b = workflow(&base, "b", slow);
+        let jobs = Jobs::start_with(base.clone(), Duration::ZERO);
+        jobs.set_paused(true);
+        jobs.set_concurrency(4);
+        for name in ["1", "2"] {
+            fs::write(a.join(INPUT).join(name), "").unwrap();
+        }
+        fs::write(b.join(INPUT).join("1"), "").unwrap();
+        wait_for("all three to queue", || jobs.read(|queue| queue.jobs.len() == 3));
+
+        jobs.set_paused(false);
+        wait_for("two to start", || jobs.read(|queue| queue.running() == 2));
+        thread::sleep(Duration::from_millis(300));
+        jobs.read(|queue| {
+            assert_eq!(queue.running(), 2);
+            let dirs: HashSet<_> = queue
+                .jobs
+                .iter()
+                .filter(|job| job.phase.active())
+                .map(|job| job.dir.clone())
+                .collect();
+            assert_eq!(dirs.len(), 2, "never two from the same folder");
+        });
+        wait_for("everything to finish", || {
+            jobs.read(|queue| queue.jobs.iter().all(|job| job.phase.finished()))
+        });
+        let _ = fs::remove_dir_all(&base);
+    }
+
     /// Commands are answered in the model, not on the disk, so they are true
-    /// the instant they are pressed.
+    /// the instant they are pressed — and dragging a queued file out dequeues it.
     #[test]
     fn commands_land_immediately() {
         let base = scratch("commands");
-        let jobs = Jobs::start(base.clone());
+        let dir = workflow(&base, "w", "true\n");
+        let jobs = Jobs::start_with(base.clone(), Duration::ZERO);
         jobs.set_paused(true);
-
         for name in ["a", "b", "c"] {
-            let dir = base.join(READY).join(format!("20260101-00000{name}-{name}"));
-            fs::create_dir_all(&dir).unwrap();
-            fs::write(dir.join(format!("{name}.job")), "#!/bin/bash\ntrue\n").unwrap();
-            jobs.enrol(dir);
+            fs::write(dir.join(INPUT).join(name), "").unwrap();
+            thread::sleep(Duration::from_millis(20));
         }
+        wait_for("three queued", || jobs.read(|queue| queue.jobs.len() == 3));
         let ids: Vec<u64> = jobs.read(|queue| queue.jobs.iter().map(|job| job.id).collect());
 
         jobs.command(ids[0], Verb::Pause);
         assert_eq!(jobs.read(|queue| queue.jobs[0].phase), Phase::Held);
 
-        // The third job to the front, and asking for it releases the hold.
         jobs.command(ids[2], Verb::Top);
         assert_eq!(jobs.read(|queue| queue.jobs[0].id), ids[2]);
-        jobs.command(ids[0], Verb::Resume);
-        assert_eq!(
-            jobs.read(|queue| queue.jobs.iter().find(|job| job.id == ids[0]).unwrap().phase),
-            Phase::Queued
-        );
 
-        // Stopping something that never started is an outcome, not a deletion:
-        // the payload is still there to look at, in done/.
+        // Stopping something that never started files it under failed/.
         jobs.command(ids[1], Verb::Stop);
         jobs.read(|queue| {
             let job = queue.jobs.iter().find(|job| job.id == ids[1]).unwrap();
             assert_eq!(job.phase, Phase::Finished { ok: false });
             assert_eq!(job.note.as_deref(), Some("stopped"));
-            assert!(job.dir.starts_with(base.join(DONE)));
+            assert_eq!(job.input, dir.join(FAILED).join("b"));
         });
 
-        // And it can be put back, at the end of the queue.
-        jobs.command(ids[1], Verb::Retry);
-        jobs.read(|queue| {
-            let job = queue.jobs.last().unwrap();
-            assert_eq!(job.id, ids[1]);
-            assert_eq!(job.phase, Phase::Queued);
-            assert!(job.dir.starts_with(base.join(READY)));
+        fs::remove_file(dir.join(INPUT).join("a")).unwrap();
+        wait_for("the removed input to leave the queue", || {
+            jobs.read(|queue| !queue.jobs.iter().any(|job| job.id == ids[0]))
         });
-
         let _ = fs::remove_dir_all(&base);
     }
 
@@ -1029,33 +1285,25 @@ mod tests {
     #[test]
     fn pausing_suspends_the_process_group() {
         let base = scratch("pause");
-        let jobs = Jobs::start(base.clone());
+        let tick = "#!/bin/bash\nfor i in $(seq 1 200); do echo tick; sleep 0.1; done\n";
+        let a = workflow(&base, "a", tick);
+        let b = workflow(&base, "b", tick);
+        let jobs = Jobs::start_with(base.clone(), Duration::ZERO);
         jobs.set_concurrency(1);
+        fs::write(a.join(INPUT).join("x"), "").unwrap();
+        wait_for("the first job to start", || {
+            jobs.read(|queue| queue.jobs.first().is_some_and(|job| job.pgid.is_some()))
+        });
+        fs::write(b.join(INPUT).join("y"), "").unwrap();
+        wait_for("the second to queue", || jobs.read(|queue| queue.jobs.len() == 2));
 
-        for name in ["first", "second"] {
-            let dir = base.join(READY).join(format!("20260101-000000-{name}"));
-            fs::create_dir_all(&dir).unwrap();
-            fs::write(
-                dir.join(format!("{name}.job")),
-                "#!/bin/bash\nfor i in $(seq 1 200); do echo tick; sleep 0.1; done\n",
-            )
-            .unwrap();
-            jobs.enrol(dir);
-        }
-
-        let deadline = Instant::now() + Duration::from_secs(10);
-        while jobs.read(|queue| queue.jobs[0].pgid.is_none()) && Instant::now() < deadline {
-            thread::sleep(Duration::from_millis(50));
-        }
         let id = jobs.read(|queue| queue.jobs[0].id);
-        let pgid = jobs.read(|queue| queue.jobs[0].pgid).expect("the job should have started");
+        let pgid = jobs.read(|queue| queue.jobs[0].pgid).unwrap();
 
         jobs.command(id, Verb::Pause);
         assert_eq!(jobs.read(|queue| queue.jobs[0].phase), Phase::Paused);
         assert_eq!(unsafe { libc::killpg(pgid, 0) }, 0, "still there, just stopped");
 
-        // The slot stays taken: pausing is for the machine, and back-filling it
-        // with the next encode would defeat the whole gesture.
         thread::sleep(TICK * 4);
         assert_eq!(jobs.read(|queue| queue.jobs[1].phase), Phase::Queued);
 
@@ -1063,10 +1311,7 @@ mod tests {
         assert_eq!(jobs.read(|queue| queue.jobs[0].phase), Phase::Running);
 
         jobs.command(id, Verb::Stop);
-        let deadline = Instant::now() + Duration::from_secs(20);
-        while !jobs.read(|queue| queue.jobs[0].phase.finished()) && Instant::now() < deadline {
-            thread::sleep(Duration::from_millis(50));
-        }
+        wait_for("the stop", || jobs.read(|queue| queue.jobs[0].phase.finished()));
         jobs.read(|queue| {
             assert_eq!(queue.jobs[0].phase, Phase::Finished { ok: false });
             assert_eq!(queue.jobs[0].note.as_deref(), Some("stopped"));

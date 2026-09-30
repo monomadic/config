@@ -4,8 +4,8 @@ local kitty_launch = "/Users/nom/.local/bin/kitty-launch"
 local topaz_workflow = "/Users/nom/.local/bin/topaz-workflow"
 local topaz_run = "/Users/nom/.local/bin/topaz-encode"
 local topaz_preview_frame = "/Users/nom/.local/bin/topaz-preview-frame"
--- Everything about the *job* — writing the .job script, finding a jobs folder,
--- copying the video and the job across — lives in topaz-job. This script only
+-- Everything about the *job* — turning the preset into a job-folder workflow,
+-- finding a jobs folder, copying the video into it — lives in topaz-job. This script only
 -- describes the encode (a preset file) and says what to do with it.
 local topaz_job = "/Users/nom/.local/bin/topaz-job"
 -- Jobs folder ⌘⇧S drops the encode into. Empty means "let topaz-job pick": the
@@ -443,8 +443,8 @@ local OPTION_HINTS = {
     { keys = { "⌘⇧[", "⌘⇧]" }, label = "tabs" },
     { keys = { "Tab" }, label = "hide" },
 }
--- Finalize actions, right-aligned in the bar on every tab. ⌘S writes the .job
--- beside the video and leaves the menu open; ⌘E only opens the preset catalog;
+-- Finalize actions, right-aligned in the bar on every tab. ⌘S installs the
+-- preset as a job-folder workflow and leaves the menu open; ⌘E only opens the preset catalog;
 -- the rest close the menu.
 local FINALIZE_HINTS = {
     { keys = { "⌘E" }, label = "edit" },
@@ -2927,9 +2927,9 @@ end
 -- Write the plan as a topaz-job preset file into `dir`, returning its path.
 --
 -- This is the whole handoff: the preset describes the encode (one key=value
--- line per topaz-encode flag) and topaz-job turns it into the .job script,
--- decides where that job goes, and copies the video across. Nothing here knows
--- what a job file looks like or where a jobs folder lives.
+-- line per topaz-encode flag) and topaz-job turns it into a workflow folder,
+-- decides which jobs folder it goes in, and copies the video across. Nothing
+-- here knows what a workflow looks like or where a jobs folder lives.
 local function write_preset_file(plan, dir)
     local preset_path = utils.join_path(dir, basename(plan.source) .. ".topaz-preset")
     local f, ferr = io.open(preset_path, "w")
@@ -2961,7 +2961,7 @@ local function topaz_job_args(plan, mode, dir)
     end
 
     local args = { topaz_job, mode }
-    if mode == "--send" and jobs_dir ~= "" then
+    if mode ~= "--run" and jobs_dir ~= "" then
         args[#args + 1] = "--dir=" .. jobs_dir
     end
     args[#args + 1] = "--preset"
@@ -2971,9 +2971,10 @@ local function topaz_job_args(plan, mode, dir)
     return args
 end
 
--- ⌘R (also c): write the .job beside the video and run it here, in a kitty tab,
--- then close the menu. topaz-job --run gives it the same cwd and $TARGET_FILE
--- the queue would, so what runs here is the exact artifact ⌘⇧S ships.
+-- ⌘R (also c): run the workflow's job.sh on the video here, in a kitty tab,
+-- then close the menu. topaz-job --run gives it the environment job-folder
+-- would, so what runs here is the exact script ⌘⇧S ships; the result lands
+-- beside the video.
 function run_job_now()
     if not menu then
         return
@@ -3013,12 +3014,12 @@ function run_job_now()
         return
     end
 
-    close_menu("Running " .. basename(plan.source) .. ".job")
+    close_menu("Running Topaz on " .. basename(plan.source))
 end
 
--- ⌘S: write the .job beside the video and stay in the menu. Nothing runs — the
--- file is the artifact, ready for the queue here or anywhere it is copied to.
--- Synchronous rather than a kitty tab: it only writes a file, and the menu
+-- ⌘S: install the preset as a workflow in the jobs folder and stay in the menu.
+-- Nothing is queued — the workflow's input/ is there to drop videos into.
+-- Synchronous rather than a kitty tab: it only writes a folder, and the menu
 -- should stay put.
 function save_job_file()
     if not menu then
@@ -3030,7 +3031,7 @@ function save_job_file()
         return
     end
 
-    -- Preset to a temp dir; only the .job itself belongs beside the video.
+    -- Preset to a temp dir; only the workflow belongs in the jobs folder.
     local job_args, job_err = topaz_job_args(plan, "--save", os.getenv("TMPDIR") or "/tmp/")
     if not job_args then
         mp.osd_message(job_err, 2)
@@ -3041,11 +3042,13 @@ function save_job_file()
     if not result or result.status ~= 0 then
         local stderr = result and trim(result.stderr) or ""
         mp.msg.error("topaz-job --save failed: " .. stderr)
-        mp.osd_message(stderr ~= "" and stderr or "Could not save the job file", 3)
+        mp.osd_message(stderr ~= "" and stderr or "Could not save the workflow", 3)
         return
     end
 
-    mp.osd_message("Saved jobfile " .. basename(plan.source) .. ".job", 2)
+    -- topaz-job's last line names the folder it saved.
+    local saved = trim(result.stdout or ""):match("saved ([^\n]*)$")
+    mp.osd_message("Saved workflow " .. (saved and basename(saved) or ""), 2)
 end
 
 -- ⌘⇧S: hand the encode off to a jobs folder. topaz-job writes the job to a temp
@@ -3298,8 +3301,8 @@ function enable_menu_keys()
     -- Skip the preview point ±10s without leaving the renderer.
     mp.add_forced_key_binding("Shift+RIGHT", "topaz_menu_seek_fwd", function() menu_seek(10) end)
     mp.add_forced_key_binding("Shift+LEFT", "topaz_menu_seek_back", function() menu_seek(-10) end)
-    -- Finalize: ⌘S saves the .job beside the video (menu stays open), ⌘⇧S ships
-    -- one to the render machine, ⌘R saves it beside the video and runs it here,
+    -- Finalize: ⌘S saves the preset as a workflow (menu stays open), ⌘⇧S queues
+    -- the video on it in the jobs folder, ⌘R runs the same script here,
     -- ⌘C copies the command line. All but ⌘S close the menu; `c` runs the job.
     mp.add_forced_key_binding("Meta+s", "topaz_menu_save_job", save_job_file)
     mp.add_forced_key_binding("Meta+S", "topaz_menu_send_job", send_job_file)

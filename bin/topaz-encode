@@ -12,6 +12,7 @@ usage() {
 usage:
   $script_name [--preview [seconds]] [--trash-originals] [--resume] [--copy-cmd] [--nice[=N]] [--background] [--log] [--preset_name name --filter_complex filter] [--output_ext ext] [--video_args args] [--metadata key=value] -- file1 [file2 ...]
   $script_name [--output path] [--progress-file path] ... -- file
+  $script_name [--output-dir dir] ... -- file1 [file2 ...]
   $script_name file1 [file2 ...]
 
 With --preset_name and --filter_complex, runs the supplied Topaz filter directly.
@@ -63,6 +64,10 @@ flags, reconstructs the job from the file itself:
 --output names the finished file for a single input instead of the usual
 "<name> [Topaz - <preset>].<ext>" beside it; the in-flight file is then
 <output minus ext>.frag.<ext>, and resume looks for exactly that.
+
+--output-dir writes the usual "<name> [Topaz - <preset>].<ext>" into DIR
+instead of beside each source — how a job-folder workflow puts its result in
+\$OUTPUT_DIR while its input sits in input/.
 
 --progress-file appends ffmpeg's raw -progress stream (frame=, out_time_us=,
 speed=, progress=continue|end ...) to a file, truncated at the start of each
@@ -965,6 +970,7 @@ nice_level=""
 background_mode=false
 output_override=""
 output_arg=""
+output_dir_arg=""
 progress_file=""
 files=()
 
@@ -1070,6 +1076,14 @@ while (( $# > 0 )); do
         exit 1
       }
       output_arg="$2"
+      shift 2
+      ;;
+    --output-dir)
+      (( $# >= 2 )) || {
+        print -u2 -- "--output-dir requires a directory"
+        exit 1
+      }
+      output_dir_arg="${2:a}"
       shift 2
       ;;
     --progress-file)
@@ -1276,6 +1290,11 @@ for input in "$files[@]"; do
 done
 files=("${abs_files[@]}")
 
+if [[ -n "$output_dir_arg" && ! -d "$output_dir_arg" ]]; then
+  print -u2 -- "--output-dir is not a directory: $output_dir_arg"
+  exit 1
+fi
+
 if [[ -n "$output_arg" ]]; then
   (( ${#files[@]} == 1 )) || {
     print -u2 -- "--output names one output, so it takes exactly one input file"
@@ -1397,10 +1416,10 @@ for input in "$files[@]"; do
   clean_base="$(topaz_strip_trailing_brackets "$base")"
 
   if [[ "$preview_mode" == true ]]; then
-    output="$(topaz_fit_filename "${input:h}" "$clean_base" " [Topaz Preview ${preview_seconds}s - ${filename_preset}].${output_ext}")"
+    output="$(topaz_fit_filename "${output_dir_arg:-${input:h}}" "$clean_base" " [Topaz Preview ${preview_seconds}s - ${filename_preset}].${output_ext}")"
     log_file="$(topaz_fit_filename "$LOG_DIR" "$clean_base" " [Topaz Preview ${preview_seconds}s - ${safe_preset}].log")"
   else
-    output="$(topaz_fit_filename "${input:h}" "$clean_base" " [Topaz - ${filename_preset}].${output_ext}")"
+    output="$(topaz_fit_filename "${output_dir_arg:-${input:h}}" "$clean_base" " [Topaz - ${filename_preset}].${output_ext}")"
     log_file="$(topaz_fit_filename "$LOG_DIR" "$clean_base" " [Topaz - ${safe_preset}].log")"
   fi
   # Embedded-job resume targets the exact file that was passed in, even if it

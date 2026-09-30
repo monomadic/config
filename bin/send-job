@@ -1,91 +1,79 @@
 #!/usr/bin/env zsh
 # send-job
-# Drop media files plus a *.job script into the `jobs` folder, where the jobs
-# queue (src/jobs) picks the job up and runs it.
+# Queue files on a job-folder workflow: put them in <jobs>/<workflow>/input/,
+# where job-folder (src/jobs/job-folder) runs each one through the workflow's
+# job.sh.
 #
-#   send-job <files...> <job_file> [--copy|--reference] [--dir=/Volumes/jobs]
+#   send-job [--job job.sh] [--copy|--link] [--dir DIR] <workflow> <files...>
 #
-# The target is just a directory — normally the already-mounted `jobs` share at
-# /Volumes/jobs. Nothing here knows about hostnames, shares or credentials:
-# mount it however you like (Finder, autofs, a local path) and point --dir /
-# $JOBS_DIR at it.
-#
-# The last positional argument is the job script; everything before it is data
-# the job needs.
+# The target is just a directory — the jobs root, normally ~/jobs or an
+# already-mounted share. Nothing here knows about hostnames, shares or
+# credentials: mount it however you like and point --dir / $JOBS_DIR at it.
 #
 # Two questions decide what "sending" means, and neither has one right answer:
 #
-#   the payload  — copy it across, or leave it where it is and let the job open
-#                  it by absolute path
-#   the folder   — which jobs folder, when more than one is reachable
+#   the payload  — copy it across, or symlink it and let the job read the
+#                  source where it already lives
+#   the folder   — which jobs root, when more than one is reachable
 #
 # Both are asked with a picker when there is a terminal to ask on, and both can
 # be answered up front by flag for scripts and keybindings. Nothing is prompted
 # for that was given on the command line.
 #
-# Free space is part of the first question rather than a surprise in the middle
-# of a copy: each folder is offered with what it has left, a folder that cannot
-# hold the payload says so, and if the chosen one is too small the copy is not
-# on the table at all — the job goes by reference, or --copy fails outright.
+# --copy copies each file to a hidden temporary in the jobs root, checks its
+# size, and only then renames it into input/ — one volume, so the rename is
+# atomic and the queue never sees half a file. Free space is part of the
+# question rather than a surprise in the middle of a copy.
 #
-# --copy is the original behaviour and the one that travels: data files go
-# across first and are size-verified, and only then is the .job dropped in, so
-# the watcher never fires on a half-copied payload.
+# --link copies nothing: input/ gets a symlink to the source. What you want for
+# multi-gigabyte media on a local disk with the queue on the same machine, and
+# exactly what you do not want when the job is bound for another box.
 #
-# --reference copies nothing. The job file gains a preamble setting $TARGET_FILE
-# (and $TARGET_FILE_1..N) to absolute paths, so a job script written against the
-# runner's $TARGET_FILE works unchanged — it just reads and writes the source
-# where it already lives. That is what you want for multi-gigabyte media on a
-# local disk with the queue running on the same machine, and exactly what you
-# do not want when the job is bound for another box.
+# --job installs a script as the workflow's job.sh first, creating the folder
+# if it isn't there — how a generator like topaz-job ships a workflow and its
+# first input in one go. Without it, the workflow must already exist.
 
 emulate -L zsh
 set -euo pipefail
 
 script_name="${0:t}"
 
-payload_mode=""      # copy | reference | "" (ask)
+payload_mode=""      # copy | link | "" (ask)
 jobs_dir=""          # set by --dir, else chosen from the candidates
+job_script=""        # --job: installed as the workflow's job.sh
 force=false
-files=()
+positional=()
 
 usage() {
   cat <<EOF
 $script_name
 
-Send files and a job script to the jobs folder.
+Queue files on a job-folder workflow.
 
 Usage:
-  $script_name <files...> <job_file> [--copy|--reference] [--dir DIR]
+  $script_name [options] <workflow> <files...>
 
 Options:
-  --dir DIR          Jobs folder. Skips the folder picker. Also --dir=DIR;
+  --job FILE         Install FILE as the workflow's job.sh (creating the
+                     workflow if needed) before queueing anything
+  --dir DIR          Jobs root. Skips the folder picker. Also --dir=DIR;
                      \$JOBS_DIR does the same.
-  --copy             Copy the data files into the jobs folder (the default
-                     when there is no terminal to ask on)
-  --reference        Leave the data files where they are; the job gets their
-                     absolute paths through \$TARGET_FILE
-  --force            Re-copy files that already exist with a matching size
+  --copy             Copy the files into input/ (the default when there is no
+                     terminal to ask on)
+  --link             Symlink the files into input/; the job reads the sources
+                     where they are
+  --force            Queue a file even if input/ already holds one of the same
+                     name and size
   -h, --help         Show help
 
-The last positional is the job script; the rest are its data files.
-
-With --copy the queue stages each job into its own folder, moving in the job
-file and the file it is named after — so \$TARGET_FILE (NAME.job => NAME) is
-referenced by bare filename, and any *other* data file by "\$JOB_DIR/name".
-
-With --reference nothing is staged and \$TARGET_FILE is an absolute path to the
-original (with \$TARGET_FILE_1..N and \$TARGET_FILE_COUNT for the rest). Only
-sane when the runner can see that path.
-
-A copy needs the payload plus 256 MB of headroom on the destination. Folders
-are offered with their free space, and one that cannot take the payload can
-only be sent to by reference.
+A copy needs the files plus 256 MB of headroom on the destination. Roots are
+offered with their free space, and one that cannot take the files can only be
+sent to by link.
 
 Examples:
-  $script_name clip.mp4 clip.mp4.job
-  $script_name --reference clip.mp4 clip.mp4.job
-  $script_name a.mov b.mov batch.job --dir=/Volumes/jobs
+  $script_name interpolate-60fps clip.mp4
+  $script_name --link upscale a.mov b.mov
+  $script_name --job ./job.sh --dir=/Volumes/jobs my-workflow clip.mov
 EOF
 }
 
@@ -197,12 +185,21 @@ while (( $# )); do
       jobs_dir="${1#--dir=}"
       shift
       ;;
+    --job)
+      (( $# >= 2 )) || die "missing argument for --job" 2
+      job_script="$2"
+      shift 2
+      ;;
+    --job=*)
+      job_script="${1#--job=}"
+      shift
+      ;;
     --copy)
       payload_mode=copy
       shift
       ;;
-    --reference|--ref)
-      payload_mode=reference
+    --link)
+      payload_mode=link
       shift
       ;;
     --force)
@@ -215,34 +212,37 @@ while (( $# )); do
       ;;
     --)
       shift
-      files+=( "$@" )
+      positional+=( "$@" )
       break
       ;;
     -*)
       die "unknown option: $1" 2
       ;;
     *)
-      files+=( "$1" )
+      positional+=( "$1" )
       shift
       ;;
   esac
 done
 
-(( ${#files[@]} >= 1 )) || { usage >&2; die "no job file given" 2 }
+(( ${#positional[@]} >= 1 )) || { usage >&2; die "no workflow given" 2 }
 
-# Last positional is the job script; the rest are payload.
-job_file="${files[-1]}"
-payload=( "${(@)files[1,-2]}" )
+workflow="${positional[1]}"
+payload=( "${(@)positional[2,-1]}" )
 
-[[ -f "$job_file" ]] || die "job file not found: $job_file"
+[[ -n "$workflow" && "$workflow" != */* && "$workflow" != .* ]] \
+  || die "not a workflow name: $workflow (one folder name, not a path)" 2
+[[ -z "$job_script" || -f "$job_script" ]] || die "job script not found: $job_script"
+(( ${#payload[@]} )) || [[ -n "$job_script" ]] || die "no files given" 2
 for f in "${payload[@]}"; do
   [[ -f "$f" ]] || die "file not found: $f"
 done
 
 # --- sizes ------------------------------------------------------------------
 
+# Through symlinks, so a linked input compares by the file it points at.
 size_of() {
-  stat -f %z "$1" 2>/dev/null
+  stat -L -f %z "$1" 2>/dev/null
 }
 
 # Free bytes on the filesystem holding a directory.
@@ -337,7 +337,7 @@ if [[ -z "$jobs_dir" ]]; then
         if [[ -z "$free" ]]; then
           labels+=( "$dir" )
         elif (( ${#payload[@]} )) && ! fits "$dir"; then
-          labels+=( "$dir — $(human_size $free) free, too small for $(human_size $payload_bytes) (reference only)" )
+          labels+=( "$dir — $(human_size $free) free, too small for $(human_size $payload_bytes) (link only)" )
         else
           labels+=( "$dir — $(human_size $free) free" )
         fi
@@ -348,7 +348,7 @@ if [[ -z "$jobs_dir" ]]; then
       else
         status_code=$?
         (( status_code == 1 )) && die "cancelled" 130
-        # No terminal to ask on: the first reachable folder, as before.
+        # No terminal to ask on: the first reachable folder.
         jobs_dir="${candidates[1]}"
       fi
       ;;
@@ -359,37 +359,57 @@ jobs_dir="${jobs_dir%/}"
 [[ -d "$jobs_dir" ]] || die "jobs folder not there: $jobs_dir (is the share mounted?)"
 [[ -w "$jobs_dir" ]] || die "jobs folder is not writable: $jobs_dir"
 
-# --- copy the payload, or reference it --------------------------------------
+# --- the workflow -----------------------------------------------------------
 
-if (( ! ${#payload[@]} )); then
-  # Nothing to copy either way; the question would be meaningless.
-  payload_mode=copy
+workflow_dir="$jobs_dir/$workflow"
+input_dir="$workflow_dir/input"
+
+if [[ -n "$job_script" ]]; then
+  mkdir -p -- "$input_dir" || die "could not create $input_dir"
+  # Before any input: a file queued ahead of its script would run through
+  # whatever job.sh was there before.
+  if cmp -s -- "$job_script" "$workflow_dir/job.sh"; then
+    print -- "job   $workflow/job.sh (unchanged)"
+  else
+    tmp="$workflow_dir/.job.sh.sending"
+    cp -- "$job_script" "$tmp" || die "could not copy the job script"
+    chmod +x "$tmp" 2>/dev/null || true
+    mv -f -- "$tmp" "$workflow_dir/job.sh" || die "could not install $workflow/job.sh"
+    print -- "job   $workflow/job.sh installed"
+  fi
+elif [[ ! -f "$workflow_dir/job.sh" ]]; then
+  print -u2 -- "$script_name: no workflow '$workflow' in $jobs_dir. Workflows there:"
+  for script in "$jobs_dir"/*/job.sh(N); do
+    print -u2 -- "  ${script:h:t}"
+  done
+  die "nothing queued (pass --job to create it)"
+else
+  mkdir -p -- "$input_dir" || die "could not create $input_dir"
 fi
+
+(( ${#payload[@]} )) || exit 0
+
+# --- copy the payload, or link it -------------------------------------------
 
 jobs_free="$(free_bytes "$jobs_dir")" || jobs_free=""
-room=true
-if (( ${#payload[@]} )) && ! fits "$jobs_dir"; then
-  room=false
-fi
-
-if ! $room; then
+if ! fits "$jobs_dir"; then
   # Not a preference any more. Say what is wrong in the numbers that matter,
-  # and go on by reference rather than starting a copy that cannot finish.
+  # and go on by link rather than starting a copy that cannot finish.
   print -u2 -- "$script_name: $jobs_dir has ${jobs_free:+$(human_size $jobs_free) free, }not enough for $(human_size $payload_bytes) plus $(human_size $headroom) headroom"
   if [[ "$payload_mode" == copy ]]; then
-    die "not enough space to copy the payload (send it by --reference, or free some space)"
+    die "not enough space to copy the files (send them by --link, or free some space)"
   fi
-  payload_mode=reference
-  print -u2 -- "$script_name: sending by reference — the job opens the sources where they are"
+  payload_mode=link
+  print -u2 -- "$script_name: linking — the job reads the sources where they are"
 fi
 
 if [[ -z "$payload_mode" ]]; then
   typeset -a choices=(
-    "copy — send $(human_size $payload_bytes) to $jobs_dir with the job${jobs_free:+ ($(human_size $jobs_free) free)}"
-    "reference — leave them here; the job opens them by absolute path"
+    "copy — send $(human_size $payload_bytes) to $jobs_dir${jobs_free:+ ($(human_size $jobs_free) free)}"
+    "link — leave them here; input/ gets symlinks to them"
   )
   if pick="$(choose_one "payload:" "${choices[@]}")"; then
-    (( pick == 1 )) && payload_mode=copy || payload_mode=reference
+    (( pick == 1 )) && payload_mode=copy || payload_mode=link
   else
     status_code=$?
     (( status_code == 1 )) && die "cancelled" 130
@@ -399,112 +419,65 @@ fi
 
 print -- "jobs: $jobs_dir"
 
-if [[ "$payload_mode" == copy ]]; then
-  # --- payload: copy, then verify byte counts match -------------------------
-  for f in "${payload[@]}"; do
-    name="${f:t}"
-    dest="$jobs_dir/$name"
-    tmp="$jobs_dir/.$name.sending"
-
-    src_size="$(size_of "$f")" || die "could not stat $f"
-
-    if [[ -f "$dest" ]] && ! $force; then
-      dest_size="$(size_of "$dest")"
-      if [[ "$dest_size" == "$src_size" ]]; then
-        print -- "skip  $name (already there, $src_size bytes)"
-        continue
-      fi
-    fi
-
-    print -- "send  $name ($src_size bytes)"
-    rm -f -- "$tmp" 2>/dev/null || true
-    if ! cp -- "$f" "$tmp"; then
-      rm -f -- "$tmp" 2>/dev/null || true
-      die "copy failed: $name"
-    fi
-
-    dest_size="$(size_of "$tmp")" || dest_size=""
-    if [[ "$dest_size" != "$src_size" ]]; then
-      rm -f -- "$tmp" 2>/dev/null || true
-      die "size mismatch for $name (local $src_size, remote ${dest_size:-?}) — nothing queued"
-    fi
-
-    mv -f -- "$tmp" "$dest" || die "could not finalize $name"
-    print -- "ok    $name verified"
-  done
-fi
-
-# --- job script last: only now is the payload known-good --------------------
-
-job_name="${job_file:t}"
-
-if [[ "$payload_mode" == reference ]]; then
-  # Nothing is paired with this job by name, so a name already taken can simply
-  # be stepped around: queueing the same work twice queues it twice instead of
-  # overwriting a job that has not been picked up yet. Copy mode cannot do this
-  # — there the name *is* the link to the staged file.
-  if [[ -e "$jobs_dir/$job_name" ]]; then
-    base="${job_name%.job}"
-    for n in {2..999}; do
-      if [[ ! -e "$jobs_dir/$base-$n.job" ]]; then
-        job_name="$base-$n.job"
-        break
-      fi
-    done
-    [[ -e "$jobs_dir/$job_name" ]] && die "too many queued jobs named $job_name"
+# A free name in input/: clip.mov, then clip-2.mov, clip-3.mov, …
+free_name() {
+  local name="$1" stem ext n
+  if [[ ! -e "$input_dir/$name" && ! -L "$input_dir/$name" ]]; then
+    print -r -- "$name"
+    return
   fi
-fi
-
-job_tmp="$jobs_dir/.${job_name}.sending"
-job_dest="$jobs_dir/$job_name"
-
-cp -- "$job_file" "$job_tmp" || die "could not copy job file"
-
-if [[ "$payload_mode" == reference ]]; then
-  # The runner exports $TARGET_FILE as a bare name next to a staged copy that,
-  # here, does not exist. Overriding it in the job itself is the whole of
-  # reference mode: every job script written against $TARGET_FILE keeps working,
-  # and points at the original.
-  {
-    print -r -- "# --- send-job: referenced payload ---------------------------------------"
-    print -r -- "# The sources were not copied. These override the runner's \$TARGET_FILE,"
-    print -r -- "# which would otherwise name a file that was never staged."
-    for (( i = 1; i <= ${#payload[@]}; i++ )); do
-      print -r -- "TARGET_FILE_$i=${(qq)${payload[i]:A}}; export TARGET_FILE_$i"
-    done
-    print -r -- "TARGET_FILE_COUNT=${#payload[@]}; export TARGET_FILE_COUNT"
-    print -r -- "TARGET_FILE=\"\$TARGET_FILE_1\"; export TARGET_FILE"
-    print -r -- "# ------------------------------------------------------------------------"
-  } > "$job_tmp.preamble" || die "could not write the reference preamble"
-
-  # After the shebang, or the interpreter stops being one.
-  {
-    if [[ "$(head -n 1 -- "$job_file")" == '#!'* ]]; then
-      head -n 1 -- "$job_file"
-      cat -- "$job_tmp.preamble"
-      tail -n +2 -- "$job_file"
-    else
-      cat -- "$job_tmp.preamble" "$job_file"
+  if [[ "$name" == ?*.* ]]; then
+    stem="${name%.*}" ext=".${name##*.}"
+  else
+    stem="$name" ext=""
+  fi
+  for n in {2..999}; do
+    if [[ ! -e "$input_dir/$stem-$n$ext" && ! -L "$input_dir/$stem-$n$ext" ]]; then
+      print -r -- "$stem-$n$ext"
+      return
     fi
-  } > "$job_tmp.built" || die "could not build the job file"
-
-  mv -f -- "$job_tmp.built" "$job_tmp" || die "could not build the job file"
-  rm -f -- "$job_tmp.preamble" 2>/dev/null || true
-
-  for f in "${payload[@]}"; do
-    print -- "ref   ${f:t} -> ${f:A}"
   done
-fi
+  return 1
+}
 
-chmod +x "$job_tmp" 2>/dev/null || true
+for f in "${payload[@]}"; do
+  name="${f:t}"
+  src_size="$(size_of "$f")" || die "could not stat $f"
 
-if [[ "$payload_mode" == copy ]] && [[ "$(size_of "$job_tmp")" != "$(size_of "$job_file")" ]]; then
-  rm -f -- "$job_tmp" 2>/dev/null || true
-  die "size mismatch for $job_name — job not queued"
-fi
+  # Sent twice by accident is the likely story; queueing it twice is not.
+  if [[ -e "$input_dir/$name" ]] && ! $force && [[ "$(size_of "$input_dir/$name")" == "$src_size" ]]; then
+    print -- "skip  $name (already queued)"
+    continue
+  fi
 
-# Rename into place so the watch folder only ever sees a complete .job.
-mv -f -- "$job_tmp" "$job_dest" || die "could not queue $job_name"
-print -- "queued $job_name in $jobs_dir"
+  dest_name="$(free_name "$name")" || die "too many files named $name in $input_dir"
 
+  if [[ "$payload_mode" == link ]]; then
+    ln -s -- "${f:A}" "$input_dir/$dest_name" || die "could not link $name"
+    print -- "link  $dest_name -> ${f:A}"
+    continue
+  fi
+
+  # In the jobs root, hidden, so neither a workflow nor anything browsing the
+  # root mistakes it for work; and on the same volume as input/, so the rename
+  # that finishes it is atomic.
+  tmp="$jobs_dir/.$name.sending"
+  print -- "send  $name ($(human_size $src_size))"
+  rm -f -- "$tmp" 2>/dev/null || true
+  if ! cp -- "$f" "$tmp"; then
+    rm -f -- "$tmp" 2>/dev/null || true
+    die "copy failed: $name"
+  fi
+
+  dest_size="$(size_of "$tmp")" || dest_size=""
+  if [[ "$dest_size" != "$src_size" ]]; then
+    rm -f -- "$tmp" 2>/dev/null || true
+    die "size mismatch for $name (local $src_size, remote ${dest_size:-?}) — not queued"
+  fi
+
+  mv -- "$tmp" "$input_dir/$dest_name" || die "could not queue $name"
+  print -- "ok    $dest_name queued"
+done
+
+print -- "queued on $workflow in $jobs_dir"
 exit 0

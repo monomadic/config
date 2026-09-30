@@ -136,7 +136,7 @@ Ran 2026-09-21 (macOS 26.5, arm64). Throwaway code is not kept in the repo.
   - **Ad-hoc re-signing loses the grant**, so a rebuild re-prompts once.
     Accepted, as with other locally built apps here.
   - **`rssiValue` intermittently returns 0** on a live link, in every launch mode.
-  - Consequence: this widget joins `job-monitor` as an exception to the
+  - Consequence: this widget joins `job-folder` as an exception to the
     no-bundle rule; `bundle.sh` generates the `.app`, nothing bundled is checked
     in. Update `AGENTS.md` when that lands.
 - [x] **Bindings coverage.** All on the objc2 0.6 / framework-crate 0.3
