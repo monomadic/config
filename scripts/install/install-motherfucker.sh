@@ -1,12 +1,13 @@
-#!/bin/sh
+#!/usr/bin/env bash
 # Build and install motherfucker (cache-free Spotlight replacement):
 # binary into ~/.local/bin, LaunchAgent so it starts at login and stays resident.
+#
+# Upstream repo, not src/ — the checkout lives in $SRC_PATH (default ~/src) and
+# this script keeps it current. Re-run it to pick up new commits.
 
-set -e
-cd "$(dirname "$0")/../../src/motherfucker"
-cargo build --release
-mkdir -p "$HOME/.local/bin"
-install -m 755 target/release/motherfucker "$HOME/.local/bin/motherfucker"
+. "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/lib/git-source-install.sh"
+
+git_source_install motherfucker "https://github.com/monomadic/motherfucker.git" cargo
 
 LABEL="com.nom.motherfucker"
 PLIST="$HOME/Library/LaunchAgents/$LABEL.plist"

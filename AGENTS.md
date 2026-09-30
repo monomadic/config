@@ -68,7 +68,7 @@ workflow when changing deployment.
 
 `src/<tool>/` holds tool source (Rust: the AppKit menu bar widgets — `battery-widget`,
 `cpu-usage-widget`, `free-disk-space-widget`, `menu-tidy` — plus `leaf`, `pimped`,
-`motherfucker`, `neuroserver-select-preset`, `topaz-select-preset`; Go: `spill`, `iospeed`, `open-in-forklift`, `obsbot-rtsp-widget`,
+`neuroserver-select-preset`, `topaz-select-preset`; Go: `spill`, `iospeed`, `open-in-forklift`, `obsbot-rtsp-widget`,
 `system-uptime-widget`; Swift: the `src/utils/` video ML CLIs `avinterp`,
 `avupscale`, `avremove`). These are the only parts of the repo with a
 build/install step and tests — Deployment does not build them. `src/utils/` is a
@@ -95,7 +95,7 @@ cd src/obsbot-rtsp-widget && go test ./...
 ### Two kinds of installer
 
 `src/<tool>` builds from a tree inside this repo. Some tools are separate
-repositories of mine instead — `switchblade`, `abner`, `tagform`, `chordpro-tui`, `safesync` — and
+repositories of mine instead — `switchblade`, `abner`, `tagform`, `chordpro-tui`, `safesync`, `motherfucker` — and
 those clone into `$SRC_PATH` (`~/src` by default, exported from
 `config/zsh/zshenv.zsh`). Their installers share one driver,
 `scripts/install/lib/git-source-install.sh`, which on every run fetches,

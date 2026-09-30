@@ -72,7 +72,7 @@ or changing mappings. Deploy does not install or upgrade applications.
 - `scripts/install/`: `install-<name>.sh` build+install scripts for `src/`
 - `scripts/tweaks/`: one-shot macOS `defaults write` tweaks
 - `src/`: small personal utility source trees (Rust for the menu bar widgets,
-  `leaf`, `pimped`, `motherfucker`; Go for the rest) built via `scripts/install/*.sh`
+  `leaf`, `pimped`; Go for the rest) built via `scripts/install/*.sh`
 - `vendor/bin/`: retained third-party or custom-built binaries
 - `_quarantine/`: commands dropped from PATH but kept in git history — not
   deployed, not referenced, not added to
