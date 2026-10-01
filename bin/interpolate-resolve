@@ -227,11 +227,12 @@ if (( ${#positional[@]} == 0 )); then
 fi
 
 # The running process is named "Resolve", not "DaVinci Resolve", so matching
-# the application name never hit: every invocation re-opened the app and paid
-# the sleep even when Resolve was already running.
+# the application name never hit: every invocation re-opened the app even when
+# Resolve was already running. No sleep after launching: the Python side polls
+# until the scripting API answers ($RESOLVE_CONNECT_TIMEOUT, default 180s),
+# which a cold start needs far more than a fixed few seconds.
 if ! pgrep -qf "DaVinci Resolve.app/Contents/MacOS/Resolve"; then
   open -a "DaVinci Resolve"
-  sleep 6
 fi
 
 run_one() {

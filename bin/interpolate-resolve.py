@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import shutil
 import subprocess
 import sys
@@ -439,6 +440,29 @@ def unique_output_name(output_dir: Path, base_name: str, extension: str) -> str:
     return candidate
 
 
+def connect_resolve(dvr, timeout: float):
+    """Resolve's scripting API, once it answers.
+
+    A cold launch takes well past any fixed sleep — the process is up long
+    before the API is, and the project manager later still — so poll instead
+    of guessing. Not connecting in time is the failure; being slow is not.
+    """
+    deadline = time.monotonic() + timeout
+    waiting = False
+    while True:
+        resolve = dvr.scriptapp("Resolve")
+        if resolve is not None and resolve.GetProjectManager() is not None:
+            if waiting:
+                print("Resolve is ready", flush=True)
+            return resolve
+        if time.monotonic() >= deadline:
+            fail(f"could not connect to Resolve within {timeout:.0f}s (is it running? is scripting set to Local?)")
+        if not waiting:
+            print("waiting for Resolve to start…", flush=True)
+            waiting = True
+        time.sleep(2)
+
+
 def ensure_empty_dir_exists(dir_path: Path) -> None:
     if not dir_path.exists():
         dir_path.mkdir(parents=True, exist_ok=True)
@@ -497,9 +521,7 @@ def main() -> None:
     ensure_empty_dir_exists(output_dir)
 
     dvr = load_resolve_module()
-    resolve = dvr.scriptapp("Resolve")
-    if resolve is None:
-        fail("could not connect to Resolve")
+    resolve = connect_resolve(dvr, float(os.environ.get("RESOLVE_CONNECT_TIMEOUT", "180")))
 
     project_manager = resolve.GetProjectManager()
     if project_manager is None:
