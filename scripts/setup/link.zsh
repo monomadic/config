@@ -2,7 +2,7 @@
 # Link the checkout using only zsh and macOS utilities.
 # Failures are counted, but never stop the remaining mappings.
 ROOT="${${0:A}:h:h:h}"
-integer problems=0 linked=0 unchanged=0 pending=0
+integer problems=0 linked=0 unchanged=0 pending=0 created=0
 mode="${1:-}"
 green='' cyan='' yellow='' reset='' red='' error_reset=''
 if [[ -z "${NO_COLOR:-}" && "${TERM:-}" != dumb ]]; then
@@ -72,15 +72,45 @@ link_file() {
   return 0
 }
 
+# link_tree SRC DST [IGNORE...]: link every file below SRC into DST. Each
+# IGNORE is a zsh pattern matched against the path relative to SRC (`*`
+# crosses `/`, so '*.log' matches at any depth).
 link_tree() {
-  local src="$1" dst="$2" file
+  local src="$1" dst="$2" file rel pattern
+  shift 2
   if [[ ! -d "$ROOT/$src" ]]; then
     problem "missing directory: $src"
     return 0
   fi
   for file in "$ROOT/$src"/**/*(ND.,@); do
     [[ "${file:t}" == .DS_Store || "$file" == */__pycache__/* ]] && continue
-    link_file "${file#$ROOT/}" "$dst/${file#$ROOT/$src/}"
+    rel="${file#$ROOT/$src/}"
+    for pattern in "$@"; do
+      [[ "$rel" == ${~pattern} ]] && continue 2
+    done
+    link_file "${file#$ROOT/}" "$dst/$rel"
+  done
+  return 0
+}
+
+# ensure_dir DST...: a real directory at each DST — for folders that hold
+# data rather than config, so they exist without anything in them being linked.
+ensure_dir() {
+  local dst
+  for dst in "$@"; do
+    if [[ "$mode" == --check || -d "$dst" && ! -L "$dst" ]]; then
+      continue
+    elif [[ -e "$dst" || -L "$dst" ]]; then
+      problem "$dst exists but is not a directory"
+    elif [[ "$mode" == --dry-run ]]; then
+      (( ++pending ))
+      print -r -- "${cyan}WOULD CREATE:${reset} $dst/"
+    elif mkdir -p -- "$dst"; then
+      (( ++created ))
+      print -r -- "${green}MKDIR:${reset} $dst/"
+    else
+      problem "could not create $dst"
+    fi
   done
   return 0
 }
@@ -92,8 +122,9 @@ summary_color="$green"
 [[ "$mode" == --dry-run ]] && summary_color="$cyan"
 (( problems )) && summary_color="$yellow"
 if [[ "$mode" == --dry-run ]]; then
-  print -r -- "${summary_color}Dry run: $pending links to create, $unchanged already correct, $problems problems.${reset}"
+  print -r -- "${summary_color}Dry run: $pending links or folders to create, $unchanged already correct, $problems problems.${reset}"
 else
   print -r -- "${summary_color}Links: $linked created, $unchanged unchanged, $problems problems${mode:+ ($mode)}.${reset}"
+  (( created )) && print -r -- "${summary_color}Folders: $created created.${reset}"
 fi
 (( problems == 0 ))

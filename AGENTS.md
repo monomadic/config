@@ -45,7 +45,9 @@ link_file config/zsh/zshrc.zsh "$HOME/.zshrc"
 link_tree bin "$HOME/.local/bin"
 ```
 
-`link_file` links a file or whole directory; `link_tree` links files recursively.
+`link_file` links a file or whole directory; `link_tree` links files recursively
+(trailing arguments are ignore patterns, relative to its source); `ensure_dir`
+creates real directories for data that must exist but never be linked.
 Add or comment out calls directly. There is no package/profile system, parser,
 state database, host override, or pruning. Existing conflicts are preserved and
 reported, while the remaining mappings continue. The one exception is a
@@ -170,6 +172,15 @@ daemon — `topaz-job` and `interpolate-resolve-job` are the examples: each
 generates a `job.sh` for its settings (one workflow per preset / fps) and hands
 it and the inputs to `send-job`, which copies (hidden temp in the jobs root,
 then an atomic `mv` into `input/`) or, with `--link`, symlinks.
+
+Hand-written workflows are tracked as `config/jobs/<name>/job.sh`. The
+Deployfile's `link_tree config/jobs "$HOME/jobs" …` links each one (and any
+helper beside it) into a *real* `~/jobs/<name>/` folder and `ensure_dir`
+creates `input/ output/ done/ failed/` there — so the script is versioned and
+the job data never touches the repo. The ignore patterns on that `link_tree`
+and the matching `.gitignore` rules keep queue folders and `*.log` out of both
+deploy and git; keep them in step. `send-job --job` refuses to overwrite a
+linked `job.sh`: edit the tracked one instead.
 
 `src/jobs/` is a cargo workspace — the one nested directory under `src/` —
 because its two crates share a lockfile, a target dir and pinned objc2

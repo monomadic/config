@@ -20,3 +20,11 @@ vendor/bin/beatportdl-credentials.json
 
 # compiled Go binaries built in-tree
 src/ytform/ytform
+
+# job-folder data: workflows in config/jobs are tracked, what runs through
+# them is not (the Deployfile never links these either)
+config/jobs/*/input/
+config/jobs/*/output/
+config/jobs/*/done/
+config/jobs/*/failed/
+config/jobs/**/*.log

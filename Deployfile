@@ -111,6 +111,17 @@ link_file config/yt-dlp/plugins/faphouse/yt_dlp_plugins/extractor/xvideos_red.py
 link_file config/yt-dlp/plugins/faphouse/yt_dlp_plugins/postprocessor/titlecase.py "$HOME/.config/yt-dlp/plugins/faphouse/yt_dlp_plugins/postprocessor/titlecase.py"
 link_file config/yt-dlp/plugins/threads/yt_dlp_plugins/extractor/threads.py "$HOME/.config/yt-dlp/plugins/threads/yt_dlp_plugins/extractor/threads.py"
 
+# --- Jobs ---------------------------------------------------------------------
+
+# job-folder workflows. Each config/jobs/<name>/job.sh (and any helper beside
+# it) is linked into a real ~/jobs/<name>/ folder; the queue's own folders are
+# created there and never linked, and nothing in them or any *.log is ever
+# deployed — the workflow is tracked, the work that runs through it is not.
+link_tree config/jobs "$HOME/jobs" 'README.md' '*/input/*' '*/output/*' '*/done/*' '*/failed/*' '*.log'
+for job in "$ROOT"/config/jobs/*(N/); do
+  ensure_dir "$HOME/jobs/${job:t}/"{input,output,done,failed}
+done
+
 # --- Misc tooling -------------------------------------------------------------
 
 # link_tree config/crush "$HOME/.config/crush"

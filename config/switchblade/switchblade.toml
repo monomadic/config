@@ -42,8 +42,8 @@ grid_layout = "square"
 # Ideal tile size: width picks the column count (and, in flexible mode,
 # the nominal row height). In fixed mode tiles stretch so the columns
 # exactly fill the window; width:height sets the aspect (240:135 = 16:9).
-tile_width = 200.0
-tile_height = 135.0
+tile_width = 100.0
+tile_height = 100.0
 # Flexible rows justify by scaling their height; these caps (fractions of
 # the nominal tile height) keep one odd row from towering or vanishing —
 # a row that would need to leave the band leaves a little slack instead.

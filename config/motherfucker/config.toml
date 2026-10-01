@@ -149,7 +149,6 @@ engine = "􀢾"  # [search_engines] entries that set no icon of their own
 # `sh -c` (loaded once at startup — zero cost while typing). Only the
 # outer quotes are trimmed, so inner quotes are written bare, not escaped.
 [shortcuts]
-# "Movies" = "open -R ~/Movies"
 "Tracks" = "open -R '/Users/nom/Library/Mobile Documents/com~apple~CloudDocs/Music/Tracks'"
 "Volume: mute" = "osascript -e 'set volume with output muted'"
 "System" = "open -a ScreenSaverEngine"  # ⇥ for more (lock/shutdown)
@@ -157,6 +156,7 @@ engine = "􀢾"  # [search_engines] entries that set no icon of their own
 "Motherfucker" = ""
 "ChordPro" = "/Users/nom/.local/bin/kitty-launch --os-window -- /Users/nom/.local/bin/chordpro-tui '/Users/nom/Library/Mobile Documents/com~apple~CloudDocs/Music/Tablature/ChordPro'"
 "Copy Phone Number" = "echo 09603111806 | pbcopy"
+"Yazi - plugins/action-menu.yml" = "kitty-launch --dismiss --cwd ~/config/config/yazi/plugins/action-menu.yazi -- hx items.lua"
 
 [commands.Motherfucker]
 "Reload" = "launchctl kickstart -k gui/$UID/com.nom.motherfucker"
@@ -173,10 +173,9 @@ engine = "􀢾"  # [search_engines] entries that set no icon of their own
 # instead of activating the row; enter runs one via `sh -c`, like a shortcut.
 # Backspace on an empty field leaves the list, like a sigil mode.
 [commands.SwitchBlade]
-"Debug" = "SB_DEBUG=1 open -a Switchblade --args --fast-fullscreen"
+"Debug" = "open -a Switchblade --args --debug --fast-fullscreen"
 "Open ~/Movies/Porn/Downloads" = "open -a Switchblade ~/Movies/Porn/Downloads --args --fast-fullscreen"
-"Open ~/Movies/Porn/Downloads" = "SB_DEBUG=1 open -a Switchblade ~/Movies/Porn/Downloads --args --fast-fullscreen"
-"Open ~/Movies/Porn/Downloads" = "SB_DEBUG=1 open -a Switchblade ~/Movies/Porn/Downloads --args --fast-fullscreen"
+"Open ~/Movies/Porn/Downloads" = "open -a Switchblade ~/Movies/Porn/Downloads --args --debug --fast-fullscreen"
 "Open (Debug, Local Config)" = "open -a Switchblade --debug --args --fast-fullscreen"
 "Open (Debug, Default Config)" = "open -a Switchblade --debug --args --fast-fullscreen"
 "Open (Debug, No Config)" = "open -a Switchblade --debug --args --fast-fullscreen --no-config"
@@ -187,9 +186,9 @@ engine = "􀢾"  # [search_engines] entries that set no icon of their own
 "Open Sorted All" = "$HOME/.local/bin/fd-media --sort-created | $HOME/.local/bin/switchblade --fast-fullscreen"
 "Open Tower (index)" = "cat /Volumes/Tower/Movies/Porn/.index | $HOME/.local/bin/switchblade --fast-fullscreen"
 "Open Tower (live)" = "$HOME/.local/bin/switchblade --fast-fullscreen /Volumes/Tower/Movies/Porn/Downloads"
-"Config (Local)" = "/Users/nom/.local/bin/kitty-launch --cwd /Users/nom/.config/switchblade -- hx switchblade.toml"
-"Config (Default)" = "$HOME/.local/bin/kitty-launch --cwd $HOME/src/switchblade -- hx switchblade.toml"
-"Build" = "/Users/nom/.local/bin/kitty-launch --interactive -- update switchblade"
+"Config (Local)" = "kitty-launch --cwd $HOME/.config/switchblade -- hx switchblade.toml"
+"Config (Default)" = "kitty-launch --cwd $HOME/src/switchblade -- hx switchblade.toml"
+"Build" = "kitty-launch --interactive -- update switchblade"
 
 # The real System Settings.app: enter opens it normally, ⇥ deep-links a pane.
 [commands.System Settings]

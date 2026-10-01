@@ -26,6 +26,9 @@ quit it.** Add it to Login Items if you want it always on.
 ```
 
 Any non-hidden directory under the root with a `job.sh` counts, picked up live.
+`job.sh` may be a symlink: hand-written workflows are tracked in the dotfiles
+repo as `config/jobs/<name>/job.sh` and linked in by the Deployfile, which also
+creates the queue folders (see `config/jobs/README.md`).
 `input/` and `output/` are created for you; `done/` and `failed/` appear when
 first needed.
 

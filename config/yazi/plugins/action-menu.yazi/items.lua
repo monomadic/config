@@ -116,9 +116,9 @@ return { groups = {
 		group = "Play",
 		when = { kind = { "video", "dir" } },
 		{ desc = "Open in MPV", run = "mpv --force-window --fullscreen --no-native-fs %s", orphan = true },
-		{ desc = "Send to MPV (Socket)", run = "mpv-send play %s", orphan = true, when = { kind = "video" } },
+		{ desc = "Send to MPV (Socket)", run = "mpv-send play %s", orphan = true },
 		{ desc = "Open in Switchblade", run = "open -a Switchblade %s", orphan = true },
-		{ desc = "Open in Abner", run = "open -a Abner %s", orphan = true, when = { kind = "video" } },
+		{ desc = "Open in Abner", run = "open -a Abner %s", orphan = true },
 		{ desc = "Open in VLC", run = "vlc %s .", orphan = true },
 	},
 	{
@@ -127,6 +127,7 @@ return { groups = {
 		{ desc = "Media Audit", run = kitty("--tab --hold", "check media", BIN .. "media-audit-batch %s"), orphan = true },
 		{ desc = "Open in MP4Doctor", run = kitty("--tab --hold", "mp4doctor", BIN .. "mp4doctor %s"), orphan = true },
 		{ desc = "Reveal in Finder", run = "open %s" },
+		{ desc = "Serve at http://localhost:8000", run = "python3 -m http.server 8000 && open http://localhost:8000", orphan = true },
 	},
 	{
 		group = "Subtitles",

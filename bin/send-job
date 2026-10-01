@@ -370,6 +370,10 @@ if [[ -n "$job_script" ]]; then
   # whatever job.sh was there before.
   if cmp -s -- "$job_script" "$workflow_dir/job.sh"; then
     print -- "job   $workflow/job.sh (unchanged)"
+  elif [[ -L "$workflow_dir/job.sh" ]]; then
+    # Linked from the dotfiles repo (config/jobs): replacing the link with a
+    # copy would quietly fork the workflow from the version that is tracked.
+    die "$workflow/job.sh is linked from $(readlink -- "$workflow_dir/job.sh"); edit it there, or pick another workflow name"
   else
     tmp="$workflow_dir/.job.sh.sending"
     cp -- "$job_script" "$tmp" || die "could not copy the job script"
