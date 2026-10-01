@@ -110,6 +110,7 @@ brew "cloc"
 brew "diskonaut"
 brew "f3"
 brew "hevi"
+brew "marksman" # markdown LSP for helix
 brew "moreutils" # includes vidir
 brew "pastel"
 brew "prettier"

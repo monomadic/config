@@ -31,7 +31,9 @@ language-servers = ["xml"]
 
 [[language]]
 name = "markdown"
-formatter = { command = "dprint", args = ["fmt", "--stdin", "md"] }
+language-servers = ["marksman"]
+formatter = { command = "prettier", args = ["--parser", "markdown"] }
+soft-wrap.enable = true
 
 [[language]]
 name = "bash"
