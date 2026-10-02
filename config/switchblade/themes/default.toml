@@ -313,9 +313,7 @@ fade_ms = 90.0
 # [keys] table — remap a key here and the panel shows the new one within
 # the same ~250ms hot-reload as everything else. Mouse-only bindings
 # (click/right-click/⌘-click) and gamepad (pad_*) buttons aren't in the
-# keymap, so they stay fixed labels; a row whose action the current config
-# has switched off (`i`'s performance panel while perf_panel = false)
-# dims rather than disappears. Esc or `?` again closes it.
+# keymap, so they stay fixed labels. Esc or `?` again closes it.
 
 # ── Added from the repo defaults, 2026-09-03 ──────────────────────────
 # The bar's opacity over the design layer's `theme.surface` — the ground
@@ -337,7 +335,6 @@ section_gap = 22.0
 # Standout keys (the panel's own `?`, `D`, ...) wear this instead of the
 # plain keycap fill.
 # accent = [1.0, 0.216, 0.376, 1.0]   # REMOVED from switchblade: folded into [theme] accent
-disabled = 0.42
 fade_ms = 160.0
 
 # ── Added from the repo defaults, 2026-09-03 ──────────────────────────
@@ -423,9 +420,7 @@ fade_ms = 150.0
 # [keys] table — remap a key here and the panel shows the new one within
 # the same ~250ms hot-reload as everything else. Mouse-only bindings
 # (click/right-click/⌘-click) and gamepad (pad_*) buttons aren't in the
-# keymap, so they stay fixed labels; a row whose action the current config
-# has switched off (`i`'s performance panel while perf_panel = false)
-# dims rather than disappears. Esc or `?` again closes it.
+# keymap, so they stay fixed labels. Esc or `?` again closes it.
 
 
 # ── Rating stars ── the design system's gold (was the built-in white-dim unlit)

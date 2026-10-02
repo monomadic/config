@@ -548,24 +548,6 @@ library_count_pill = 0.5
 zoom_model = "strip"
 zoom_sticky_ms = 150.0  # how long a KEY press takes to reach the next packing
 
-# Worker-queue pill + panel (perf_panel is PARKED, off by default —
-# read the pipeline with sb-bench instead).
-perf_panel = false
-queue_pill_w = 58.0
-queue_pill_h = 28.0
-queue_pill_opacity = 0.92
-queue_panel_w = 400.0
-queue_panel_row_h = 24.0
-queue_panel_gap = 8.0
-queue_panel_smoothing = 0.35
-queue_stall_ms = 500.0
-queue_decay_s = 0.7
-queue_color_thumbs = [1.0, 0.627, 0.333]  # --queue-thumbs #ffa055
-queue_color_live = [0.294, 0.816, 0.812]
-queue_color_chapters = [0.722, 0.604, 1.0]
-queue_color_library = [0.471, 0.612, 0.957]
-queue_color_stall = [1.0, 0.404, 0.427]
-
 # Live seekbar hover preview: its own decoder, keyframe-seeked under the
 # pointer; plays from that spot while the pointer rests.
 seekbar_preview_live = true
