@@ -107,6 +107,7 @@ def wait_for_render(project, job_id: str, total_frames: int | None, poll_s: floa
     """
     live = sys.stderr.isatty()
     started = time.monotonic()
+    next_step = MILESTONE_STEP
     while project.IsRenderingInProgress():
         status = project.GetRenderJobStatus(job_id) or {}
         pct = float(status.get("CompletionPercentage", 0) or 0)
@@ -119,11 +120,34 @@ def wait_for_render(project, job_id: str, total_frames: int | None, poll_s: floa
             done = int(total_frames * pct / 100.0)
             fps = done / elapsed if elapsed > 0 else 0.0
             line += f"  ~{done}/{total_frames} frames  ~{fps:.1f} fps"
+        # Every 20% also goes to stdout as a line of its own — what a log or the
+        # job-folder row shows, where the live line above can't be seen.
+        # One line per step crossed, even when a poll jumps past two.
+        if next_step <= min(pct, 100) and live:
+            print("\r\033[K", end="", file=sys.stderr, flush=True)
+        while next_step <= min(pct, 100):
+            print(milestone(next_step, elapsed, eta), flush=True)
+            next_step += MILESTONE_STEP
         if live:
             print("\r\033[K" + line, end="", file=sys.stderr, flush=True)
         time.sleep(poll_s)
     if live:
         print("\r\033[K", end="", file=sys.stderr, flush=True)
+    # The last poll rarely lands on 100% exactly: finish the count if the job did.
+    status = project.GetRenderJobStatus(job_id) or {}
+    if str(status.get("JobStatus", "")).lower() == "complete":
+        taken_ms = status.get("TimeTakenToRenderInMs")
+        elapsed = (taken_ms / 1000.0) if taken_ms else (time.monotonic() - started)
+        while next_step <= 100:
+            print(milestone(next_step, elapsed, fmt_hms(0)), flush=True)
+            next_step += MILESTONE_STEP
+
+
+MILESTONE_STEP = 20
+
+
+def milestone(pct: int, elapsed: float, eta: str) -> str:
+    return f"progress: {pct}%  elapsed {fmt_hms(elapsed)}  eta {eta}"
 
 
 def parse_args() -> argparse.Namespace:
@@ -508,6 +532,9 @@ def print_settings(
 
 
 def main() -> None:
+    # Line by line even into a pipe, so a job log fills as the render goes
+    # rather than all at once when the process exits.
+    sys.stdout.reconfigure(line_buffering=True)
     args = parse_args()
 
     input_file = require_absolute_path(args.input_file)
@@ -515,6 +542,17 @@ def main() -> None:
 
     if not input_file.exists():
         fail(f"input file not found: {input_file}")
+
+    # One line saying what this run is, first thing — before any wait for
+    # Resolve — so a log shows which file and settings a run was, even if it
+    # never gets further.
+    container = "ProRes 422 Proxy MOV" if args.prores else "HEVC MKV" if args.mkv else "HEVC MP4"
+    print(
+        f"starting: {input_file.name} -> {args.fps} fps, "
+        f"{MOTION_ESTIMATION[args.quality][2]}, "
+        f"{MOTION_RANGE[args.motion_range][1].lower()} motion range, {container}",
+        flush=True,
+    )
 
     output_dir = output_file.parent
     output_name = output_file.stem
