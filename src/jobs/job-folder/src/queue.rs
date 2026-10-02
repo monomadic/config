@@ -10,7 +10,7 @@
 //! | `output/` | `$OUTPUT_DIR`, the script's to fill |
 //! | `done/` | inputs whose run succeeded, moved here afterwards |
 //! | `failed/` | inputs whose run failed or was stopped |
-//! | `stdout.log`, `stderr.log` | every run's output, appended under a header |
+//! | `stdout.log`, `stderr.log` | every run's output, appended; a run that prints adds a header first |
 //!
 //! An input stays in `input/` while it runs, so `$INPUT_DIR` never moves under
 //! the script, and anything still in `input/` when the app starts is simply
@@ -744,10 +744,11 @@ fn run(jobs: Arc<Jobs>, id: u64) {
     let output_dir = dir.join(OUTPUT);
     let _ = fs::create_dir_all(&output_dir);
 
-    // Every run appends under a header, so one log per folder stays readable.
-    let header = format!("\n=== {} {input_file} ===\n", clock::timestamp());
-    let out_log = append(&dir.join(STDOUT_LOG), &header);
-    let err_log = append(&dir.join(STDERR_LOG), &header);
+    // One log per stream per folder, shared by every run. A run's header goes
+    // in only with its first output, so a quiet stream stays empty.
+    let header = format!("=== {} {input_file} ===\n", clock::timestamp());
+    let out_log = Log::new(dir.join(STDOUT_LOG), header.clone());
+    let err_log = Log::new(dir.join(STDERR_LOG), header);
 
     // Run as-is if it's executable, so its shebang counts; through bash if not,
     // so a script saved without +x still works.
@@ -857,11 +858,35 @@ fn run(jobs: Arc<Jobs>, id: u64) {
     );
 }
 
-/// Open `path` for appending and write `text` to it.
-fn append(path: &Path, text: &str) -> Option<File> {
-    let mut file = OpenOptions::new().create(true).append(true).open(path).ok()?;
-    let _ = file.write_all(text.as_bytes());
-    Some(file)
+/// One run's half of a shared log file. Nothing is written — not the header,
+/// not even the file — until the run actually prints something, so a log only
+/// grows when there is something in it to read, and every block in it is
+/// headed by the run it came from.
+struct Log {
+    path: PathBuf,
+    header: String,
+    file: Option<File>,
+}
+
+impl Log {
+    fn new(path: PathBuf, header: String) -> Self {
+        Self { path, header, file: None }
+    }
+
+    fn write(&mut self, bytes: &[u8]) {
+        if self.file.is_none() {
+            let Ok(mut file) = OpenOptions::new().create(true).append(true).open(&self.path) else {
+                return;
+            };
+            // A blank line between blocks, but none at the top of a new file.
+            let gap = if file.metadata().is_ok_and(|meta| meta.len() > 0) { "\n" } else { "" };
+            let _ = file.write_all(format!("{gap}{}", self.header).as_bytes());
+            self.file = Some(file);
+        }
+        if let Some(file) = self.file.as_mut() {
+            let _ = file.write_all(bytes);
+        }
+    }
 }
 
 /// Copy a stream to its log and — for stdout — feed each complete line into
@@ -869,16 +894,14 @@ fn append(path: &Path, text: &str) -> Option<File> {
 ///
 /// Carriage returns end a line like newlines: a tool redrawing a progress bar in
 /// place writes `\r`, and what it just drew is the interesting part.
-fn pump(mut stream: impl Read, mut file: Option<File>, mut model: Option<(Arc<Jobs>, u64)>) {
+fn pump(mut stream: impl Read, mut log: Log, mut model: Option<(Arc<Jobs>, u64)>) {
     let mut buffer = [0u8; 8192];
     let mut partial = String::new();
     loop {
         match stream.read(&mut buffer) {
             Ok(0) | Err(_) => break,
             Ok(read) => {
-                if let Some(handle) = file.as_mut() {
-                    let _ = handle.write_all(&buffer[..read]);
-                }
+                log.write(&buffer[..read]);
                 let Some((jobs, id)) = model.as_mut() else {
                     continue;
                 };
@@ -1130,7 +1153,13 @@ mod tests {
         );
         let out = fs::read_to_string(dir.join(STDOUT_LOG)).unwrap();
         assert!(out.contains("clip.mov ===") && out.contains("encoding 45%"));
-        assert!(fs::read_to_string(dir.join(STDERR_LOG)).unwrap().contains("oops"));
+        // Each log holds its own stream and nothing of the other's, and starts
+        // with its header rather than a blank line.
+        assert!(out.starts_with("=== "), "got {out:?}");
+        let err = fs::read_to_string(dir.join(STDERR_LOG)).unwrap();
+        assert!(err.contains("oops"));
+        assert!(!err.contains("encoding 45%"), "stdout leaked into stderr.log:\n{err}");
+        assert!(!out.contains("oops"), "stderr leaked into stdout.log:\n{out}");
 
         let _ = fs::remove_dir_all(&base);
     }
@@ -1154,6 +1183,8 @@ mod tests {
         assert!(fs::symlink_metadata(&filed).unwrap().file_type().is_symlink());
         assert_eq!(fs::read_to_string(&source).unwrap(), "original");
         assert_eq!(fs::read_to_string(dir.join(OUTPUT).join("source.mov")).unwrap(), "original");
+        // It printed nothing, so neither log gained so much as a header.
+        assert!(!dir.join(STDOUT_LOG).exists() && !dir.join(STDERR_LOG).exists());
         let _ = fs::remove_dir_all(&base);
     }
 

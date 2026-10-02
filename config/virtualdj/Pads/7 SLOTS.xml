@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <page name="FX-SLOTS">
-  <pad1 name="`param_equal '`effect_stems`' 'Stems FX' ? get_text 'FX1\n`effect_select 1 &amp; param_uppercase`' : get_text '`effect_stems`\n`effect_select 1 &amp; param_uppercase`'`" color="color 'yellow'" query="effect_active 1" right_click="effect_select 1">effect_active 1</pad1>
+  <pad1 name="`effect_stems &amp; param_equal 'Stems FX' ? get_text 'FX1' : effect_stems`\n`effect_select 1 &amp; param_uppercase`" color="color 'yellow'" query="effect_active 1" right_click="effect_select 1">effect_active 1</pad1>
   <shift_pad1 name="`effect_select 1 &amp; param_uppercase`" color="color 'yellow'" query="effect_active 1" right_click="effect_select 1">effect_select 1</shift_pad1>
   <pad2 name="FX2\n`effect_select 2 &amp; param_uppercase`" color="color 'yellow'" query="effect_active 2" right_click="effect_select 2">effect_active 2</pad2>
   <shift_pad2 name="`effect_select 2 &amp; param_uppercase`" color="color 'yellow'" query="effect_active 2" right_click="effect_select 2">effect_select 2</shift_pad2>

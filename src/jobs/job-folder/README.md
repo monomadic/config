@@ -21,9 +21,13 @@ quit it.** Add it to Login Items if you want it always on.
   output/       $OUTPUT_DIR, the script's to fill
   done/         inputs whose run succeeded
   failed/       inputs whose run failed or was stopped
-  stdout.log    every run's stdout, appended under a header
-  stderr.log    every run's stderr, same
+  stdout.log    every run's stdout, appended
+  stderr.log    every run's stderr, appended
 ```
+
+A run's output in either log is headed `=== <time> <input file> ===`, written
+just before its first line. A run that prints nothing to a stream adds nothing
+to that log, header included.
 
 Any non-hidden directory under the root with a `job.sh` counts, picked up live.
 `job.sh` may be a symlink: hand-written workflows are tracked in the dotfiles
