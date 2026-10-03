@@ -110,13 +110,12 @@ run = { fg = "#ff7ad9", bold = false }
 desc = { fg = "#cfd3dc" }
 hovered = { bg = "#151519", bold = false }
 footer = { fg = "#0a0a0b", bg = "#66e2ff" }
-# Used by the action-menu plugin (plugins/action-menu.yazi), which has its
-# own flat, borderless layout separate from the built-in `~` help box.
+# Also used by the action-menu plugin (plugins/action-menu.yazi). Yazi drops
+# keys it doesn't know here, so the menu's backdrop and match colours are set
+# in the plugin's main.lua instead.
 border = { fg = "#88AAFF" }
 chord = { fg = "#66e2ff", bold = false }
 action = { fg = "#ffffff" }
-match = { fg = "#ffe66d", bold = true }
-bg = { bg = "#111114" }
 
 [notify]
 title_info = { fg = "#66e2ff", bold = false }

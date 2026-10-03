@@ -89,8 +89,9 @@ local function collect(groups, targets)
 						block = it.block or false,
 						orphan = it.orphan or false,
 						cmd = display(it.run),
-						-- The command is searchable too, so a tool can be found by name.
-						hay = (g.group .. " " .. it.desc .. " " .. display(it.run)):lower(),
+						-- Only what the row shows: matching the command too made
+						-- rows appear with nothing visibly matching.
+						hay = (g.group .. " " .. it.desc):lower(),
 					}
 				end
 			end
@@ -293,21 +294,35 @@ function M:reflow() return { self } end
 -- row pinned to the bottom.
 function M:redraw()
 	local area = self._area
-	if not self.children or area.h < 6 or area.w < 20 then
+	if not self.children or area.h < 8 or area.w < 20 then
 		return {}
 	end
 
 	local x, y, w, h = area.x, area.y, area.w, area.h
 	local input = ui.Rect { x = x + 3, y = y, w = w - 3 - 10, h = 1 }
 	local count = ui.Rect { x = x + w - 10, y = y, w = 9, h = 1 }
-	local list = ui.Rect { x = x + 1, y = y + 1, w = w - 2, h = h - 2 }
-	local bar = ui.Rect { x = x + 1, y = y + h - 1, w = w - 2, h = 1 }
+	local list = ui.Rect { x = x + 1, y = y + 1, w = w - 2, h = h - 4 }
+	-- Command preview: a lighter 3-row band, the command on its middle row.
+	local band = ui.Rect { x = x, y = y + h - 3, w = w, h = 3 }
+	local bar = ui.Rect { x = x + 1, y = y + h - 2, w = w - 2, h = 1 }
+
+	-- Yazi's [help] theme section only has border/chord/action/hovered; any
+	-- other key there is dropped on load, so these are set here.
+	local bg = ui.Style():bg("#111114")
+	local selected = ui.Style():bg("#2c2cFc")
+	local band_bg = ui.Style():bg("#1e1e26")
+	local match = ui.Style():fg("#ffe66d"):bold()
 
 	-- Backdrop: a flat panel of solid background, drawn once behind
 	-- everything else so unfilled row width still reads as "inside the box".
 	local backdrop_lines = {}
 	for _ = 1, h do
-		backdrop_lines[#backdrop_lines + 1] = ui.Line(string.rep(" ", w)):style(th.help.bg)
+		backdrop_lines[#backdrop_lines + 1] = ui.Line(string.rep(" ", w)):style(bg)
+	end
+
+	local band_lines = {}
+	for _ = 1, band.h do
+		band_lines[#band_lines + 1] = ui.Line(string.rep(" ", w)):style(band_bg)
 	end
 
 	local terms = terms_of(self.query)
@@ -321,19 +336,24 @@ function M:redraw()
 		-- Pad by hand: string.format's width spec caps out well below a
 		-- full-terminal-width row, so a dynamic "%-Ns" blows up.
 		local desc_w = math.max(0, list.w - #indicator - GROUP_W)
-		local group = #r.group < GROUP_W and string.rep(" ", GROUP_W - #r.group) .. r.group or r.group
+		-- Cells, not bytes: an icon in the description is several bytes wide.
+		local desc_cells = ui.Line(r.desc):width()
+		local group_pad = string.rep(" ", math.max(0, GROUP_W - #r.group))
 
 		local spans = { ui.Span(indicator):style(th.help.chord) }
-		for _, s in ipairs(highlight(r.desc, terms, th.help.action, th.help.match)) do
+		for _, s in ipairs(highlight(r.desc, terms, th.help.action, match)) do
 			spans[#spans + 1] = s
 		end
-		if #r.desc < desc_w then
-			spans[#spans + 1] = ui.Span(string.rep(" ", desc_w - #r.desc)):style(th.help.action)
+		if desc_cells < desc_w then
+			spans[#spans + 1] = ui.Span(string.rep(" ", desc_w - desc_cells)):style(th.help.action)
 		end
-		spans[#spans + 1] = ui.Span(group):style(th.help.chord)
+		spans[#spans + 1] = ui.Span(group_pad):style(th.help.chord)
+		for _, s in ipairs(highlight(r.group, terms, th.help.chord, match)) do
+			spans[#spans + 1] = s
+		end
 
 		local line = ui.Line(spans)
-		lines[#lines + 1] = line:style(hovered_row and th.help.hovered or th.help.bg)
+		lines[#lines + 1] = line:style(hovered_row and selected or bg)
 	end
 	if #self.rows == 0 then
 		lines[1] = ui.Line(" no matching actions"):style(ui.Style():dim())
@@ -350,13 +370,13 @@ function M:redraw()
 			:area(count)
 			:align(ui.Align.RIGHT),
 		ui.List(lines):area(list),
+		ui.Text(band_lines):area(band),
 		ui.Text(ui.Line {
-			ui.Span("$ "):style(th.help.chord),
+			ui.Span("  $ "):style(th.help.chord),
 			ui.Span(hovered and hovered.cmd or ""):style(ui.Style():dim()),
 		})
 			:area(bar)
-			:style(th.help.bg)
-			:wrap(ui.Wrap.YES),
+			:style(band_bg),
 	}
 end
 
