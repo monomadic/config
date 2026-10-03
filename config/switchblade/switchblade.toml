@@ -176,17 +176,8 @@ auto_skip_countdown = false
 pause_unfocused = true
 
 # ── Quickview (Space) ───────────────────────────────────────────────────
-# The backdrop: black dim strength (0..1) and frosted-glass blur level —
-# the grid is downsampled 2^level before drawing back, so 1 = subtle,
-# 4 = heavy frost, 0 = no blur. GPU-cheap either way.
-quickview_dim = 0.60
-quickview_blur = 0.0
-# Backdrop styles: "blur" = the frosted, dimmed gallery above; "flat" =
-# an opaque backdrop_color stage that hides the gallery entirely.
-# Quickview defaults to "blur", fullview (Tab) to "flat" — swap either.
-quickview_backdrop = "blur"
-fullview_backdrop = "flat"
-backdrop_color = [0.0, 0.0, 0.0]  # the flat stage color
+# What the modals draw behind the video is the theme's [backdrop.strip] /
+# [backdrop.cinema] (themes/default.toml) since 2026-10-03.
 # Fade-in when quickview opens (dim + blur + the modal); 0 ≈ instant.
 quickview_fade_ms = 0.0
 # The clip's name above the video: the container's `title` tag when the

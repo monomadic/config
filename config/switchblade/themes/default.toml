@@ -495,3 +495,14 @@ fade_ms = 130.0 # was triple_fade_ms
 # The focused pane's ring is the only focus cue; unfocused panes aren't dimmed.
 [triple.focused]
 border.width = 3.0  # was triple_border_width
+
+# ── Backdrops (2026-10-03) ──────────────────────────────────────────────
+# What an overlay draws behind itself: cinema, strip, panel. `color`'s
+# alpha is the tint's strength (1.0 = opaque stage); `fall` > 0 is a
+# gradient from the top edge, as a fraction of the window height; `blur`
+# frosts the grid under the strip view (0 = none). These replace the old
+# quickview_dim / quickview_blur / quickview_backdrop keys.
+[backdrop.strip]
+color = [0.0, 0.0, 0.0, 0.70]   # was quickview_dim = 0.60
+fall = 0.0
+blur = 0.0                      # was quickview_blur = 0.0
