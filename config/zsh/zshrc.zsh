@@ -313,3 +313,9 @@ export PATH="$PATH:/Users/nom/.lmstudio/bin"
 
 export PATH="$HOME/go/bin:$PATH"
 
+
+export PATH="$HOME/.conductor/bin:$HOME/.local/bin:$PATH"
+
+export GOROOT="$HOME/.local/go"
+
+export PATH="$GOROOT/bin:$PATH"

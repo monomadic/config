@@ -1,4 +1,4 @@
-theme = "terminal-loud" # terminal ANSI palette, transparent bg + banner-style error/warning (see themes/terminal-loud.toml)
+theme = "ataraxia" # terminal ANSI palette, transparent bg + banner-style error/warning (see themes/terminal-loud.toml)
 
 [editor]
 true-color = true

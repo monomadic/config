@@ -1,0 +1,152 @@
+#!/bin/zsh
+# kitty-run
+#
+# Run a command in a throwaway Kitty window that gets out of the way.
+#
+# The command runs (decorated by kitty-exec) in a temporary tab or in a
+# floating panel along the bottom of the screen. If it succeeds, the window
+# closes. If it fails, the output stays up under a one-key menu:
+#
+#   d  dismiss
+#   c  copy the window's buffer (scrollback included) to the clipboard, dismiss
+#   s  drop into an interactive zsh in the command's directory
+#
+# Usage:
+#   kitty-run [options] [--] <command> [args...]
+#
+# Options:
+#   --tab            Temporary tab in the existing Kitty window (default)
+#   --float          Floating panel at the bottom of the screen
+#   --lines N        Height of the floating panel in lines (default 16)
+#   --title TITLE    Tab/window title (default: the command's name)
+#   --color COLOR    Tab tint while running (default #A442F3)
+#   --cwd DIR        Working directory (default: where kitty-run was called)
+#   --shell          Run through $SHELL -lc, as kitty-exec --shell does: one
+#                    argument is a shell string, several are argv
+#   --interactive    Like --shell, but -lic, so .zshrc is read too
+#
+# Examples:
+#   kitty-run cargo build --release
+#   kitty-run --float --title Sync --shell 'rclone sync a b && notify done'
+#   kitty-run --float --lines 24 --interactive update switchblade
+#
+# Notes:
+#   - The caller's PATH is carried into the new window; from a GUI launcher
+#     with launchd's bare PATH, use --shell/--interactive instead.
+#   - --tab goes through kitty-launch, so it shares its socket discovery and
+#     its fallbacks when no Kitty is reachable.
+
+emulate -L zsh
+setopt err_exit no_unset pipe_fail
+
+script_name="${0:t}"
+self="${0:a}"
+
+usage() {
+  sed -n '2,/^$/ s/^# \{0,1\}//p' "$self"
+}
+
+# ---------------------------------------------------------------------------
+# Inner half: runs inside the temporary window.
+#   kitty-run --inner <title> <color> <kitty-exec command...>
+# ---------------------------------------------------------------------------
+if [[ ${1:-} == --inner ]]; then
+  shift
+  setopt no_err_exit
+
+  # Ctrl-C should end the command, not this wrapper: the menu still follows.
+  # A handler (not an ignore) so the command itself keeps the default action.
+  trap ':' INT
+
+  "${self:h}/kitty-exec" "$@"
+  exit_status=$?
+  (( exit_status == 0 )) && exit 0
+
+  # Grab the buffer before the menu is drawn into it.
+  buffer="$(kitty @ get-text --match "id:${KITTY_WINDOW_ID:-0}" --extent=all 2>/dev/null)"
+
+  print -P -- "\n%F{red}%B✗ ${1//\%/%%} exited with status $exit_status%b%f"
+  print -P -- "%B[d]%b dismiss   %B[c]%b dismiss and copy buffer to clipboard   %B[s]%b interactive shell"
+
+  while true; do
+    read -k 1 -s key || exit "$exit_status"
+    case "$key" in
+      d|D|q|$'\e'|$'\n'|$'\r')
+        exit "$exit_status"
+        ;;
+      c|C)
+        print -r -- "$buffer" | pbcopy
+        exit "$exit_status"
+        ;;
+      s|S)
+        print
+        trap - INT
+        exec "${SHELL:-/bin/zsh}" -il
+        ;;
+    esac
+  done
+fi
+
+# ---------------------------------------------------------------------------
+# Outer half: open the temporary window.
+# ---------------------------------------------------------------------------
+placement="tab"
+lines=16
+title=""
+color="#A442F3"
+cwd="$PWD"
+exec_flag=()
+
+need_arg() {
+  (( $1 >= 2 )) || { print -u2 -- "$script_name: missing argument for $2"; exit 2; }
+}
+
+while (( $# )); do
+  case "$1" in
+    --tab)         placement="tab"; shift ;;
+    --float)       placement="float"; shift ;;
+    --lines)       need_arg $# $1; lines="$2"; shift 2 ;;
+    --title)       need_arg $# $1; title="$2"; shift 2 ;;
+    --color)       need_arg $# $1; color="$2"; shift 2 ;;
+    --cwd)         need_arg $# $1; cwd="$2"; shift 2 ;;
+    --shell|--interactive) exec_flag=( "$1" ); shift ;;
+    -h|--help)     usage; exit 0 ;;
+    --)            shift; break ;;
+    -*)            print -u2 -- "$script_name: unknown option: $1"; exit 2 ;;
+    *)             break ;;
+  esac
+done
+
+if (( $# == 0 )); then
+  usage >&2
+  exit 2
+fi
+
+[[ -n "$title" ]] || title="${${1%% *}:t}"
+
+inner=( /usr/bin/env "PATH=$PATH" "$self" --inner "$title" "$color" $exec_flag "$@" )
+
+if [[ $placement == tab ]]; then
+  exec "${self:h}/kitty-launch" --tab --dismiss --cwd "$cwd" --title "$title" -- $inner >/dev/null
+fi
+
+# Floating panel. Prefer the running Kitty; its sockets are /tmp/kitty-<pid>.
+panel_opts=( edge=bottom "lines=$lines" layer=top focus-policy=on-demand )
+
+socket=""
+for candidate in ${KITTY_LISTEN_ON:-} /tmp/kitty-*(N=) /tmp/kitty.*(N=); do
+  [[ $candidate == unix:* ]] || candidate="unix:$candidate"
+  if kitty @ --to "$candidate" ls >/dev/null 2>&1; then
+    socket="$candidate"
+    break
+  fi
+done
+
+if [[ -n "$socket" ]]; then
+  kitty @ --to "$socket" launch --type=os-panel --os-panel=${^panel_opts} \
+    --cwd "$cwd" --title "$title" -- $inner >/dev/null
+else
+  # No Kitty to ask: a standalone panel, with tty remote control for get-text.
+  cd -- "$cwd"
+  kitty +kitten panel --${^panel_opts} --detach -o allow_remote_control=yes $inner
+fi

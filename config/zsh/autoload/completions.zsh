@@ -37,25 +37,29 @@ e() {
   $EDITOR "$@"
 }
 
-zstyle ':completion:*:*:e:*' sort false   # avoid slow sorting on big sets
+zstyle ':completion:*:*:e:*' sort false   # keep our depth-first order
 _e() {
   setopt localoptions no_errexit noshwordsplit
 
   local cur="${words[CURRENT]}"
   local -a m
 
-  # keep <TAB> instant until user types something meaningful
-  # if (( ${#cur} < 2 )); then
-  #   _files
-  #   return 0
-  # fi
+  # Candidates are handed to fzf (TAB is bound to fzf_completion), so this
+  # only has to produce a good *superset*: fzf does the narrowing.
+  #   - substring match on the full path, not a basename-prefix glob, so
+  #     "keyb" finds bin/ls-keybindings and "zsh/key" works
+  #   - files and directories; --hidden so dotfiles show up
+  #   - fd walks in parallel, so --max-results alone returns an arbitrary
+  #     subset: fetch generously and rank shallow paths first instead
+  m=("${(@f)$(fd --color=never --follow --hidden \
+        --max-depth 6 --max-results 3000 --strip-cwd-prefix \
+        --fixed-strings --full-path \
+        --exclude .git --exclude Library --exclude .cache --exclude .local \
+        --exclude node_modules --exclude target \
+        -- "$cur" 2>/dev/null \
+      | awk -F/ '{ print NF "\t" $0 }' | sort -s -n -k1,1 | cut -f2-)}")
 
-  m=("${(@f)$(fd --color=never --follow \
-        --max-depth 6 --max-results 200 \
-        --exclude .git --exclude Library --exclude .config --exclude .cache --exclude .local \
-        --glob "${cur}*" . 2>/dev/null)}")
-
-  (( ${#m} )) && compadd -Q -- "${m[@]}" || _files
+  (( ${#m} )) && compadd -Q -f -- "${m[@]}" || _files
   return 0
 }
 
