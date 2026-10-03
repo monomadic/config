@@ -1,32 +1,97 @@
 #!/bin/zsh
-# cleanup — fzf menu of reclaimable disk space.
+# cleanup — one menu for everything that eats disk, bent around this workflow.
 #
-# Lists git worktrees (each with its size), Homebrew cleanup (with brew's own
-# estimate), cargo target dirs, and the usual cache bloat. Enter cleans the one
-# highlighted entry; ctrl-a cleans every entry listed under the current query,
-# after a single confirmation. On enter, clean worktrees, tool caches and build
-# dirs go without asking; dirty worktrees, orphans, the Trash and plain
-# directories ask first. A dirty worktree always asks.
+# The main list shows what is worth looking at, with sizes, a colour for how
+# risky it is to clear, and — in the preview pane — advice on what you lose.
+# Rows marked ▸ open a submenu of their own:
 #
-#   cleanup            interactive menu
-#   cleanup --list     print the entries and exit (no fzf)
+#   Downloads → Tower   copy new files from ~/Movies/Porn/Downloads to the m4's
+#                       Tower, merging into folders that already exist there.
+#                       Nothing on the Tower is overwritten or deleted.
+#   Topaz models ▸      every model one by one (weights + compiled cache),
+#                       with how many of your presets use it. Archive to the
+#                       Tower, delete, or restore an archived one.
+#   Large files ▸       files over 250M in ~/Movies ~/Music ~/Downloads ~/Pictures
+#   ~/src ▸             repos (dirty / unpushed work flagged), worktrees, cargo
+#                       target dirs, and directories that aren't git at all
+#   …and brew, tool caches, known cache dirs, big app caches, the Trash.
 #
-# CLEANUP_ROOTS   dirs searched for repos and cargo projects (default: $HOME)
-# CLEANUP_MIN_MB  smallest unknown cache dir worth listing   (default: 200)
+# Keys (vim):  j/k move · g/G top/bottom · ctrl-d/u half page · enter or l run
+#              / search (esc leaves it) · ? toggle advice · h/q/esc back or quit
+#              ctrl-a clean everything listed that needs no questions
+#              ctrl-r rescan
+#
+#   cleanup              main menu
+#   cleanup topaz        jump straight into a submenu (topaz | files | src)
+#   cleanup --list [v]   print a view and exit (no fzf)
+#
+# CLEANUP_ROOTS      dirs searched for worktrees and cargo projects (default $HOME)
+# CLEANUP_MIN_MB     smallest unknown cache dir worth listing        (default 200)
+# CLEANUP_SRC        where your repos live                           (default $SRC_PATH or ~/src)
+# CLEANUP_BIG_DIRS   dirs scanned for large files    (default ~/Movies ~/Music ~/Downloads ~/Pictures)
+# CLEANUP_BIG_MB     "large" threshold                               (default 250)
+# CLEANUP_YTDLP_DAYS partial downloads older than this are stale     (default 7)
+# CLEANUP_SYNC_SRC   folder pushed to the Tower      (default ~/Movies/Porn/Downloads)
+# CLEANUP_SYNC_DST   its home on the Tower           (default <Tower>/Movies/Porn/Downloads)
+# CLEANUP_TOWER      the Tower's mount point         (default /Volumes/Tower)
+# CLEANUP_TOWER_URL  how to mount it                 (default smb://m4.local/Tower)
+# CLEANUP_ARCHIVE    where archived things go        (default <Tower>/Backups)
+# CLEANUP_TOWER_UP   set to skip the mount check (for tests against a plain folder)
 
 setopt pipe_fail
+zmodload zsh/stat 2>/dev/null
 
 self=${0:A}
+dotfiles=${self:h:h}
+source $dotfiles/bin/lib/topaz-app.zsh
+
 roots=(${=CLEANUP_ROOTS:-$HOME})
 min_kb=$(( ${CLEANUP_MIN_MB:-200} * 1024 ))
-hints='enter: clean this entry · ctrl-a: clean all listed · ctrl-r: rescan · esc: quit'
+src_dir=${CLEANUP_SRC:-${SRC_PATH:-$HOME/src}}
+big_mb=${CLEANUP_BIG_MB:-250}
+big_dirs=(${=CLEANUP_BIG_DIRS:-$HOME/Movies $HOME/Music $HOME/Downloads $HOME/Pictures})
+tower=${CLEANUP_TOWER:-/Volumes/Tower}
+tower_url=${CLEANUP_TOWER_URL:-smb://m4.local/Tower}
+archive=${CLEANUP_ARCHIVE:-$tower/Backups}
+arch_topaz=$archive/topaz-models
+sync_src=${CLEANUP_SYNC_SRC:-$HOME/Movies/Porn/Downloads}
+sync_dst=${CLEANUP_SYNC_DST:-$tower/Movies/Porn/Downloads}
+models_dir=$(topaz_resolve_models_dir 2>/dev/null)
+presets_dir=$dotfiles/bin/lib/topaz-presets
+ytdlp_tmp=${YT_DLP_TEMP_DIR:-$HOME/.cache/yt-dlp-tmp}
+ytdlp_days=${CLEANUP_YTDLP_DAYS:-7}
+
+# Partial downloads and Finder litter never travel to the Tower.
+sync_skip='(.DS_Store|._*|*.part|*.ytdl|*.crdownload|*.download|*.aria2)'
+sync_excl=(--exclude=.DS_Store '--exclude=._*' '--exclude=*.part' '--exclude=*.ytdl'
+           '--exclude=*.crdownload' '--exclude=*.download' '--exclude=*.aria2')
 
 # Never descended into when looking for repos and cargo projects.
 skip=(Library Applications Music Pictures Movies icloud node_modules
       .Trash .cache .cargo .rustup .local .pyenv .npm go)
 fd_skip=(); for s in $skip; do fd_skip+=(-E $s); done
+big_nice=(); for s in $big_dirs; do big_nice+=(${s/#$HOME/\~}); done
 
-# --- helpers ------------------------------------------------------------------
+# --- look -------------------------------------------------------------------
+
+o=$'\e[0m' dim=$'\e[2m' bold=$'\e[1m'
+c_red=$'\e[38;5;167m' c_amb=$'\e[38;5;179m' c_grn=$'\e[38;5;108m'
+
+typeset -A RISK=(s $c_grn c $c_amb d $c_red)
+typeset -A RISKTXT=(s 'safe to clear' c 'check first' d 'careful')
+typeset -A ICON=(
+  sync    $''  topaz   $''  model   $''  archive $''
+  files   $''  file    $''  src     $''  repo    $''
+  worktree $'' brew    $''  cargo   $''  cache   $''
+  tool    $''  trash   $''  resolve $''  ios     $''
+  ytdlp   $'\uf019'
+  disk    $''  tip     $''  more    $''
+)
+
+hints_main='j/k move · enter run · / search · ? advice · ctrl-a clean all · ctrl-r rescan · q quit'
+hints_sub='j/k move · enter run · / search · ? advice · ctrl-a clean all · ctrl-r rescan · h back'
+
+# --- helpers ----------------------------------------------------------------
 
 human() {  # kb -> REPLY
   local kb=$1
@@ -40,26 +105,211 @@ kb_of() {  # total kb of the given paths -> REPLY
   REPLY=$(du -sk -- "$@" 2>/dev/null | awk '{s += $1} END {print s + 0}')
 }
 
+bytes_of() {  # apparent bytes of a file or a tree -> REPLY
+  if [[ -d $1 ]]; then
+    REPLY=$(find $1 -type f -print0 | xargs -0 stat -f%z 2>/dev/null | awk '{s += $1} END {print s + 0}')
+  else
+    REPLY=$(stat -f%z $1 2>/dev/null)
+  fi
+}
+
 tilde() { REPLY=${1/#$HOME/\~} }
 
-# Raw row: kb, size label (- = derive from kb), kind, arg1, arg2, tag, text.
+tower_up() { [[ -n $CLEANUP_TOWER_UP ]] || mount | grep -q " on $tower ("; }
+
+tower_mount() {
+  tower_up && return 0
+  print "mounting $tower_url …"
+  osascript -e "mount volume \"$tower_url\"" >/dev/null 2>&1
+  local i; for i in {1..20}; do tower_up && return 0; sleep 0.5; done
+  return 1
+}
+
+# Raw row: kb, size label (- = derive from kb), kind, arg1, arg2, tag, risk, text.
 # Unused fields are "-": tab is IFS whitespace, so empty ones would collapse.
 row() { print -r -- "${(pj:\t:)@}" }
 
+# A suggestion for the header: priority (low = shown first), text.
+tip() { [[ -n $CLEANUP_NOTIPS ]] || print -r -- "$1"$'\t'"$ICON[tip] $2" >> $CLEANUP_TMP/tips }
+
 # Raw rows on stdin -> fzf lines "kind \t arg1 \t arg2 \t display", biggest first.
 format() {
-  local kb label kind a1 a2 tag text
-  sort -t$'\t' -k1,1rn | while IFS=$'\t' read -r kb label kind a1 a2 tag text; do
+  local kb label kind a1 a2 tag risk text
+  sort -t$'\t' -k1,1rn | while IFS=$'\t' read -r kb label kind a1 a2 tag risk text; do
     [[ $label == - ]] && { human $kb; label=$REPLY }
-    printf '%s\t%s\t%s\t\e[1;33m%7s\e[0m  \e[36m%-9s\e[0m %s\n' \
-      $kind $a1 $a2 $label $tag $text
+    printf '%s\t%s\t%s\t%s%s\e[0m  \e[1;38;5;215m%7s\e[0m  \e[38;5;109m%-8s\e[0m %s\n' \
+      $kind $a1 $a2 $RISK[$risk] $ICON[$tag] $label $tag $text
   done
 }
 
-# --- scanners -----------------------------------------------------------------
+# --- scanners: Downloads → Tower ---------------------------------------------
+
+# Compare every file under the source with the Tower, by relative path and
+# size. Fills sync_new (absent there), sync_same (there, same size) and
+# sync_diff (there, different size — never touched); sync_new_kb sums sync_new.
+sync_plan() {
+  typeset -ga sync_new sync_same sync_diff
+  typeset -g sync_new_kb=0 sync_same_kb=0
+  sync_new=() sync_same=() sync_diff=()
+  local f rel t
+  local -a sa sb
+  for f in $sync_src/**/*(.DN); do
+    [[ ${f:t} == $~sync_skip ]] && continue
+    rel=${f#$sync_src/} t=$sync_dst/$rel
+    zstat -A sa +size -- $f || continue
+    if [[ ! -e $t ]]; then
+      sync_new+=($rel); (( sync_new_kb += sa[1] / 1024 ))
+    else
+      zstat -A sb +size -- $t
+      if [[ $sa[1] == $sb[1] ]]; then sync_same+=($rel); (( sync_same_kb += sa[1] / 1024 ))
+      else sync_diff+=($rel); fi
+    fi
+  done
+}
+
+scan_sync() {
+  [[ -d $sync_src ]] || return
+  local total new_h same_h text
+  kb_of $sync_src; total=$REPLY
+  (( total > 4 )) || return
+  tilde $sync_src; local nice=$REPLY
+
+  if ! tower_up; then
+    row $total - sync - - sync c "$nice → Tower  ${c_amb}Tower not mounted${o} ${dim}(enter mounts it)${o}"
+    tip 30 "$nice is $(human $total; print $REPLY) and the Tower isn't mounted  ${dim}→ enter on the sync row mounts it${o}"
+    return
+  fi
+  sync_plan
+  { print -rl -- $sync_new > $CLEANUP_TMP/sync.new
+    print -rl -- $sync_diff > $CLEANUP_TMP/sync.diff } 2>/dev/null
+  human $sync_new_kb; new_h=$REPLY
+  text="$nice → Tower  ${bold}$#sync_new new${o} ($new_h) ${dim}· $#sync_same already there${o}"
+  (( $#sync_diff )) && text+="  ${c_red}$#sync_diff differ${o}"
+  row $total - sync - - sync c $text
+  (( $#sync_new )) &&
+    tip 30 "$#sync_new files ($new_h) in $nice aren't on the Tower yet  ${dim}→ enter on the sync row${o}"
+  (( $#sync_same )) && { human $sync_same_kb
+    tip 31 "$#sync_same local files ($REPLY) are already on the Tower  ${dim}→ the sync row can trash them${o}" }
+}
+
+# --- scanners: Topaz -----------------------------------------------------------
+
+scan_topaz() {
+  [[ -d $models_dir ]] || return
+  local raw=$CLEANUP_TMP/sub-topaz.raw
+  local -a lines; local l kind key name wb cb n uses kb text risk what
+  local total=0 nmodels=0 unused_kb=0 unused_n=0 arch=
+  : > $raw
+  tower_up && arch=$arch_topaz
+  lines=(${(f)"$(python3 $dotfiles/bin/lib/cleanup-topaz-models.py $models_dir $presets_dir $arch 2>/dev/null)"})
+  for l in $lines; do
+    IFS=$'\t' read -r kind key name wb cb n uses <<< $l
+    kb=$(( (wb + cb) / 1024 ))
+    case $kind in
+      model)
+        (( nmodels++, total += kb ))
+        if (( uses == 0 )); then
+          risk=s what="${c_amb}unused by any preset${o}"; (( unused_kb += kb, unused_n++ ))
+        else risk=c what="${dim}used by $uses preset${${uses:#1}:+s}${o}"; fi
+        [[ $name == $key ]] && name=
+        human $(( wb / 1024 )); local w=$REPLY; human $(( cb / 1024 ))
+        row $kb - tmodel $key - model $risk "${name:+$name }${dim}$key${o}  $what ${dim}· weights $w + cache $REPLY${o}" >> $raw
+        ;;
+      store)
+        (( total += kb ))
+        if (( uses == 0 )); then risk=s what="${c_amb}unused by any preset${o}"; (( unused_kb += kb, unused_n++ ))
+        else risk=c what="${dim}used by $uses preset${${uses:#1}:+s}${o}"; fi
+        row $kb - tstore $models_dir/models/$key - model $risk "Starlight store $key ${dim}(neuroserver)${o}  $what" >> $raw
+        ;;
+      restore-model|restore-store)
+        human $(( wb / 1024 ))
+        row 0 "↩ $REPLY" trestore $key ${kind#restore-} archive s "${name} ${dim}archived on the Tower — enter restores it${o}" >> $raw
+        ;;
+    esac
+  done
+  if [[ -d $models_dir/coreMLCache ]]; then
+    kb_of $models_dir/coreMLCache
+    row $REPLY - tcache $models_dir/coreMLCache - topaz s "coreMLCache ${dim}— all compiled model caches (already counted in the rows above)${o}" >> $raw
+  fi
+  format < $raw > $CLEANUP_TMP/list.topaz
+
+  human $total
+  row $total - menu topaz - topaz c "Topaz models ${ICON[more]}  ${dim}$nmodels models · $unused_n unused$( (( unused_kb )) && { human $unused_kb; print -n " ($REPLY)" } )${o}"
+
+  # A store the presets have given up on is the easiest big win.
+  if [[ -d $models_dir/models/slp25m ]] && head -1 $presets_dir/enhancement/starlight-precise-25.toml 2>/dev/null | grep -q '^# Disabled'; then
+    kb_of $models_dir/models/slp25m; human $REPLY
+    tip 10 "Topaz store slp25m ($REPLY) is stale — starlight-precise-25 is disabled  ${dim}→ Topaz models ${ICON[more]} slp25m${o}"
+  fi
+  if (( unused_kb > 1048576 )); then
+    human $unused_kb
+    tip 20 "$unused_n Topaz models ($REPLY) aren't used by any preset  ${dim}→ Topaz models ${ICON[more]} archive or delete${o}"
+  fi
+}
+
+# --- scanners: large files ------------------------------------------------------
+
+scan_files() {
+  local -a dirs=(${^big_dirs}(N/))
+  (( $#dirs )) || return
+  local raw=$CLEANUP_TMP/sub-files.raw bytes path kb total=0 n=0
+  : > $raw
+  fd -H -I -t f -S +${big_mb}m -E '*.app' -E '*.photoslibrary' -E '*.musiclibrary' \
+     -E '*.fcpbundle' -E '*.imovielibrary' -E '*.tvlibrary' -E CacheClip -E .Trash \
+     -0 . $dirs 2>/dev/null |
+    xargs -0 stat -f $'%z\t%N' 2>/dev/null |
+  while IFS=$'\t' read -r bytes path; do
+    [[ $path == $sync_src/* ]] && continue      # the sync row owns that folder
+    kb=$(( bytes / 1024 )); (( total += kb, n++ ))
+    tilde ${path:h}
+    row $kb - file $path - files c "${path:t}  ${dim}$REPLY${o}" >> $raw
+  done
+  sort -t$'\t' -k1,1rn $raw | head -80 | format > $CLEANUP_TMP/list.files
+  row $total - menu files - files c "Large files ${ICON[more]}  ${dim}${n:-0} over ${big_mb}M in ${(j: :)big_nice}$( (( n == 0 )) && print -n ' — nothing to see' )${o}"
+  if (( total > 5242880 )); then
+    human $total
+    tip 40 "$n files over ${big_mb}M ($REPLY) sit in ${(j: :)big_nice}  ${dim}→ Large files ${ICON[more]}: move to the Tower or trash${o}"
+  fi
+}
+
+# --- scanners: ~/src --------------------------------------------------------------
+
+scan_repos() {
+  [[ -d $src_dir ]] || return
+  local d f name kb branch dirty stash remote unpushed last wts flags risk
+  local -a risky
+  for d in $src_dir/*(N/); do
+    name=${d:t}
+    kb_of $d; kb=$REPLY
+    if [[ -e $d/.git ]]; then
+      branch=$(git -C $d symbolic-ref --short -q HEAD || git -C $d rev-parse --short HEAD 2>/dev/null)
+      dirty=$(git -C $d status --porcelain 2>/dev/null | wc -l | tr -d ' ')
+      stash=$(git -C $d stash list 2>/dev/null | wc -l | tr -d ' ')
+      remote=$(git -C $d remote get-url origin 2>/dev/null)
+      unpushed=$(git -C $d rev-list --branches --not --remotes 2>/dev/null | wc -l | tr -d ' ')
+      last=$(git -C $d log -1 --format=%cr 2>/dev/null)
+      wts=$(( $(git -C $d worktree list 2>/dev/null | wc -l) - 1 ))
+      flags= risk=c
+      (( dirty ))     && { flags+="  ${c_red}● $dirty uncommitted${o}"; risk=d }
+      [[ -z $remote ]] && { flags+="  ${c_red}no remote${o}"; risk=d }
+      [[ -n $remote ]] && (( unpushed )) && { flags+="  ${c_red}↑ $unpushed unpushed${o}"; risk=d }
+      (( stash ))     && flags+="  ${c_amb}$stash stash${o}"
+      [[ $risk == d ]] && risky+=($name)
+      (( kb < 20480 )) && [[ $risk != d ]] && continue
+      row $kb - repo $d - repo $risk "$name  ${dim}$branch${o}$flags  ${dim}$last$( (( wts > 0 )) && print -n " · $wts worktrees" )${o}"
+    elif (( kb >= 102400 )); then
+      row $kb - plain $d - src d "$name  ${c_red}not a git repo${o} ${dim}— nothing to re-clone from${o}"
+    fi
+  done
+  for f in $src_dir/*(N.); do
+    kb_of $f; (( REPLY >= 102400 )) && row $REPLY - file $f - src c "${f:t}  ${dim}file in ~/src${o}"
+  done
+  (( $#risky )) &&
+    tip 12 "$#risky repos in ~/src have unpushed, uncommitted or remote-less work (${(j:, :)risky[1,3]}${${#risky:#<-3>}:+, …})  ${dim}→ ~/src ${ICON[more]} shows which; they refuse removal${o}"
+}
 
 scan_worktrees() {
-  local gitdir repo key val wt branch prunable kb label flags text
+  local gitdir repo key val wt branch prunable kb label flags risk text
   local -a known
   fd -H -I -t d -p '/\.git/worktrees$' $roots $fd_skip -E target 2>/dev/null |
   while read -r gitdir; do
@@ -74,16 +324,16 @@ scan_worktrees() {
         '')
           [[ -z $wt || $wt == $repo ]] && continue
           known+=($wt)
-          flags= label=-
+          flags= label=- risk=c
           if [[ -d $wt ]]; then
             kb_of $wt; kb=$REPLY
             [[ -n $(git -C $wt status --porcelain 2>/dev/null | head -1) ]] &&
-              flags=$' \e[31mdirty\e[0m'
+              { flags="  ${c_red}dirty${o}"; risk=d }
           else
             kb=0 label=gone
           fi
-          text="${repo:t} › ${wt:t}  "$'\e[2m'$branch$'\e[0m'$flags
-          row $kb $label worktree $repo $wt worktree $text
+          text="${repo:t} › ${wt:t}  ${dim}$branch${o}$flags"
+          row $kb $label worktree $repo $wt worktree $risk $text
           wt=
           ;;
       esac
@@ -97,25 +347,8 @@ scan_worktrees() {
     dir=${dir%/}
     (( ${known[(Ie)$dir]} )) && continue
     kb_of $dir
-    row $REPLY - orphan $dir - orphan "${dir:h:h:h:t} › ${dir:t}  "$'\e[2munregistered worktree dir\e[0m'
+    row $REPLY - orphan $dir - orphan c "${dir:h:h:h:t} › ${dir:t}  ${dim}unregistered worktree dir${o}"
   done
-}
-
-scan_brew() {
-  (( $+commands[brew] )) || return
-  local out kb=0 label='0'
-  out=$(HOMEBREW_NO_AUTO_UPDATE=1 brew cleanup -n -s --prune=all 2>/dev/null)
-  print -r -- "${out:-Nothing to clean.}" > $CLEANUP_TMP/brew.txt
-  if [[ $out =~ 'approximately ([0-9.]+)([KMGT]?)B' ]]; then
-    label="~$match[1]$match[2]"
-    case $match[2] in
-      K) kb=$(( match[1] )) ;;
-      M) kb=$(( match[1] * 1024 )) ;;
-      G) kb=$(( match[1] * 1048576 )) ;;
-      T) kb=$(( match[1] * 1073741824 )) ;;
-    esac
-  fi
-  row ${kb%.*} $label brew - - homebrew 'brew cleanup -s --prune=all'
 }
 
 scan_cargo() {
@@ -131,14 +364,59 @@ scan_cargo() {
   du -sk -- $targets 2>/dev/null | while IFS=$'\t' read -r kb dir; do
     (( total += kb ))
     tilde ${dir:h}
-    row $kb - cargo $dir - cargo $REPLY
+    row $kb - cargo $dir - cargo s $REPLY
   done
-  row $total - cargo-all - - cargo "ALL $#targets cargo target dirs"
+  row $total - cargo-all - - cargo s "ALL $#targets cargo target dirs"
+}
+
+scan_src() {
+  local raw=$CLEANUP_TMP/sub-src.raw total
+  { scan_repos; scan_worktrees; scan_cargo } > $raw
+  format < $raw > $CLEANUP_TMP/list.src
+  # Worktrees and cargo dirs live inside the repos' own sizes; count each byte once.
+  total=$(awk -F'\t' '$3 ~ /^(repo|plain|file)$/ {s += $1} END {print s + 0}' $raw)
+  local nrepos=$(grep -c $'\trepo\t' $raw) nwt=$(grep -cE $'\t(worktree|orphan)\t' $raw)
+  row $total - menu src - src c "~/src ${ICON[more]}  ${dim}$nrepos repos · $nwt worktrees · cargo target dirs${o}"
+  if [[ -s $CLEANUP_TMP/cargo.txt ]]; then
+    kb_of ${(f)"$(<$CLEANUP_TMP/cargo.txt)"}
+    (( REPLY > 5242880 )) && { human $REPLY
+      tip 50 "cargo target dirs hold $REPLY  ${dim}→ ~/src ${ICON[more]}: they rebuild on the next cargo build${o}" }
+  fi
+}
+
+# --- scanners: the rest -----------------------------------------------------------
+
+scan_brew() {
+  (( $+commands[brew] )) || return
+  local out kb=0 label='0'
+  out=$(HOMEBREW_NO_AUTO_UPDATE=1 brew cleanup -n -s --prune=all 2>/dev/null)
+  print -r -- "${out:-Nothing to clean.}" > $CLEANUP_TMP/brew.txt
+  if [[ $out =~ 'approximately ([0-9.]+)([KMGT]?)B' ]]; then
+    label="~$match[1]$match[2]"
+    case $match[2] in
+      K) kb=$(( match[1] )) ;;
+      M) kb=$(( match[1] * 1024 )) ;;
+      G) kb=$(( match[1] * 1048576 )) ;;
+      T) kb=$(( match[1] * 1073741824 )) ;;
+    esac
+  fi
+  row ${kb%.*} $label brew - - brew s 'Homebrew  brew cleanup -s --prune=all'
+}
+
+scan_ytdlp() {
+  # yt-dlp's temp dir: only partials nobody has touched for a while are stale.
+  [[ -d $ytdlp_tmp ]] || return
+  local old_kb
+  old_kb=$(find $ytdlp_tmp -type f -mtime +$ytdlp_days -print0 | xargs -0 stat -f%z 2>/dev/null | awk '{s += $1} END {print int(s / 1024)}')
+  (( old_kb > 10240 )) || return
+  row $old_kb - ytdlp $ytdlp_tmp - ytdlp s "yt-dlp temp  ${dim}partial downloads untouched for $ytdlp_days+ days${o}"
+  human $old_kb
+  tip 5 "$REPLY of abandoned yt-dlp partials (older than $ytdlp_days days)  ${dim}→ yt-dlp temp row; recent ones are left alone${o}"
 }
 
 scan_caches() {
   local -a handled
-  local name cmd dir kb
+  local name cmd dir kb risk tag
 
   # Caches whose owner has a proper cleaning command: tag, command, path.
   local -a tools=(
@@ -152,21 +430,30 @@ scan_caches() {
     [[ -n $dir ]] && handled+=($dir)
     [[ -n $dir && -d $dir ]] && (( $+commands[${cmd%% *}] )) || continue
     kb_of $dir
-    row $REPLY - tool $cmd $dir $name $cmd
+    row $REPLY - tool $cmd $dir tool s "$name  ${dim}$cmd${o}"
   done
   handled+=($HOME/Library/Caches/Homebrew)   # brew's entry covers it
 
-  # Known regenerable directories.
-  for dir in \
-    $HOME/.cargo/registry \
-    $HOME/Library/Developer/Xcode/DerivedData \
-    "$HOME/Library/Developer/Xcode/iOS DeviceSupport" \
-    $HOME/Library/Developer/CoreSimulator/Caches \
-    $HOME/Library/Logs
-  do
+  handled+=($ytdlp_tmp)   # has a row of its own, scan_ytdlp
+
+  # Known directories: path, risk, tag.
+  local -a known=(
+    $HOME/Library/Caches/topaz-preview-frames            s topaz
+    $HOME/Movies/CacheClip                               s resolve
+    "$HOME/Movies/Resolve Project Backups"               d resolve
+    $HOME/.cargo/registry                                s cache
+    $HOME/Library/Developer/Xcode/DerivedData            s cache
+    "$HOME/Library/Developer/Xcode/iOS DeviceSupport"    c cache
+    $HOME/Library/Developer/CoreSimulator/Caches         s cache
+    "$HOME/Library/Application Support/MobileSync/Backup" d ios
+    $HOME/Library/Logs                                   s cache
+  )
+  for dir risk tag in "${known[@]}"; do
+    handled+=($dir)
     [[ -d $dir ]] || continue
-    kb_of $dir; kb=$REPLY; tilde $dir
-    row $kb - dir $dir - cache $REPLY
+    kb_of $dir; kb=$REPLY; (( kb > 10240 )) || continue
+    tilde $dir
+    row $kb - dir $dir - $tag $risk $REPLY
   done
 
   # Anything else that is big under the cache roots.
@@ -175,41 +462,77 @@ scan_caches() {
     (( kb >= min_kb )) || continue
     (( ${handled[(Ie)$dir]} )) && continue
     tilde $dir
-    row $kb - dir $dir - cache $REPLY
+    row $kb - dir $dir - cache s $REPLY
   done
 
   if [[ -r $HOME/.Trash ]]; then
     kb_of $HOME/.Trash
-    (( REPLY > 4 )) && row $REPLY - trash - - trash 'Empty the Trash'
+    if (( REPLY > 4 )); then
+      row $REPLY - trash - - trash d 'Empty the Trash'
+      human $REPLY
+      (( REPLY > 1048576 )) && tip 15 "the Trash holds $REPLY  ${dim}→ nothing moved to the Trash has freed space yet${o}"
+    fi
   fi
 }
 
-list() {
+# --- lists ----------------------------------------------------------------------
+
+list_main() {
   # Every scanner runs at once; output keeps a fixed section order.
   local s p
-  local -a order=(worktrees brew cargo caches)
+  local -a order=(sync ytdlp topaz files src brew caches)
   local -A pid
+  : > $CLEANUP_TMP/drop
+  : > $CLEANUP_TMP/tips
+  : > $CLEANUP_TMP/list.main
   for s in $order; do
     scan_$s > $CLEANUP_TMP/$s.raw 2>/dev/null &
     p=$!; pid[$s]=$p
   done
-  : > $CLEANUP_TMP/drop
-  : > $CLEANUP_TMP/list
   for s in $order; do
     wait $pid[$s]
-    format < $CLEANUP_TMP/$s.raw | tee -a $CLEANUP_TMP/list
+    format < $CLEANUP_TMP/$s.raw | tee -a $CLEANUP_TMP/list.main
   done
+}
+
+# A submenu is rescanned on its own: its scanner writes list.<view>.
+list_view() {
+  case $1 in
+    main) list_main ;;
+    topaz|files|src)
+      : > $CLEANUP_TMP/drop
+      rm -f $CLEANUP_TMP/list.$1
+      CLEANUP_NOTIPS=1 scan_$1 > /dev/null 2>&1
+      cat $CLEANUP_TMP/list.$1 2>/dev/null ;;
+  esac
 }
 
 # A full scan takes a while, so after an action the menu is redrawn from the
 # last scan minus the rows that action dealt with. ctrl-r rescans for real.
 relist() {
-  if [[ -s $CLEANUP_TMP/drop ]]; then grep -vFf $CLEANUP_TMP/drop $CLEANUP_TMP/list
-  else cat $CLEANUP_TMP/list
+  [[ -e $CLEANUP_TMP/list.$1 ]] || { list_view $1; return }
+  if [[ -s $CLEANUP_TMP/drop ]]; then grep -vFf $CLEANUP_TMP/drop $CLEANUP_TMP/list.$1
+  else cat $CLEANUP_TMP/list.$1
   fi
 }
 
 dropped() { print -r -- "${(pj:\t:)@}" >> $CLEANUP_TMP/drop }  # a row prefix
+
+header() {
+  local free total col line
+  read -r free total <<< "$(df -k $HOME | awk 'NR==2 {print $4, $2}')"
+  if   (( free < 15 * 1048576 )); then col=$c_red
+  elif (( free < 50 * 1048576 )); then col=$c_amb
+  else col=$c_grn; fi
+  human $free; local f=$REPLY; human $total
+  print -r -- "${col}$ICON[disk]${o}  ${bold}$f free${o} ${dim}of $REPLY${o}"
+  if [[ $CLEANUP_VIEW == main && -s $CLEANUP_TMP/tips ]]; then
+    sort -n $CLEANUP_TMP/tips | cut -f2- | head -4 | sed $'s/^/\e[38;5;221m/;s/ /\e[0m /'
+  fi
+  [[ -s $CLEANUP_TMP/last ]] && print -r -- "${dim}last: $(<$CLEANUP_TMP/last)${o}"
+  if [[ $CLEANUP_VIEW == main ]]; then print -r -- "${dim}$hints_main${o}"
+  else print -r -- "${dim}$hints_sub${o}"; fi
+}
 
 # --- actions ------------------------------------------------------------------
 
@@ -217,8 +540,17 @@ confirm_always() { read -q "?$1 [y/N] "; local r=$?; print; return $r }
 # Run-all asks once up front, so the per-entry questions are already answered.
 confirm() { [[ -n $CLEANUP_YES ]] || confirm_always "$@" }
 
+choose() {  # choose "prompt" key… — REPLY is the key pressed, or c
+  local prompt=$1; shift
+  print -n -- "$prompt "
+  read -sk1 REPLY; print -- $REPLY
+  (( ${@[(Ie)$REPLY]} )) || REPLY=c
+}
+
+pause() { read -sk '?press any key' }
+
 fail() {
-  print -P "\n%F{red}$1%f"
+  print -P "\n%F{red}%B$1%b%f"
   print -r -- "failed: $1" > $CLEANUP_TMP/last
   read -sk '?press any key'
   exit 1
@@ -226,17 +558,197 @@ fail() {
 
 wipe_contents() {  # empty a directory, keep the directory
   local d=${1:A}
-  [[ -d $d && $d == $HOME/*/* ]] || fail "refusing to wipe $1"
+  [[ -d $d && ( $d == $HOME/*/* || $d == $models_dir/coreMLCache ) ]] || fail "refusing to wipe $1"
   rm -rf -- $d/*(DN)
 }
 
+# Copy a file or tree to the Tower, check its size there, and only then say
+# yes. Never overwrites: a different file already at the destination fails the check.
+offload() {  # path [dest] — dest defaults to <archive>/offloaded/<path under ~>
+  local src=${1:A} dest=$2 rel a b
+  if [[ -z $dest ]]; then
+    [[ $src == $HOME/* ]] && rel=${src#$HOME/} || rel=${src#/}
+    dest=$archive/offloaded/$rel
+  fi
+  tower_mount || { print "Tower isn't mounted — can't reach $tower_url"; return 1 }
+  mkdir -p ${dest:h} || return 1
+  if [[ -d $src ]]; then rsync -a --ignore-existing --progress $src/ $dest/ || return 1
+  else rsync -a --ignore-existing --progress $src $dest || return 1; fi
+  bytes_of $src; a=$REPLY; bytes_of $dest; b=$REPLY
+  [[ $a == $b ]] || { print -P "%F{red}size mismatch: $a bytes here, $b on the Tower — source kept%f"; return 1 }
+  print -- "verified on the Tower: $dest"
+}
+
+# A file or directory with no cleaner of its own: move it to the Tower, trash it, or look at it.
+# Sets `before` and `msg` in run() (dynamic scope).
+path_action() {
+  local p=$1 hsz
+  kb_of $p; before=$REPLY; human $before; hsz=$REPLY
+  choose "${p:t} ($hsz): [m]ove to Tower · [t]rash · [r]eveal in Finder · [c]ancel" m t r c
+  case $REPLY in
+    m) offload $p || { pause; return 1 }
+       trash $p || fail "could not trash $p"
+       msg="moved ${p:t} to the Tower · $hsz now in the Trash — empty it to reclaim" ;;
+    t) confirm_always "move ${p:t} to the Trash?" || return 1
+       trash $p || fail "could not trash $p"
+       msg="${p:t} ($hsz) is in the Trash — empty it to reclaim" ;;
+    r) open -R $p; return 1 ;;
+    *) return 1 ;;
+  esac
+  before=0
+}
+
 run() {
-  local kind=$1 a1=$2 a2=$3 what before after
+  local kind=$1 a1=$2 a2=$3 what before msg
   local free0=$(df -k $HOME | awk 'NR==2 {print $4}')
+  [[ $kind == menu ]] && { $self --view $a1; return }
   print -r -- 'cancelled' > $CLEANUP_TMP/last
   print 0 > $CLEANUP_TMP/freed_kb
 
   case $kind in
+    sync)
+      what='sync to Tower'
+      [[ -d $sync_src ]] || fail "$sync_src doesn't exist"
+      tower_mount || fail "can't mount $tower_url"
+      sync_plan
+      tilde $sync_src; print -r -- "$bold$REPLY$o → $sync_dst"
+      human $sync_new_kb
+      print -r -- "  new: $#sync_new files ($REPLY) · already there with the same size: $#sync_same · different size: $#sync_diff"
+      if (( $#sync_diff )); then
+        print -r -- "${c_red}different size on the Tower — left alone, resolve by hand:${o}"
+        print -rl -- "  "${^sync_diff[1,12]}
+        (( $#sync_diff > 12 )) && print "  … and $(( $#sync_diff - 12 )) more"
+      fi
+      if (( $#sync_new )); then
+        confirm_always "copy $#sync_new new files ($REPLY)? nothing on the Tower is overwritten or deleted" || return
+        mkdir -p $sync_dst || fail "can't create $sync_dst"
+        rsync -a --ignore-existing --progress $sync_excl $sync_src/ $sync_dst/ ||
+          fail 'rsync stopped — nothing was deleted, run it again to carry on'
+        sync_plan
+      fi
+      if (( $#sync_same )); then
+        human $sync_same_kb
+        print -r -- "\n$#sync_same local files ($REPLY) are on the Tower with the same name and size."
+        if confirm_always 'move those local copies to the Trash?'; then
+          printf '%s\0' $sync_src/${^sync_same} | xargs -0 trash || fail 'trash failed'
+          msg="$#sync_same files ($REPLY) are in the Trash, safe on the Tower — empty it to reclaim"
+          before=0
+        else
+          msg="copied; kept the $#sync_same local copies"
+        fi
+      else
+        msg='nothing left to copy'
+      fi
+      pause
+      ;;
+
+    tmodel)
+      local stem=${a1%-*} ver=${a1##*-}
+      local -a files=($models_dir/${stem}-v${ver}-*.tz3(N)) cdirs=($models_dir/coreMLCache/${stem}-v${ver}-*(N/))
+      local f hsz
+      (( $#files )) || fail "no weights for $a1 on disk"
+      kb_of $files $cdirs; before=$REPLY; what=$a1; human $before; hsz=$REPLY
+      choose "$a1 ($hsz incl. cache): [a]rchive to Tower then remove · [d]elete · [c]ancel" a d c
+      case $REPLY in
+        a) for f in $files; do
+             offload $f $arch_topaz/${f:t} || { pause; return }
+           done
+           rm -f -- $files; rm -rf -- $cdirs
+           msg="archived $a1 to the Tower and removed it ($hsz)" ;;
+        d) confirm_always "delete $a1's $#files weight files and its compiled cache?" || return
+           rm -f -- $files; rm -rf -- $cdirs
+           msg="deleted $a1 ($hsz)" ;;
+        *) return ;;
+      esac
+      pause
+      ;;
+
+    tstore)
+      [[ $a1 == $models_dir/models/* && -d $a1 ]] || fail "not a Topaz store: $a1"
+      local hsz
+      kb_of $a1; before=$REPLY; what=${a1:t}; human $before; hsz=$REPLY
+      choose "${a1:t} ($hsz): [a]rchive to Tower then remove · [d]elete · [c]ancel" a d c
+      case $REPLY in
+        a) offload $a1 $arch_topaz/models/${a1:t} || { pause; return }
+           rm -rf -- $a1; msg="archived ${a1:t} to the Tower and removed it ($hsz)" ;;
+        d) confirm_always "delete ${a1:t}? only the Topaz app can download it again" || return
+           rm -rf -- $a1; msg="deleted ${a1:t} ($hsz)" ;;
+        *) return ;;
+      esac
+      pause
+      ;;
+
+    trestore)  # a1 = code or store name, a2 = model | store
+      tower_mount || fail "can't mount $tower_url"
+      what="restore $a1"
+      if [[ $a2 == store ]]; then
+        kb_of $arch_topaz/models/$a1; human $REPLY
+        confirm_always "copy $a1 ($REPLY) back into the Topaz app?" || return
+        rsync -a --ignore-existing --progress $arch_topaz/models/$a1/ $models_dir/models/$a1/ || fail 'restore failed'
+      else
+        local rstem=${a1%-*} rver=${a1##*-}
+        local -a rfiles=($arch_topaz/${rstem}-v${rver}-*.tz3(N))
+        kb_of $rfiles; human $REPLY
+        confirm_always "copy $#rfiles files for $a1 ($REPLY) back into the Topaz app?" || return
+        rsync -a --ignore-existing --progress $rfiles $models_dir/ || fail 'restore failed'
+      fi
+      before=0; msg="restored $a1 from the Tower (the copy there stays)"
+      pause
+      ;;
+
+    ytdlp)
+      [[ -d $a1 && ${a1:t} == yt-dlp-tmp ]] || fail "not the yt-dlp temp dir: $a1"
+      what="stale yt-dlp partials"
+      local nold
+      nold=$(find $a1 -type f -mtime +$ytdlp_days | wc -l | tr -d ' ')
+      kb_of $a1; before=$REPLY
+      confirm "delete $nold partial files untouched for $ytdlp_days+ days (recent ones stay)?" || return
+      find $a1 -type f -mtime +$ytdlp_days -delete
+      find $a1 -mindepth 1 -type d -empty -mtime +$ytdlp_days -delete 2>/dev/null
+      kb_of $a1; (( before -= REPLY ))
+      ;;
+    tcache)
+      what='Topaz compiled caches'
+      kb_of $a1; before=$REPLY
+      confirm "delete every compiled model cache? they rebuild on first use" || return
+      wipe_contents $a1
+      kb_of $a1; (( before -= REPLY ))
+      ;;
+
+    file|plain)
+      [[ -e $a1 ]] || fail "$a1 is gone"
+      what=${a1:t}
+      path_action $a1 || return
+      ;;
+
+    repo)
+      [[ -e $a1/.git ]] || fail "$a1 is not a repo"
+      what="checkout ${a1:t}"
+      local rem dirty ahead stash nwt
+      rem=$(git -C $a1 remote get-url origin 2>/dev/null)
+      dirty=$(git -C $a1 status --porcelain 2>/dev/null | wc -l | tr -d ' ')
+      ahead=$(git -C $a1 rev-list --branches --not --remotes 2>/dev/null | wc -l | tr -d ' ')
+      stash=$(git -C $a1 stash list 2>/dev/null | wc -l | tr -d ' ')
+      nwt=$(( $(git -C $a1 worktree list 2>/dev/null | wc -l) - 1 ))
+      local -a why
+      [[ -z $rem ]]  && why+=('it has no remote — the checkout is the only copy')
+      (( dirty ))    && why+=("$dirty uncommitted changes")
+      [[ -n $rem ]] && (( ahead )) && why+=("$ahead commits that are on no remote")
+      (( stash ))    && why+=("$stash stashes")
+      (( nwt > 0 ))  && why+=("$nwt other worktrees — remove those first")
+      if (( $#why )); then
+        print -r -- "${c_red}${a1:t} can't be removed safely:${o}"
+        print -rl -- "  · "${^why}
+        print -r -- "kept ${a1:t}: ${why[1]}" > $CLEANUP_TMP/last
+        pause; return
+      fi
+      kb_of $a1; before=$REPLY; human $before
+      print -r -- "${a1:t} is clean and fully pushed. Re-clone with:  git clone $rem"
+      choose "remove the $REPLY checkout? [r]emove · [c]ancel" r c
+      [[ $REPLY == r ]] || return
+      rm -rf -- $a1
+      ;;
+
     worktree)
       what="worktree ${a2:t}"
       if [[ -d $a2 ]]; then
@@ -306,25 +818,27 @@ run() {
     worktree)  dropped cargo $a2/ ;;   # build dirs that went with it
     orphan)    dropped cargo $a1/ ;;
     cargo-all) dropped cargo '' ;;
+    repo)      dropped cargo $a1/; dropped worktree $a1 ;;
   esac
 
   if [[ -z $before ]]; then
-    after=$(df -k $HOME | awk 'NR==2 {print $4}')
+    local after=$(df -k $HOME | awk 'NR==2 {print $4}')
     before=$(( after - free0 ))
   fi
   (( before < 0 )) && before=0
   human $before
   print -r -- $before > $CLEANUP_TMP/freed_kb
-  print -r -- "freed $REPLY · $what" > $CLEANUP_TMP/last
+  print -r -- "${msg:-freed $REPLY · $what}" > $CLEANUP_TMP/last
 }
 
 # Every entry in the given file (fzf's {*f}: what is listed under the current
-# query), one at a time. "ALL cargo" is skipped: the per-project rows cover it,
-# and it would reach past a filtered list.
+# query), one at a time — but only the kinds that need no decisions. "ALL
+# cargo" is skipped: the per-project rows cover it, and it would reach past a
+# filtered list.
 run_all() {
   local kind a1 a2 rest total=0 n=0
-  local -a rows=(${(f)"$(grep -v $'^cargo-all\t' $1)"})
-  (( $#rows )) || return
+  local -a rows=(${(f)"$(grep -E $'^(worktree|orphan|brew|cargo|tool|dir|trash|tcache|ytdlp)\t' $1)"})
+  (( $#rows )) || { print -r -- 'nothing here that cleans without questions' > $CLEANUP_TMP/last; return }
   print -l -- $rows | cut -f4-
   print
   confirm_always "clean all $#rows entries above?" || { print -r -- 'cancelled' > $CLEANUP_TMP/last; return }
@@ -340,63 +854,240 @@ run_all() {
   print -r -- "freed $REPLY · $n of $#rows entries" > $CLEANUP_TMP/last
 }
 
-preview() {
-  local kind=$1 a1=$2 a2=$3 kb p
+# --- advice -----------------------------------------------------------------------
+# First line: s / c / d — how risky. The rest: what you lose, what it costs to get back.
+
+advice() {
+  local kind=$1 a1=$2 a2=$3
   case $kind in
+    menu)
+      print c
+      case $a1 in
+        topaz) print -r -- 'Opens the list of Topaz models, one row each. Weights are re-downloaded on demand, so removing is recoverable — but only the app (or topaz-fetch-models) can fetch them.' ;;
+        files) print -r -- "Opens the biggest files in ${(j:, :)big_nice}. Each can be moved to the Tower, trashed, or revealed in Finder." ;;
+        src)   print -r -- 'Opens your repos, worktrees and cargo target dirs. Repos with unpushed or uncommitted work are marked red and refuse to be removed.' ;;
+      esac ;;
+    sync)
+      print c
+      print -r -- 'Copies new files from the folder to the Tower and merges into sub-folders that already exist there. Nothing on the Tower is overwritten or deleted: a file that exists on both sides is skipped, and if the two differ in size it is listed so you can sort it out by hand.'
+      print
+      print -r -- 'Partial downloads (.part, .ytdl, .crdownload) and .DS_Store are skipped. After the copy you are asked whether to move the local copies that are verified on the Tower (same relative path and size) to the Trash. Files are matched by name and size, not content.' ;;
+    tmodel)
+      print s
+      print -r -- "Deleting is recoverable: weights are fetched on demand, so the next render with this model stalls while they download (topaz-fetch-models $a1 does it up front). Archiving keeps a copy on the Tower to restore without the download. Its compiled cache goes too and rebuilds on first use."
+      print
+      print -r -- '"Used by N presets" counts the enabled presets in bin/lib/topaz-presets, following Starlight Mini into its encoder/unet/decoder. A model you only use from the Topaz GUI shows 0.' ;;
+    tstore)
+      print c
+      print -r -- 'Neuroserver model data for Starlight Precise. The Topaz app is the only thing that can download it again, so archive to the Tower rather than delete unless you are sure.' ;;
+    trestore)
+      print s
+      print -r -- 'Copies the archived files back into the Topaz app. The copy on the Tower stays. Check free space first.' ;;
+    ytdlp)
+      print s
+      print -r -- "yt-dlp's temp dir (set in config/yt-dlp/config). Finished downloads are moved out; what stays are .part and .ytdl files from downloads that died or were abandoned. Only files untouched for $ytdlp_days+ days are removed, so a download in progress is safe."
+      print
+      print -r -- 'You lose the chance to resume those downloads — re-run the URL and yt-dlp starts again from zero. Nothing already moved to its destination is touched.' ;;
+    tcache)
+      print s
+      print -r -- 'Compiled CoreML versions of the weights. Always safe: each model/size rebuilds on its first run, which takes a little while. The weights are untouched.' ;;
+    file)
+      print c
+      print -r -- 'One large file. Move to Tower copies it to Backups/offloaded/ (same path as here), checks the size there, then trashes the local copy. Trashing alone is recoverable until you empty the Trash.' ;;
+    plain)
+      print d
+      print -r -- 'Not a git repository, so there is no remote to re-clone from — deleting is permanent unless you moved it first. Put it in git, or move it to the Tower.' ;;
+    repo)
+      print c
+      print -r -- 'A checkout. If everything is committed and pushed, removing it loses nothing: git clone brings it back. Anything unpushed, uncommitted, stashed or remote-less blocks the removal. Build dirs inside it (target/, node_modules) are listed separately and are the cheaper win.' ;;
+    worktree)
+      print c
+      print -r -- 'A git worktree, usually left behind by an agent session. Removing it deletes its working directory and build output; the branch stays in the repo. A dirty worktree asks first.' ;;
+    orphan)
+      print c
+      print -r -- 'A worktree directory that no repo knows about any more (the repo was probably moved). Nothing can reach it, so deleting is only a question of whether you want its files.' ;;
+    cargo|cargo-all)
+      print s
+      print -r -- 'Cargo build output. The next cargo build recompiles everything, which for the larger crates takes minutes. Tools installed to ~/.local/bin are separate binaries and keep working; update rebuilds them when needed.' ;;
+    brew)
+      print s
+      print -r -- 'Removes superseded formula versions and cached downloads. Installed current versions are untouched; reinstalling re-downloads.' ;;
+    trash)
+      print d
+      print -r -- 'Permanent: this empties the Trash for good. Anything moved there by a sync, move or trash action above is gone after this.' ;;
+    tool)
+      print s
+      case $a1 in
+        uv*)     print -r -- 'Downloaded wheels and built packages. Installed tools and venvs (yt-dlp is a uv tool) keep working; the next install re-downloads.' ;;
+        pip*)    print -r -- 'Downloaded wheels. The next install re-downloads them.' ;;
+        npm*)    print -r -- 'Downloaded tarballs. The next install re-downloads them; nothing installed is touched.' ;;
+        *modcache*) print -r -- 'Downloaded Go module sources. Every build that needs one re-downloads it (network). Binaries go install put in ~/.local/bin are unaffected.' ;;
+        *cache*) print -r -- 'Compiled Go objects. Rebuilt on demand; the first build afterwards is slow.' ;;
+      esac ;;
+    dir)
+      case $a1 in
+        *topaz-preview-frames) print s; print -r -- 'Stills topaz-preview-frame rendered so repeat previews are instant. Regenerated on demand; a Starlight still takes a while to render again.' ;;
+        */CacheClip)           print s; print -r -- 'DaVinci Resolve render cache and optimized media. Quit Resolve first. Resolve regenerates it, but long timelines re-render (slow), and optimized media you made on purpose goes with it.' ;;
+        *'Resolve Project Backups') print d; print -r -- 'Not a cache: automatic project backups. If the live project database is ever damaged these are what you restore from. This wipes all of them — keep the newest by hand first.' ;;
+        */.cargo/registry)     print s; print -r -- 'Downloaded crate archives and sources. Builds re-fetch what they need (network); offline builds fail until then. ~/.cargo/bin is untouched.' ;;
+        */DerivedData)         print s; print -r -- 'Xcode build products and indexes. Always safe; the next build of each project is a full one. Quit Xcode first.' ;;
+        *'iOS DeviceSupport')  print c; print -r -- 'Debug symbols Xcode copied from each iPhone/iPad you plugged in. Safe, but re-copying them takes several minutes the next time that device/OS version connects.' ;;
+        */CoreSimulator/Caches) print s; print -r -- 'Simulator caches. Rebuilt on the next simulator boot.' ;;
+        */MobileSync/Backup)   print d; print -r -- 'Local iPhone/iPad backups. Deleting loses those restore points — make sure the device is also backed up elsewhere (iCloud, iMazing) first.' ;;
+        */Library/Logs)        print s; print -r -- 'App and crash logs. Safe unless you are chasing a recent crash.' ;;
+        *)                     print s; print -r -- 'Per-app cache. Quit the app first. It rebuilds itself; the first launch afterwards may be slower and browsers re-fetch cached images. Sessions and logins are not stored here.' ;;
+      esac ;;
+  esac
+}
+
+listing() {  # biggest entries inside a directory
+  local kb p
+  print -r -- $1; print
+  du -sk -- $1/*(DN) 2>/dev/null | sort -rn | head -30 |
+  while IFS=$'\t' read -r kb p; do
+    human $kb; printf '%7s  %s\n' $REPLY ${p:t}
+  done
+}
+
+preview() {
+  local kind=$1 a1=$2 a2=$3 kb p out risk users note=
+  out=$(advice $kind $a1 $a2)
+  risk=${out%%$'\n'*}
+  case $kind in   # same call the row made: a model your presets use needs a second look
+    tmodel) users=$(grep -rlE "model=$a1([^0-9]|\$)" $presets_dir 2>/dev/null | wc -l | tr -d ' ') ;;
+    tstore) users=$(grep -rl "ns_store = \"${a1:t}\"" $presets_dir 2>/dev/null | wc -l | tr -d ' ') ;;
+  esac
+  [[ -n $users ]] && (( users )) && { risk=c; note=" — $users preset(s) name it" }
+  print -r -- "$RISK[$risk]● $RISKTXT[$risk]$note${o}"
+  print
+  print -r -- "${out#*$'\n'}"
+  print
+
+  case $kind in
+    sync)
+      [[ -s $CLEANUP_TMP/sync.new ]] && { print -r -- "${bold}new on this side${o}"; head -25 $CLEANUP_TMP/sync.new | sed 's/^/  /'
+        (( $(wc -l < $CLEANUP_TMP/sync.new) > 25 )) && print "  …" }
+      [[ -s $CLEANUP_TMP/sync.diff ]] && { print; print -r -- "${c_red}different size on the Tower${o}"; sed 's/^/  /' $CLEANUP_TMP/sync.diff }
+      ;;
+    tmodel)
+      local stem=${a1%-*} ver=${a1##*-}
+      print -r -- "${bold}weights${o}"
+      du -sk -- $models_dir/${stem}-v${ver}-*.tz3(N) 2>/dev/null | sort -rn | head -12 |
+        while IFS=$'\t' read -r kb p; do human $kb; printf '%7s  %s\n' $REPLY ${p:t}; done
+      print; print -r -- "${bold}presets using $a1${o}"
+      grep -rlE "model=$a1([^0-9]|\$)" $presets_dir 2>/dev/null | sed "s|.*/||;s|\.toml||;s/^/  /" | head -15
+      ;;
+    tstore)
+      print -r -- "${bold}presets using ${a1:t}${o}"
+      grep -rl "ns_store = \"${a1:t}\"" $presets_dir 2>/dev/null | sed "s|.*/||;s|\.toml||;s/^/  /"
+      ;;
+    repo)
+      print -r -- $a1; print
+      git -C $a1 -c color.ui=always log -4 --format='%C(yellow)%h%Creset %s %C(dim)(%cr)%Creset' 2>/dev/null
+      print; git -C $a1 -c color.ui=always status -sb 2>/dev/null | head -15
+      print; print -r -- "${bold}remote${o}  $(git -C $a1 remote get-url origin 2>/dev/null || print none)"
+      for p in target node_modules .venv; do
+        [[ -d $a1/$p ]] && { kb_of $a1/$p; human $REPLY; printf '%7s  %s/\n' $REPLY $p }
+      done
+      ;;
+    file)
+      ls -lh -- $a1 | awk '{print $5, $6, $7, $8}'
+      mdls -name kMDItemKind -name kMDItemDurationSeconds -name kMDItemPixelWidth -name kMDItemPixelHeight -- $a1 2>/dev/null | grep -v '(null)'
+      ;;
+    ytdlp)
+      print -r -- "${bold}stale partials by folder${o}"
+      find $a1 -type f -mtime +$ytdlp_days -print0 | xargs -0 stat -f $'%z\t%N' 2>/dev/null |
+        awk -F'\t' -v root="$a1/" '{ sub(root, "", $2); split($2, a, "/"); s[a[1]] += $1 }
+          END { for (k in s) printf "%d\t%s\n", s[k] / 1024, k }' | sort -rn | head -20 |
+        while IFS=$'\t' read -r kb p; do human $kb; printf '%7s  %s\n' $REPLY $p; done
+      ;;
+    brew)      cat $CLEANUP_TMP/brew.txt ;;
+    cargo-all) cat $CLEANUP_TMP/cargo.txt ;;
+    tool)      print -r -- "$a1"; print; listing $a2 ;;
+    trash)     listing $HOME/.Trash ;;
     worktree)
       print -r -- $a2; print
       if [[ -d $a2 ]]; then
         git -C $a2 -c color.ui=always log -3 --format='%C(yellow)%h%Creset %s %C(dim)(%cr)%Creset'
-        print
-        git -C $a2 -c color.ui=always status -sb
+        print; git -C $a2 -c color.ui=always status -sb
       else
         print 'Directory is gone — enter drops its stale record from the repo.'
       fi
       ;;
-    brew)      cat $CLEANUP_TMP/brew.txt ;;
-    cargo-all) cat $CLEANUP_TMP/cargo.txt ;;
-    tool)      print -r -- "$a1"; print; preview dir $a2 ;;
-    trash)     preview dir $HOME/.Trash ;;
-    cargo|dir|orphan)
-      print -r -- $a1; print
-      du -sk -- $a1/*(DN) 2>/dev/null | sort -rn | head -30 |
-      while IFS=$'\t' read -r kb p; do
-        human $kb; printf '%7s  %s\n' $REPLY ${p:t}
-      done
-      ;;
+    cargo|dir|orphan|plain|tcache) [[ -d $a1 ]] && listing $a1 ;;
   esac
+}
+
+# --- the menu -----------------------------------------------------------------------
+
+view_prompt() {
+  case $CLEANUP_VIEW in
+    main) print -r -- "cleanup $ICON[more] " ;;
+    *)    print -r -- "${CLEANUP_VIEW} $ICON[more] " ;;
+  esac
+}
+
+# esc leaves search mode if we are in it, and otherwise quits (or goes back).
+esc_keys() {
+  if [[ $FZF_PROMPT == '/ '* ]]; then
+    print -r -- "clear-query+rebind(j,k,g,G,l,h,q,?)+disable-search+change-prompt($(view_prompt))+reload($self --relist $CLEANUP_VIEW)"
+  else
+    print abort
+  fi
+}
+
+view() {
+  local v=${1:-main}
+  export CLEANUP_VIEW=$v
+  local act="execute($self --run {1} {2} {3})+reload($self --relist $v)"
+  local initial="$self --relist $v"
+  [[ $v == main && ! -s $CLEANUP_TMP/list.main ]] && initial="$self --list main"
+  $=initial | fzf --ansi --disabled --no-sort --layout=reverse --delimiter=$'\t' --with-nth=4.. \
+    --tiebreak=index --prompt="$(view_prompt)" --pointer='▌' --info=inline-right \
+    --no-scrollbar --highlight-line \
+    --color='fg+:252,bg+:236,hl:215,hl+:215,pointer:215,prompt:109,header:245,info:240,border:238,gutter:-1' \
+    --preview="$self --preview {1} {2} {3}" --preview-window='right,45%,wrap,border-left' \
+    --bind="load:transform-header($self --header)" \
+    --bind="enter:$act" --bind="l:$act" \
+    --bind='j:down,k:up,g:first,G:last,ctrl-d:half-page-down,ctrl-u:half-page-up' \
+    --bind='h:abort,q:abort,?:toggle-preview' \
+    --bind="/:unbind(j,k,g,G,l,h,q,?)+enable-search+change-prompt(/ )" \
+    --bind="esc:transform($self --esc)" \
+    --bind="ctrl-a:execute($self --run-all {*f})+reload($self --relist $v)" \
+    --bind="ctrl-r:reload($self --list $v)"
 }
 
 # --- entry --------------------------------------------------------------------
 
 case $1 in
-  --relist)  relist; exit ;;
+  -h|--help) sed -n '2,/^$/s/^# \{0,1\}//p' $self; exit ;;
+esac
+
+if [[ ! -d $CLEANUP_TMP ]]; then
+  export CLEANUP_TMP=$(mktemp -d -t cleanup)
+  trap 'rm -rf -- $CLEANUP_TMP' EXIT INT TERM
+  : > $CLEANUP_TMP/last
+fi
+
+case $1 in
+  --relist)  relist ${2:-main}; exit ;;
   --run-all) run_all $2; exit ;;
   --run)     run "${@:2}"; exit ;;
   --preview) preview "${@:2}"; exit ;;
-  --header)  print -r -- "$(<$CLEANUP_TMP/last)"; print -r -- $hints; exit ;;
-  -h|--help) sed -n '2,/^$/s/^# \{0,1\}//p' $self; exit ;;
+  --header)  header; exit ;;
+  --esc)     esc_keys; exit ;;
+  --view)    view $2; exit ;;
+  --list)
+    if [[ -t 1 ]]; then list_view ${2:-main} | cut -f4-; else list_view ${2:-main}; fi
+    exit ;;
 esac
 
 for dep in fd fzf; do
   (( $+commands[$dep] )) || { print -u2 "cleanup: $dep not found"; exit 1 }
 done
 
-# fzf's reloads re-enter through --list and share the menu's scratch dir.
-if [[ ! -d $CLEANUP_TMP ]]; then
-  export CLEANUP_TMP=$(mktemp -d -t cleanup)
-  trap 'rm -rf -- $CLEANUP_TMP' EXIT INT TERM
-fi
-
-if [[ $1 == --list ]]; then
-  if [[ -t 1 ]]; then list | cut -f4-; else list; fi
-  exit
-fi
-
-$self --list | fzf --ansi --delimiter=$'\t' --with-nth=4.. --layout=reverse \
-  --tiebreak=index --prompt='cleanup 󰅂 ' --header=$hints \
-  --preview="$self --preview {1} {2} {3}" --preview-window='right,45%,wrap' \
-  --bind="enter:execute($self --run {1} {2} {3})+transform-header($self --header)+reload($self --relist)" \
-  --bind="ctrl-a:execute($self --run-all {*f})+transform-header($self --header)+reload($self --relist)" \
-  --bind="ctrl-r:reload($self --list)"
+case ${1:-main} in
+  main|topaz|files|src) view ${1:-main} ;;
+  *) print -u2 "cleanup: unknown view '$1' (main | topaz | files | src)"; exit 2 ;;
+esac
 exit 0
