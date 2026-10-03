@@ -1,0 +1,77 @@
+#!/bin/zsh
+# kitty-hold-on-error
+#
+# Run a command in a Kitty window that only lingers if the command fails.
+#
+# On success it exits, so a window launched without --hold closes. On failure
+# it turns the tab red and leaves the output up under a one-key menu:
+#
+#   d  dismiss (also q, Esc, Enter)
+#   c  dismiss and copy the window's buffer, scrollback included, to the clipboard
+#   s  interactive zsh in the command's directory
+#
+# Usage:
+#   kitty-hold-on-error <command> [args...]
+#
+# Normally reached through `kitty-launch --hold-on-fail`, but it works in any
+# Kitty window. Outside Kitty the menu still appears; only the tab colour and
+# the buffer copy need Kitty remote control.
+
+emulate -L zsh
+setopt no_unset pipe_fail
+
+script_name="${0:t}"
+
+if (( $# == 0 )) || [[ $1 == -h || $1 == --help ]]; then
+  sed -n '2,/^$/ s/^# \{0,1\}//p' "${0:a}" >&2
+  exit 2
+fi
+
+fail_bg="#E5484D"
+fail_fg="#FFFFFF"
+window_match="id:${KITTY_WINDOW_ID:-0}"
+tab_match="window_id:${KITTY_WINDOW_ID:-0}"
+
+# Ctrl-C should end the command, not this wrapper: the menu still follows.
+# A handler (not an ignore) so the command itself keeps the default action.
+trap ':' INT
+
+"$@"
+exit_status=$?
+(( exit_status == 0 )) && exit 0
+
+# Grab the buffer before the menu is drawn into it.
+buffer="$(kitty @ get-text --match "$window_match" --extent=all 2>/dev/null)"
+
+# The tab may outlive this window (other panes in it), so always hand the
+# colours back.
+restore_tab_color() {
+  kitty @ set-tab-color --match "$tab_match" \
+    active_bg=NONE active_fg=NONE inactive_bg=NONE inactive_fg=NONE >/dev/null 2>&1
+}
+trap restore_tab_color EXIT
+
+kitty @ set-tab-color --match "$tab_match" \
+  active_bg="$fail_bg" active_fg="$fail_fg" inactive_fg="$fail_bg" >/dev/null 2>&1
+
+print -P -- "\n%F{red}%B✗ exited with status $exit_status%b%f"
+print -P -- "%B[d]%b dismiss   %B[c]%b dismiss and copy buffer to clipboard   %B[s]%b interactive shell"
+
+while true; do
+  read -k 1 -s key || exit "$exit_status"
+  case "$key" in
+    d|D|q|$'\e'|$'\n'|$'\r')
+      exit "$exit_status"
+      ;;
+    c|C)
+      print -r -- "$buffer" | pbcopy
+      exit "$exit_status"
+      ;;
+    s|S)
+      print
+      trap - INT EXIT
+      restore_tab_color
+      exec "${SHELL:-/bin/zsh}" -il
+      ;;
+  esac
+done

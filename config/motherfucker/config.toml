@@ -188,7 +188,7 @@ engine = "􀢾"  # [search_engines] entries that set no icon of their own
 "Open Tower (live)" = "$HOME/.local/bin/switchblade --fast-fullscreen /Volumes/Tower/Movies/Porn/Downloads"
 "Settings (Local)" = "kitty-launch --cwd $HOME/.config/switchblade -- hx switchblade.toml"
 "Settings (Default)" = "kitty-launch --cwd $HOME/src/switchblade -- hx switchblade.toml"
-"Build" = "kitty-run --float --interactive -- update switchblade"
+"Build" = "kitty-launch --float --hold-on-fail --interactive -- update switchblade"
 
 # The real System Settings.app: enter opens it normally, ⇥ deep-links a pane.
 [commands.System Settings]

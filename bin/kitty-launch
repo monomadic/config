@@ -9,7 +9,11 @@
 #   - --shell runs the command through the login $SHELL, for its env/PATH;
 #     --interactive does the same with -i, so .zshrc is read too.
 #   - Focuses/shows the launched Kitty window by default after launching.
-#   - Keeps the window open after the command exits; --dismiss closes it.
+#   - Closes the window when the command exits. --hold keeps it open;
+#     --hold-on-fail keeps it only after a failure, by running the command
+#     under kitty-hold-on-error (red tab, dismiss / copy buffer / shell menu).
+#   - --float opens a panel along the bottom of the screen instead of a
+#     tab/window.
 #
 # Socket priority:
 #   1. KITTY_LAUNCH_SOCKET
@@ -21,6 +25,7 @@ emulate -L zsh
 set -euo pipefail
 
 script_name="${0:t}"
+script_dir="${0:a:h}"
 
 user_name="${USER:-${LOGNAME:-$(id -un)}}"
 default_shell="${SHELL:-/bin/zsh}"
@@ -35,7 +40,9 @@ keep_focus=false
 activate=true
 detach=true
 debug=false
-hold=true
+hold=false
+hold_on_fail=false
+float_lines=16
 auto_hide=false
 via_shell=false
 shell_flags="-lc"
@@ -55,6 +62,8 @@ Options:
   --tab              Open in a new Kitty tab (default)
   --window           Open in a new Kitty window inside current OS window
   --os-window        Open in a new top-level OS window
+  --float            Open in a floating panel along the bottom of the screen
+  --lines N          Height of the --float panel in lines (default: 16)
   --cwd DIR          Working directory for launched command
   --title TITLE      Window/tab title
   --shell            Run the command through \$SHELL -lc, so it gets your login
@@ -63,9 +72,12 @@ Options:
   --interactive      Like --shell, but through \$SHELL -lic, so .zshrc is read
                      too (aliases, functions, PATH set up only there)
   --keep-focus       Do not focus the newly launched Kitty window/tab internally
-  --dismiss          Close the Kitty window when the command exits
-                     (default: keep it open until a key is pressed)
-  --hold             No-op; holding is now the default (transitional alias)
+  --hold             Keep the window open after the command exits, until a
+                     key is pressed (default: close it)
+  --hold-on-fail     Close on success; on failure turn the tab red and offer
+                     dismiss / copy buffer / interactive shell
+                     (runs the command under kitty-hold-on-error)
+  --dismiss          No-op; closing is the default (accepted for old callers)
   --auto-hide        Hide Kitty.app after the launched command exits
   --activate         Focus/show the launched Kitty window after launch (default)
   --no-activate      Do not focus/show the launched Kitty window after launch
@@ -90,6 +102,7 @@ Examples:
   $script_name --tab --shell -- 'cd ~/src && hx .'
   $script_name --window -- yazi ~/Downloads
   $script_name --auto-hide --shell -- make test
+  $script_name --float --hold-on-fail --shell -- cargo build --release
   $script_name --os-window -- zsh -l
 EOF
 }
@@ -167,12 +180,32 @@ while (( $# )); do
       keep_focus=true
       shift
       ;;
-    --dismiss)
+    --float)
+      launch_type="os-panel"
+      shift
+      ;;
+    --lines)
+      (( $# >= 2 )) || {
+        print -u2 -- "missing argument for --lines"
+        exit 2
+      }
+      float_lines="$2"
+      shift 2
+      ;;
+    --hold)
+      hold=true
+      hold_on_fail=false
+      shift
+      ;;
+    --hold-on-fail)
+      hold_on_fail=true
       hold=false
       shift
       ;;
-    --hold)
-      # Transitional: holding is the default now; accepted so old callers work.
+    --dismiss)
+      # Closing is the default; accepted so old callers keep working.
+      hold=false
+      hold_on_fail=false
       shift
       ;;
     --auto-hide)
@@ -234,6 +267,10 @@ elif (( $# )); then
 else
   command_argv=( "$default_shell" -l )
 fi
+
+$hold_on_fail && command_argv=( "$script_dir/kitty-hold-on-error" "${command_argv[@]}" )
+
+panel_opts=( edge=bottom "lines=$float_lines" layer=top focus-policy=on-demand )
 
 have() {
   command -v "$1" >/dev/null 2>&1
@@ -348,6 +385,7 @@ if discovered_socket="$(discover_socket)"; then
     print -u2 -- "title:           ${title:-}"
     print -u2 -- "keep_focus:      $keep_focus"
     print -u2 -- "hold:            $hold"
+    print -u2 -- "hold_on_fail:    $hold_on_fail"
     print -u2 -- "auto_hide:       $auto_hide"
     print -u2 -- "activate:        $activate"
     print -u2 -- "command:         ${(q)command_argv[@]}"
@@ -364,6 +402,7 @@ if discovered_socket="$(discover_socket)"; then
   [[ -n "$title" ]] && launch_args+=( --title "$title" )
   $keep_focus && launch_args+=( --keep-focus )
   $hold && launch_args+=( --hold )
+  [[ "$launch_type" == os-panel ]] && launch_args+=( --os-panel=${^panel_opts} )
 
   launched_window_id="$("${kitten_cmd[@]}" "${launch_args[@]}" -- "${command_argv[@]}")"
   [[ -n "$launched_window_id" ]] && print -r -- "$launched_window_id"
@@ -392,6 +431,7 @@ $debug && {
   print -u2 -- "cwd:             ${cwd:-}"
   print -u2 -- "title:           ${title:-}"
   print -u2 -- "hold:            $hold"
+  print -u2 -- "hold_on_fail:    $hold_on_fail"
   print -u2 -- "auto_hide:       $auto_hide"
   print -u2 -- "activate:        $activate"
   print -u2 -- "detach:          $detach"
@@ -408,6 +448,13 @@ kitty_args=(
 $hold && kitty_args+=( --hold )
 
 case "$launch_type" in
+  os-panel)
+    # A standalone panel instead of a normal first window. The panel kitten
+    # takes neither --listen-on nor --hold; tty remote control is enough for
+    # kitty-hold-on-error to read the buffer.
+    [[ -n "$cwd" ]] && cd -- "$cwd"
+    kitty_args=( +kitten panel --${^panel_opts} -o allow_remote_control=yes )
+    ;;
   os-window)
     # Starting a fresh Kitty app already creates an OS window.
     ;;
