@@ -161,16 +161,19 @@ codec = [1.0, 1.0, 1.0, 1.0]
 # marks went plain white and the colour moved here instead, cold → hot.
 # Held at 0.6 of the marks' own strength: full strength was tuned for a
 # stamp a few px tall, and read as washed-out pastel filling a whole pill.
+# The design system's four heat stops, --heat-1 … --heat-4, rarest → most
+# used. A tag wears exactly ONE of them, never a blend.
 fill = [
-  [0.261, 0.518, 0.6, 1.0],
-  [0.433, 0.362, 0.6, 1.0],
-  [0.6, 0.224, 0.494, 1.0],
+  [0.627, 0.012, 1.0, 0.957],
+  [0.0, 0.765, 0.322, 1.0],
+  [0.0, 0.157, 0.859, 0.878],
+  [1.0, 0.235, 0.804, 1.0],
 ]
 # Label colour ramp and size ramp [min, max], sampled by the same heat.
 text = [[0.875, 0.957, 1.0, 1.0], [1.0, 1.0, 1.0, 1.0]]
 size = [13.0, 13.0]
 # Halo behind hot chips (0 = off).
-glow = 0.45
+glow = 0.0
 # How counts map onto the ramps. "log" (default) suits the long tail a real
 # library has; "linear" flattens that tail into one cold colour; "rank"
 # ignores counts and spreads the ramp evenly over the sorted list.
@@ -231,9 +234,9 @@ hash_fill = [0.0, 0.0, 0.0, 0.22]
 # far apart on each side of the seam.
 hash_scale = 1.31
 hash_inset = 9.0
-glow_hover = 1.4
+glow_hover = 1.0
 hover_brightness = 1.35
-count_scale = 1.0
+count_scale = 0.786
 count_alpha = 1.0
 
 # veil_height = 420.0   # MOVED to [theme] scrim/scrim_height/scrim_steps/scrim_blur
@@ -428,6 +431,11 @@ fade_ms = 150.0
 lit = [1.0, 0.831, 0.373, 1.0]  # --neon-gold #ffd45f
 dim = [1.0, 0.831, 0.373, 0.22]  # --gold-star-dim
 hover = [1.0, 0.831, 0.373, 0.55]
+
+# The sort pill beside the stars: the closed rim, just noticeable.
+[sort]
+border = [1.0, 0.0, 0.0, 0.052]
+padding = 20
 
 # ── Elements: tile, strip, triple ───────────────────────────────────────
 # One table per element, a sub-table per STATE. A state names only what

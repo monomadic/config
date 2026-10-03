@@ -87,11 +87,27 @@ require_free_space() {
   Reclaim history with: rclone-tower-safe --prune"
 }
 
+# rclone cannot see excluded names, so a .DS_Store that Finder left on the
+# backup keeps its directory from being removed once the source drops it, and
+# every later sync fails. History and the system directories are left alone.
+clean_destination_ds_store() {
+  local name
+  typeset -a skip
+  for name in .rclone .safesync .Trashes .TemporaryItems .Spotlight-V100 \
+              .DocumentRevisions-V100 .fseventsd lost+found; do
+    skip+=(-o -path "$destination_dir/$name")
+  done
+  # -exec rather than -delete: -delete implies -depth, which disables -prune.
+  /usr/bin/find "$destination_dir" -xdev \( "${(@)skip[2,-1]}" \) -prune \
+    -o -type f -name .DS_Store -exec /bin/rm -f -- {} + ||
+    print -ru2 -- 'Warning: could not clear every .DS_Store from the backup.'
+}
+
 # Only direct, real directories with a recognized run name are candidates.
 # Accept the original YYYY-MM-DD_HHMMSS names as well as the new unique suffix.
 # Retention uses the run timestamp, never directory mtime (which copies change).
 prune_history() {
-  local forced=$1 candidate name stamp epoch cutoff reply
+  local forced=$1 candidate name stamp epoch cutoff reply free_gib
   typeset -a expired
   cutoff=$(( $(/bin/date +%s) - retention_days * 86400 ))
   for candidate in "$history_dir"/*(N/); do
@@ -122,16 +138,23 @@ prune_history() {
   verify_disks
   for candidate in "${expired[@]}"; do
     [[ -d $candidate && ! -L $candidate ]] || die "Backup changed before pruning: $candidate"
-    /bin/rm -r -- "$candidate" || die "Pruning failed: $candidate"
+    # --metadata preserves source modes: a read-only directory would stop rm,
+    # and a read-only file would make it prompt on a terminal.
+    /bin/chmod -R u+w -- "$candidate" 2>/dev/null || true
+    /bin/rm -rf -- "$candidate" || die "Pruning failed: $candidate"
     print -- "Removed: $candidate"
   done
-  print -- "$(destination_free_gib) GiB now free on $destination_dir."
+  free_gib=$(destination_free_gib)
+  print -- "$free_gib GiB now free on $destination_dir."
 }
 
 phase 'Checking disk identities'
 verify_disks
+rclone_bin=''
 if [[ $mode == sync || $mode == --dry-run ]]; then
-  (( $+commands[rclone] )) || die 'rclone is not installed'
+  # GUI launches inherit launchd's bare PATH, which lacks Homebrew.
+  rclone_bin=${commands[rclone]:-/opt/homebrew/bin/rclone}
+  [[ -x $rclone_bin ]] || die 'rclone is not installed'
 fi
 
 # Keep the lock inode in place. The OS releases the advisory lock on exit;
@@ -146,6 +169,18 @@ zmodload zsh/system
 zsystem flock -t 0 -f lock_fd "$state_dir/lock" 2>/dev/null ||
   die 'Another Tower sync or prune is already running'
 
+# The lock dies with this shell, but a force-killed run leaves its rclone
+# writing to the backup. Refuse to start beside it.
+readonly pid_file="$state_dir/rclone.pid"
+[[ ! -L $pid_file ]] || die 'PID file must not be a symlink'
+if [[ -r $pid_file ]]; then
+  old_pid=$(<"$pid_file")
+  if [[ $old_pid == <-> && $(/bin/ps -p "$old_pid" -o comm= 2>/dev/null) == *rclone ]]; then
+    die "rclone from an interrupted run is still working (PID $old_pid)"
+  fi
+  /bin/rm -f -- "$pid_file"
+fi
+
 readonly log_file="$state_dir/sync.log"
 [[ ! -L $log_file ]] || die 'Log file must not be a symlink'
 verify_disks
@@ -153,12 +188,20 @@ verify_disks
 active_phase='preflight'
 # Forward interrupts and wait for the active child before releasing the lock.
 sync_pid=''
+backup_dir=''
+# A run that replaced nothing leaves an empty history directory; rmdir only
+# ever removes an empty one.
+finish_run() {
+  /bin/rm -f -- "$pid_file"
+  [[ -z $backup_dir ]] || /bin/rmdir -- "$backup_dir" 2>/dev/null || true
+}
 stop_sync() {
   trap '' INT TERM HUP
   if [[ -n $sync_pid ]]; then
     kill -TERM "$sync_pid" 2>/dev/null || true
     wait "$sync_pid" 2>/dev/null || true
   fi
+  finish_run
   print -ru2 -- "Interrupted during $active_phase. The operation did not complete."
   exit "$1"
 }
@@ -194,12 +237,12 @@ if [[ $mode == sync || $mode == --check-only ]]; then
 fi
 if [[ $mode == --check-only ]]; then
   print -- 'Both expected volumes passed filesystem verification.'
-  print -- "$(destination_free_gib) GiB free on $destination_dir (minimum ${min_free_gib} GiB to sync)."
+  free_gib=$(destination_free_gib)
+  print -- "$free_gib GiB free on $destination_dir (minimum ${min_free_gib} GiB to sync)."
   exit 0
 fi
 
 # Pruning takes the same lock so it cannot race a sync writing into history.
-backup_dir=''
 if [[ $mode == --prune ]]; then
   active_phase=pruning
   prune_history forced
@@ -218,6 +261,9 @@ else
   backup_dir=$(/usr/bin/mktemp -d "$history_dir/$(/bin/date +%F_%H%M%S).XXXXXX")
   # mktemp honours the 077 umask; match the browsable history dirs around it.
   /bin/chmod 755 "$backup_dir"
+  phase 'Clearing .DS_Store from the backup'
+  active_phase='backup cleanup'
+  clean_destination_ds_store
 fi
 
 typeset -a display_flags
@@ -235,10 +281,11 @@ phase 'Scanning and syncing'
 print -- "Syncing Tower → Tower Backup ($mode). Log: $log_file"
 # Size + modification time is intentional for large, frequently renamed videos.
 # Renames deliberately skip content hashing; equal size and modtime are trusted.
+# Symlinks are copied as symlinks; without --links rclone skips them.
 # Keep conservative disk concurrency and rclone's normal transfer verification.
-rclone sync "${display_flags[@]}" "${run_flags[@]}" \
+"$rclone_bin" sync "${display_flags[@]}" "${run_flags[@]}" \
   --track-renames --track-renames-strategy size,modtime \
-  --metadata \
+  --metadata --links \
   --create-empty-src-dirs \
   --transfers 1 --checkers 3 \
   --max-delete "$max_delete" --max-delete-size "$max_delete_size" \
@@ -259,11 +306,14 @@ rclone sync "${display_flags[@]}" "${run_flags[@]}" \
   --exclude "/lost+found/**" \
   "$source_dir/" "$destination_dir/" &
 sync_pid=$!
+print -r -- "$sync_pid" >| "$pid_file"
 if wait "$sync_pid"; then
   sync_pid=''
+  finish_run
 else
   result=$?
   sync_pid=''
+  finish_run
   print -ru2 -- "Sync failed (exit $result); history was not pruned. See $log_file"
   exit "$result"
 fi
@@ -272,5 +322,6 @@ verify_disks
 [[ $mode != --dry-run ]] || { print -- 'Dry run complete; nothing pruned.'; exit 0; }
 phase 'Finishing and retaining history'
 prune_history ask
-print -- "Free space after sync: $(destination_free_gib) GiB"
+free_gib=$(destination_free_gib)
+print -- "Free space after sync: $free_gib GiB"
 print -- 'Done.'

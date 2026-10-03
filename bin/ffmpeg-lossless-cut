@@ -1184,6 +1184,10 @@ trim_copy() {
   errlog="$(mktemp "${TMPDIR:-/tmp}/flc-ffmpeg.XXXXXX")"
   integer rc=0
 
+  # `-copypriorss 0` drops packets ahead of the chosen keyframe. For containers
+  # that seek by DTS (Matroska, MPEG-TS, ...) ffmpeg backs the seek off by
+  # 3/23 s whenever the video has B-frames, which lands on the *previous*
+  # keyframe; by default a stream copy then keeps that whole extra GOP.
   ffmpeg -hide_banner -y -progress pipe:1 \
     -ss "$start_time" -i "$input_file" \
     "${flc_chapter_input[@]}" \
@@ -1192,6 +1196,7 @@ trim_copy() {
     -map_metadata 0 \
     "${flc_chapter_map[@]}" \
     -movflags "$movflags" \
+    -copypriorss 0 \
     -c copy \
     "$output_file" 2>"$errlog" | render_progress "$total" "$cols" || rc=$?
 
@@ -1609,7 +1614,7 @@ for input_file in "${files[@]}"; do
       print -- "ffmpeg -hide_banner -y -i '$input_file' ${flc_chapter_input[*]} -map 0 ${flc_chapter_drop[*]} -map_metadata 0 ${flc_chapter_map[*]} -movflags '$dry_run_movflags' -to '$ts' -c copy '$work_output'"
     else
       prepare_chapter_args "$input_file" forward "$ts" "$dry_run_duration" "$quantize_chapters"
-      print -- "ffmpeg -hide_banner -y -ss '$ts' -i '$input_file' ${flc_chapter_input[*]} -map 0 ${flc_chapter_drop[*]} -map_metadata 0 ${flc_chapter_map[*]} -movflags '$dry_run_movflags' -c copy '$work_output'"
+      print -- "ffmpeg -hide_banner -y -ss '$ts' -i '$input_file' ${flc_chapter_input[*]} -map 0 ${flc_chapter_drop[*]} -map_metadata 0 ${flc_chapter_map[*]} -movflags '$dry_run_movflags' -copypriorss 0 -c copy '$work_output'"
     fi
     if [[ -n "$flc_chapter_meta" ]]; then
       print -- "quantized chapters written to '$flc_chapter_meta':"
