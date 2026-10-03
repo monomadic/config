@@ -319,7 +319,3 @@ export PATH="$HOME/.conductor/bin:$HOME/.local/bin:$PATH"
 export GOROOT="$HOME/.local/go"
 
 export PATH="$GOROOT/bin:$PATH"
-
-# >>> skl completions >>>
-eval "$(skl completions zsh)"
-# <<< skl completions <<<
