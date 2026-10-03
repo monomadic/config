@@ -156,13 +156,10 @@ codec = [1.0, 1.0, 1.0, 1.0]
 # take this one's place, whole.
 
 [tags]
-# The three hues that used to belong to the technical marks above
-# (neon-blue resolution, neon-violet frame rate, neon-pink codec) — the
-# marks went plain white and the colour moved here instead, cold → hot.
-# Held at 0.6 of the marks' own strength: full strength was tuned for a
-# stamp a few px tall, and read as washed-out pastel filling a whole pill.
-# The design system's four heat stops, --heat-1 … --heat-4, rarest → most
-# used. A tag wears exactly ONE of them, never a blend.
+# The design system's four heat stops, `--heat-1` … `--heat-4`, rarest →
+# most used (2026-10-01; three neon hues at 0.6 stood here before). The
+# system is the source for these: a change to those tokens is a change
+# to this list.
 fill = [
   [0.0, 0.7, 0.2, 1.0],
   [1.0, 0.065, 0.922, 1.0],
@@ -171,73 +168,54 @@ fill = [
 ]
 # Label colour ramp and size ramp [min, max], sampled by the same heat.
 text = [[0.875, 0.957, 1.0, 1.0], [1.0, 1.0, 1.0, 1.0]]
-size = [13.0, 13.0]
-# Halo behind hot chips (0 = off).
+# ONE size: a tag is a plain pill, the tag as written in its heat colour,
+# and heat speaks through the fill. Set two sizes (say [12.0, 15.0]) to
+# have the type ride the heat too.
+size = [14.0, 14.0]
+# The halo, in the chip's own fill: off at rest, a bloom under the
+# pointer (0 = off). A hovered chip's ground brightens and saturates
+# alongside it, and the chip lifts toward the pointer: scaled about its
+# centre and raised this many pixels (draw-time only — nothing under it
+# moves). 1.0 / 0.0 disable.
 glow = 0.0
+glow_hover = 1.0
+hover_brightness = 1.35
+hover_saturate = 1.25
+hover_scale = 1.04
+hover_lift = 1.0
 # How counts map onto the ramps. "log" (default) suits the long tail a real
 # library has; "linear" flattens that tail into one cold colour; "rank"
 # ignores counts and spreads the ramp evenly over the sorted list.
 scale = "log"
-# Colour a chip's label takes while it matches what you have typed.
-# match = [1.0, 1.0, 1.0, 1.0]   # REMOVED from switchblade: folded into [theme] match
-# Show each tag's clip count beside its name.
+# Show each tag's clip count, in a small dark disc at the pill's far end
+# — the same disc a filter pill's ✕ sits on. The digits are this
+# fraction of the label's type size and this much of its ink;
+# `count_disc` is the disc's colour (alpha 0 = no disc, the count as
+# plain text beside the name).
 counts = true
-# The panel itself, and how far non-matching chips fade (they fade IN
-# PLACE — the layout never reflows under your typing).
-backdrop = [0.0, 0.0, 0.0, 0.8]
-faded = 0.12
-# Hovering or cursoring a chip previews its clips: everything else in the
-# grid fades to this.
-dim = 1.0
-# The veil over the grid: dim strength and frosted-glass blur (0 = none,
-# 1..4 progressively softer).
-# veil = 0.88   # MOVED to [theme] scrim/scrim_height/scrim_steps/scrim_blur
-# blur = 2.0   # MOVED to [theme] scrim/scrim_height/scrim_steps/scrim_blur
+count_scale = 0.786
+count_alpha = 1.0
+count_disc = [0.0, 0.0, 0.0, 0.28]
+# The drawer itself — near-opaque, in the same family as the other dialog
+# grounds. Typing REMOVES the chips that miss; the survivors close up.
+backdrop = [0.09, 0.09, 0.10, 0.92]
 # Focus is a RING, never a fill change — the fill already means something.
 ring = [1.0, 1.0, 1.0, 0.55]
 ring_width = 2.0
-# Panel geometry and chip padding.
-width = 300.0
-max_height = 0.95
-gap = 8.0  # vertical gap between tags
-inset = 30.0  # padding in the panel
-radius = 13.0
-# top = 96.0   # REMOVED from switchblade: gone — the panel centres itself now
-pad_x = 13.0
-pad_y = 2.0
+# Drawer geometry and chip padding. `width` up to 1.0 is a FRACTION of the
+# window's width (never narrower than `min_width` pixels); above that it
+# is pixels. The drawer stands against the left edge, the window's full
+# height, and slides in over `fade_ms`. `input_height` is the search
+# input at its top.
+width = 0.20
+min_width = 220.0
+gap = 8.0
+inset = 16.0
+input_height = 32.0
+pad_x = 14.0
+pad_y = 3.5
 fade_ms = 160.0
 
-# ── Search bar (`/`) ───────────────────────────────────────────────────────
-# `/` drops a search bar in from the top; type and a floating panel of ranked
-# matches unfolds under it, each row carrying the clip's thumbnail, its title
-# and its cast. ctrl+n / ctrl+p (or the arrows) walk the results, and a small
-# preview video hovers beside the cursored row, playing it — it follows the
-# cursor, so walking the list IS previewing it. Enter jumps to the clip, esc
-# or `/` again puts it away. Matching is EXACT, like fzf's --exact: every
-# whitespace-separated term must appear as a literal substring, AND-ed and
-# order-independent, so `wall harb` finds "Harbour Wall" but `hrbdrn` finds
-# nothing. Unlike the hashtags popup this does NOT filter the grid: it moves
-# the selection.
-#
-# Titles and cast come from the FILENAME — `Actors - Title [Studio] (site)
-# {specs} #tags ★★★` — the same trick as the star rating and the hashtags:
-# no sidecar, no database, and it survives a copy to another machine. A
-# container `title` tag, where a file carries one, wins over the parsed title.
-
-# ── Added from the repo defaults, 2026-09-03 ──────────────────────────
-# The chip wears a leading `#` cap segment against a darker ground, with
-# the tag punched through the rest of the capsule in tracked uppercase.
-# `false` gives the plain lowercase capsule instead.
-hash = true
-hash_fill = [0.0, 0.0, 0.0, 0.22]
-# The `#` is set larger than the tag it introduces, and the two sit this
-# far apart on each side of the seam.
-hash_scale = 1.31
-hash_inset = 9.0
-glow_hover = 1.0
-hover_brightness = 1.35
-count_scale = 0.786
-count_alpha = 1.0
 
 # veil_height = 420.0   # MOVED to [theme] scrim/scrim_height/scrim_steps/scrim_blur
 # veil_steps = 24   # MOVED to [theme] scrim/scrim_height/scrim_steps/scrim_blur
@@ -358,16 +336,17 @@ backdrop_alpha = 0.94
 # uppercase. Every ramp is one stop, so a pill is flat whatever its count.
 # Anything left out keeps that default — set a key to change one thing.
 [actors]
-fill = [[1.0, 1.0, 1.0, 1.0]]
+fill = [[1.0, 1.0, 1.0, 0.92]]
 text = [[0.0, 0.0, 0.0, 1.0]]
-size = [12.0, 12.0]
+size = [13.0, 13.0]
 # Focus is the accent ring, with a halo in the same colour (glow = 0 for
 # the ring alone).
-ring = [1.0, 0.216, 0.8, 0.6]
-glow = 0.5
+ring = [1.0, 0.216, 0.373, 1.0]
+glow = 0.85
 counts = true
 # The count reads at the name's own size.
-count_scale = 0.8
+count_scale = 1.0
+
 
 # ── Search bar (`/`) ───────────────────────────────────────────────────────
 # `/` drops a search bar in from the top; type and a floating panel of ranked
