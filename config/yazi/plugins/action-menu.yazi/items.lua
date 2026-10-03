@@ -35,8 +35,8 @@ return { groups = {
 	{
 		group = "Topaz Video",
 		when = { kind = "video" },
-		{ desc = "􀰙 Enhance with FFMpeg (older models)", run = kitty("--tab --hold", "topaz", BIN .. "topaz-select-preset %s"), orphan = true },
-		{ desc = "􀰙 Enhance with NeuroServer (newer models)", run = kitty("--tab --hold", "starlight", BIN .. "neuroserver-select-preset %s"), orphan = true },
+		{ desc = "􀰙  Enhance with FFMpeg (older models)", run = kitty("--tab --hold", "topaz", BIN .. "topaz-select-preset %s"), orphan = true },
+		{ desc = "􀰙  Enhance with NeuroServer (newer models)", run = kitty("--tab --hold", "starlight", BIN .. "neuroserver-select-preset %s"), orphan = true },
 	},
 	{
 		group = "Davinci Resolve",
@@ -134,8 +134,7 @@ return { groups = {
 		when = { ext = { "vtt" } },
 		-- Video is "<name>.<ext>" next to the .vtt ("<name>.en.vtt" also matches). MP4/MOV
 		-- can't carry WebVTT, so those get mov_text. On success the original video and the .vtt go to the Trash and the new file takes the video's name.
-		{ desc = "Embed .vtt subtitles with ffmpeg", run = kitty("--window --hold", "embed subtitles", [==[zsh -lc 'for s in "$@"; do v=; for b in "${s:r}" "${s:r:r}"; do for e in mkv mp4 m4v mov webm; do [[ -f $b.$e ]] && v=$b.$e && break 2; done; done; [[ -n $v ]] || { echo "no video for: $s"; continue }; c=webvtt; [[ ${v:e:l} == (mp4|m4v|mov) ]] && c=mov_text; ffmpeg -i "$v" -i "$s" -c copy -c:s $c "${v:r}_subs.${v:e}" && trash "$v" "$s" && mv "${v:r}_subs.${v:e}" "$v"; done' zsh %s]==]), orphan = true },
-		{ desc = "Embed into MP4",run = kitty("--window --hold", "embed subtitles", each(BIN .. "mp4-embed-vtt")), orphan = true },
+		{ desc = "Embed .vtt subtitles with ffmpeg", run = kitty("--hold-on-fail", "embed subtitles", [==[zsh -lc 'for s in "$@"; do v=; for b in "${s:r}" "${s:r:r}"; do for e in mkv mp4 m4v mov webm; do [[ -f $b.$e ]] && v=$b.$e && break 2; done; done; [[ -n $v ]] || { echo "no video for: $s"; continue }; c=webvtt; [[ ${v:e:l} == (mp4|m4v|mov) ]] && c=mov_text; ffmpeg -i "$v" -i "$s" -c copy -c:s $c "${v:r}_subs.${v:e}" && trash "$v" "$s" && mv "${v:r}_subs.${v:e}" "$v"; done' zsh %s]==]), orphan = true },
 	},
 	{
 		group = "Audio",
