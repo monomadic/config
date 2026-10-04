@@ -22,7 +22,7 @@ libraries = [
   { name = "Footage", exec = "fd-media --path ~/Movies/Private --path /Volumes/*/Movies/Private" },
   { name = "Latest Adult", exec = "fd-media --sort-created ~/Movies/Porn" },
   { name = "Private Sorted", exec = "fd-media --sort-created --match-string Alice . ~/Movies/Private /Volumes/*/Movies/Private" },
-  { name = "Visuals", path = "/Volumes/*/Movies/Visuals"},
+  { name = "Visuals", path = "/Volumes/*/Movies/Visuals" },
   "/Volumes/*/Movies/Porn",
   "~/Movies/Private",
   "~/Movies/Porn",
@@ -38,7 +38,7 @@ chapter_snap = true  # snap seekbar clicks to the chapter start
 #   like the quickview filmstrip. "variable"/"mosaic" are aliases.
 #   "fixed" — the classic uniform grid: every tile is
 #   tile_width:tile_height, thumbs crop-filled into it. Alias "square".
-grid_layout = "square"
+# grid_layout = "square"
 # Ideal tile size: width picks the column count (and, in flexible mode,
 # the nominal row height). In fixed mode tiles stretch so the columns
 # exactly fill the window; width:height sets the aspect (240:135 = 16:9).
