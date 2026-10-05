@@ -105,13 +105,13 @@ desc = "Open: reveal parent directory in finder"
 [[mgr.prepend_keymap]]
 on = [",", "v", "t"]
 for = "unix"
-run = '''shell --orphan -- /Users/nom/.local/bin/kitty-launch --window --cwd %d1 --title " trim intro " -- /Users/nom/.local/bin/ffmpeg-lossless-cut %s'''
+run = '''shell --orphan -- /Users/nom/.local/bin/kitty-launch --window --hold-on-fail --cwd %d1 --title " trim intro " -- /Users/nom/.local/bin/ffmpeg-lossless-cut %s'''
 desc = "Video: trim (start)"
 
 [[mgr.prepend_keymap]]
 on = [",", "v", "T"]
 for = "unix"
-run = '''shell --orphan -- /Users/nom/.local/bin/kitty-launch --window --cwd %d1 --title " trim outro " -- /Users/nom/.local/bin/ffmpeg-lossless-cut --reverse %s'''
+run = '''shell --orphan -- /Users/nom/.local/bin/kitty-launch --window --hold-on-fail --cwd %d1 --title " trim outro " -- /Users/nom/.local/bin/ffmpeg-lossless-cut --reverse %s'''
 desc = "Video: trim (end)"
 
 [[mgr.prepend_keymap]]
@@ -206,20 +206,20 @@ on = ["f", "R"]
 run = "search --via=rga"
 desc = "Search file contents via ripgrep-all"
 
-[[mgr.prepend_keymap]]
-on = ["t", "t"]
-run = "plugin smart-tab"
-desc = "Create a tab and enter the hovered directory"
+# [[mgr.prepend_keymap]]
+# on = ["t", "t"]
+# run = "plugin smart-tab"
+# desc = "Create a tab and enter the hovered directory"
 
-[[mgr.prepend_keymap]]
-on = ["t", "p"]
-run = "plugin pane-layout -- cycle-preview"
-desc = "Toggle preview pane"
+# [[mgr.prepend_keymap]]
+# on = ["t", "p"]
+# run = "plugin pane-layout -- cycle-preview"
+# desc = "Toggle preview pane"
 
-[[mgr.prepend_keymap]]
-on = ["t", "s"]
-run = "plugin pane-layout -- toggle-parent"
-desc = "Toggle sidebar"
+# [[mgr.prepend_keymap]]
+# on = ["t", "s"]
+# run = "plugin pane-layout -- toggle-parent"
+# desc = "Toggle sidebar"
 
 [[mgr.prepend_keymap]]
 on = "<C-1>"
@@ -266,13 +266,13 @@ desc = "Trim intro from selected videos"
 [[mgr.prepend_keymap]]
 on = ["T"]
 for = "unix"
-run = '''shell --orphan -- /Users/nom/.local/bin/kitty-launch --window --cwd %d1 -- /Users/nom/.local/bin/ffmpeg-lossless-cut %s'''
+run = '''shell --orphan -- /Users/nom/.local/bin/kitty-launch --window --hold-on-fail --cwd %d1 -- /Users/nom/.local/bin/ffmpeg-lossless-cut %s'''
 desc = "Trim intro from selected videos"
 
 [[mgr.prepend_keymap]]
-on = "<C-t>"
+on = "t"
 for = "unix"
-run = '''shell --orphan -- /Users/nom/.local/bin/kitty-launch --window --cwd %d1 --title " trim intro " -- /Users/nom/.local/bin/ffmpeg-lossless-cut %s'''
+run = '''shell --orphan -- /Users/nom/.local/bin/kitty-launch --window --hold-on-fail --cwd %d1 --interactive -- ffmpeg-lossless-cut %s'''
 desc = "Trim intro from selected videos"
 
 [[mgr.prepend_keymap]]

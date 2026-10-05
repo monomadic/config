@@ -20,5 +20,8 @@ cpu_alert = "#FF2D8E"
 cpu_alert_background = "#3A0B2A"
 border_width = 1
 border = "#2B1250"  # deep violet hairline, reads as an edge not an outline
-scanlines = 0.4  # soft CRT scanlines, 0 = off
-crt = 0.5  # phosphor glow and vignette, 0 = off
+scanlines = 0.25  # CRT scanlines, 0 = off
+crt = 0.4  # phosphor glow and darkened corners, 0 = off
+crt_mask = 0.4  # aperture-grille stripes (Retina only)
+crt_grain = 0.3  # static noise
+crt_flicker = 0.3  # exposure flicker and rolling band

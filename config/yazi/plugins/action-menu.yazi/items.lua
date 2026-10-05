@@ -59,13 +59,18 @@ return { groups = {
 		{ desc = "60fps rife (dedup)", run = kitty("--window --hold", "rife 60fps dedup", each(BIN .. "rife-vapoursynth --dedup")), orphan = true },
 	},
 	{
+		group = "Join",
+		when = { kind = "video" },
+		{ desc = "Join into one ProRes 422 video (first clip size/fps)", run = kitty("--window --shell --hold", "join ProRes", BIN .. "ffmpeg-join-prores -- %s"), orphan = true },
+	},
+	{
 		group = "Repair",
 		when = { kind = "video" },
 		{ desc = "Check For Duplicate Frames", run = kitty("--window --hold", "check duplicate frames", BIN .. "ffmpeg-check-fps %s"), orphan = true },
 		{ desc = "Remove Duplicate Frames (Output: ProRes)", run = kitty("--window --hold", "discard duplicate frames", BIN .. "ffmpeg-discard-duplicate-frames %s"), orphan = true },
 		{ desc = "Remove Duplicate Frames (Output: HEVC)", run = kitty("--window --hold", "discard duplicate frames", BIN .. "ffmpeg-discard-duplicate-frames --hevc %s"), orphan = true },
-		{ desc = "Trim Intro", run = kitty("--window", "trim intro", BIN .. "ffmpeg-lossless-cut %s"), orphan = true },
-		{ desc = "Trim Outro", run = kitty("--window", "trim outro", BIN .. "ffmpeg-lossless-cut --reverse %s"), orphan = true },
+		{ desc = "Trim Intro", run = kitty("--window --hold-on-fail", "trim intro", BIN .. "ffmpeg-lossless-cut %s"), orphan = true },
+		{ desc = "Trim Outro", run = kitty("--window --hold-on-fail", "trim outro", BIN .. "ffmpeg-lossless-cut --reverse %s"), orphan = true },
 	},
 	{
 		group = "Apple ML",

@@ -68,8 +68,8 @@ flac = [
   { run = '''/Users/nom/.local/bin/kitty-launch --window --hold --cwd %d1 --title " lossless flac sidecar " -- zsh -lc 'for f in "$@"; do /Users/nom/.local/bin/vdjstems make --roformer --flac "$f"; done' zsh %s''', desc = "􃐹  flac sidecar", for = "unix", orphan = true },
 ]
 video_tools = [
-  { run = '''/Users/nom/.local/bin/kitty-launch --window --cwd %d1 --title " trim intro " -- /Users/nom/.local/bin/ffmpeg-lossless-cut %s''', desc = "􂅓  trim (start)", for = "unix", orphan = true },
-  { run = '''/Users/nom/.local/bin/kitty-launch --window --cwd %d1 --title " trim outro " -- /Users/nom/.local/bin/ffmpeg-lossless-cut --reverse %s''', desc = "􂅗  trim (end)", for = "unix", orphan = true },
+  { run = '''/Users/nom/.local/bin/kitty-launch --window --hold-on-fail --cwd %d1 --title " trim intro " -- /Users/nom/.local/bin/ffmpeg-lossless-cut %s''', desc = "􂅓  trim (start)", for = "unix", orphan = true },
+  { run = '''/Users/nom/.local/bin/kitty-launch --window --hold-on-fail --cwd %d1 --title " trim outro " -- /Users/nom/.local/bin/ffmpeg-lossless-cut --reverse %s''', desc = "􂅗  trim (end)", for = "unix", orphan = true },
   { run = '''/Users/nom/.local/bin/kitty-launch --window --hold --cwd %d1 --title " rename video " -- /Users/nom/.local/bin/rename-video --color --icons %s''', desc = "􀈏  rename video (tags)", for = "unix", orphan = true },
   { run = '''/Users/nom/.local/bin/kitty-launch --window --hold --cwd %d1 --title " topaz workflow " -- /Users/nom/.local/bin/topaz-workflow %s''', desc = "􃖦  topaz", for = "unix", orphan = true },
   { run = '''/Users/nom/.local/bin/kitty-launch --window --hold --cwd %d1 --title " topaz presets " -- /Users/nom/.local/bin/topaz-simple-presets %s''', desc = "􀰙  topaz presets", for = "unix", orphan = true },

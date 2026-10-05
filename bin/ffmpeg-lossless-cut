@@ -1336,6 +1336,30 @@ maybe_trash_original() {
   return 1
 }
 
+# A stream copy writes the whole kept range beside the source before the
+# original goes to Trash, so a nearly full volume fails mid-copy. Estimate the
+# output from the kept share of the duration and refuse up front instead.
+check_free_space() {
+  local input_file="$1"
+  local output_file="$2"
+  local kept="$3"
+  local dur="$4"
+  local size free need
+
+  size="$(stat -f '%z' -- "$input_file" 2>/dev/null || true)"
+  free="$(df -k -- "${output_file:h}" 2>/dev/null | awk 'NR == 2 { print $4 }')"
+  [[ "$size" == <-> && "$free" == <-> ]] || return 0
+
+  need="$(awk -v size="$size" -v kept="$kept" -v dur="$dur" 'BEGIN {
+    share = (dur > 0 && kept != "" && kept < dur) ? kept / dur : 1
+    printf "%d", size * share
+  }')"
+  (( need <= free * 1024 )) && return 0
+
+  warn "not enough free space in ${output_file:h}: the cut needs about $(human_size "$need"), $(human_size $(( free * 1024 ))) free"
+  return 1
+}
+
 perform_cut() {
   local input_file="$1"
   local cut_time="$2"
@@ -1375,6 +1399,8 @@ perform_cut() {
       total=""
     fi
   fi
+
+  check_free_space "$input_file" "$output_file" "$total" "$dur" || return 1
 
   prepare_chapter_args "$input_file" "$mode" "$cut_time" "$dur" "$quantize"
 

@@ -1,0 +1,133 @@
+#!/usr/bin/env python3
+"""Join videos in argument order, normalizing to the first video's size and fps."""
+
+import argparse
+from fractions import Fraction
+import json
+import os
+from pathlib import Path
+import shutil
+import subprocess
+import sys
+import tempfile
+
+
+def probe(path):
+    result = subprocess.run(
+        ["ffprobe", "-v", "error", "-show_streams", "-of", "json", str(path)],
+        check=True, capture_output=True, text=True,
+    )
+    streams = json.loads(result.stdout)["streams"]
+    video = next((s for s in streams if s["codec_type"] == "video"
+                  and not s.get("disposition", {}).get("attached_pic")), None)
+    if video is None:
+        raise ValueError(f"No video stream: {path}")
+    audio = next((s for s in streams if s["codec_type"] == "audio"), None)
+    return video, audio
+
+
+def ffmpeg(args):
+    subprocess.run(["ffmpeg", "-hide_banner", "-loglevel", "warning", "-stats",
+                    "-nostdin", "-n", *map(str, args)], check=True)
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__, epilog=(
+        "Writes <first>_joined_prores.mov by default; never overwrites files. "
+        "Uses ProRes 422 (10-bit), 48 kHz stereo PCM, and black bars to fit. "
+        "Temporary ProRes clips live beside the output; allow space for them "
+        "plus the final movie. Only the first video/audio stream is used."
+    ))
+    parser.add_argument("-o", "--output", type=Path, help="output .mov path")
+    parser.add_argument("inputs", nargs="+", type=Path)
+    args = parser.parse_args()
+    for tool in ("ffmpeg", "ffprobe"):
+        if not shutil.which(tool):
+            raise ValueError(f"Required command not found: {tool}")
+    inputs = [p.absolute() for p in args.inputs]
+    for path in inputs:
+        if not path.is_file():
+            raise ValueError(f"Not a file: {path}")
+    output = (args.output or inputs[0].with_name(
+        inputs[0].stem + "_joined_prores.mov")).absolute()
+    if output.suffix.lower() != ".mov":
+        raise ValueError("Output must have a .mov extension")
+    if os.path.lexists(output):
+        raise ValueError(f"Output already exists: {output}")
+    media = [probe(p) for p in inputs]
+    first = media[0][0]
+    width, height = first["width"], first["height"]
+    rotation = next((s["rotation"] for s in first.get("side_data_list", [])
+                     if "rotation" in s), 0)
+    if round(float(rotation)) % 180 == 90:
+        width, height = height, width
+    # 4:2:2 needs an even width; use an even canvas for scaling/padding too.
+    width, height = width + width % 2, height + height % 2
+    fps = None
+    for key in ("avg_frame_rate", "r_frame_rate"):
+        try:
+            candidate = Fraction(first.get(key, "0/1"))
+            if candidate > 0:
+                fps = candidate
+                break
+        except (ValueError, ZeroDivisionError):
+            pass
+    if fps is None:
+        raise ValueError(f"Cannot determine frame rate: {inputs[0]}")
+    print(f"ProRes 422 • {width}×{height} • {fps} fps", flush=True)
+    for number, path in enumerate(inputs, 1):
+        print(f"  {number}. {path}", flush=True)
+    print(f"Output: {output}\nTemporary clips require extra disk space beside it.", flush=True)
+    vf = (f"setpts=PTS-STARTPTS,scale={width}:{height}:"
+          "force_original_aspect_ratio=decrease:force_divisible_by=2:reset_sar=1,"
+          f"pad={width}:{height}:(ow-iw)/2:(oh-ih)/2,fps={fps},format=yuv422p10le")
+    # Sequential encoding bounds open files and decoder memory for large selections.
+    # Publish only the complete movie; cancellation/failure removes our temp files.
+    with tempfile.TemporaryDirectory(prefix=".join-prores-", dir=output.parent) as tmp:
+        work = Path(tmp)
+        entries = []
+        for number, (path, (video, audio)) in enumerate(zip(inputs, media), 1):
+            print(f"\nEncoding {number}/{len(inputs)}: {path.name}", flush=True)
+            segment = work / f"{number:06d}.mov"
+            picture = work / "picture.mov"
+            ffmpeg(["-i", path, "-map", f"0:{video['index']}", "-vf", vf,
+                    "-an", "-c:v", "prores_ks", "-profile:v", "2",
+                    "-pix_fmt", "yuv422p10le", "-map_metadata", "-1",
+                    "-map_chapters", "-1", picture])
+            # Measure the encoded video, then pad/trim audio to that exact length.
+            # -shortest with an unbounded apad can otherwise overshoot short clips.
+            duration = probe(picture)[0]["duration"]
+            command = ["-i", picture]
+            if audio is None:
+                command += ["-f", "lavfi", "-i", "anullsrc=r=48000:cl=stereo"]
+            else:
+                command += ["-i", path]
+            command += ["-map", "0:v:0", "-map",
+                        f"1:{audio['index']}" if audio else "1:a:0",
+                        "-af", "asetpts=PTS-STARTPTS,aresample=48000,apad",
+                        "-c:v", "copy", "-t", duration,
+                        "-c:a", "pcm_s24le", "-ar", "48000", "-ac", "2",
+                        "-map_metadata", "-1", "-map_chapters", "-1", segment]
+            ffmpeg(command)
+            picture.unlink()
+            entries.append(f"file '{segment.name}'\n")
+        manifest = work / "clips.ffconcat"
+        manifest.write_text("ffconcat version 1.0\n" + "".join(entries))
+        joined = work / "joined.mov"
+        print("\nJoining encoded clips…", flush=True)
+        ffmpeg(["-f", "concat", "-safe", "1", "-i", manifest,
+                "-map", "0:v:0", "-map", "0:a:0", "-c", "copy", joined])
+        # Same-volume hard link publishes atomically and refuses an existing name.
+        os.link(joined, output)
+    print(f"\nWrote: {output}", flush=True)
+
+
+if __name__ == "__main__":
+    try:
+        main()
+    except KeyboardInterrupt:
+        print("\nCancelled.", file=sys.stderr)
+        sys.exit(130)
+    except (ValueError, OSError, subprocess.CalledProcessError) as exc:
+        print(f"Error: {exc}", file=sys.stderr)
+        sys.exit(1)

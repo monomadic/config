@@ -20,5 +20,8 @@ cpu_alert = "#FF1F4B"
 cpu_alert_background = "#2E0612"
 border_width = 1
 border = "#FFB000"  # matches the selected row outline
-scanlines = 0.4  # soft CRT scanlines, 0 = off
-crt = 0.5  # phosphor glow and vignette, 0 = off
+scanlines = 0.3  # CRT scanlines, 0 = off
+crt = 0.4  # phosphor glow and darkened corners, 0 = off
+crt_mask = 0.5  # aperture-grille stripes (Retina only)
+crt_grain = 0.4  # static noise
+crt_flicker = 0.4  # exposure flicker and rolling band

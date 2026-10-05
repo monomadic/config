@@ -1,17 +1,23 @@
 #!/usr/bin/env zsh
-# Encode video to AV1 (SVT-AV1) in an MKV.
+# Encode video to AV1 (SVT-AV1) in MKV (default) or MP4.
 #
 # The stream targets the Apple hardware AV1 decoder (M3 / A17 Pro and later):
 # Main profile, 4:2:0, 10-bit, no film-grain synthesis. mpv, VLC and anything
-# else built on VideoToolbox decode it in hardware; QuickTime and Finder do
-# not open MKV at all. Every audio and subtitle track is copied untouched,
-# except MP4 mov_text subtitles, which become SRT.
+# else built on VideoToolbox decode it in hardware; QuickTime and Finder do not
+# open MKV at all, which is what --mp4 is for.
+#
+# The container decides what happens to the other tracks. MKV copies every
+# audio, subtitle and attachment track untouched, except MP4 mov_text
+# subtitles, which become SRT. MP4 is written faststart, copies audio only when
+# it is already an MP4-native codec and otherwise re-encodes to AAC through
+# AudioToolbox, and drops subtitles (MP4 only takes mov_text).
 #
 # Usage:
-#   encode-av1 [--fast|--balanced|--quality|--archive] [-d|--delete] <input>...
+#   encode-av1 [--mp4|--mkv] [--fast|--balanced|--quality|--archive] [-d|--delete] <input>...
 #   encode-av1 -p <profile> <input>...
+#   encode-av1 --container <mp4|mkv> <input>...
 #
-# Output: <input stem>.av1.mkv next to the source. Existing outputs are skipped.
+# Output: <input stem>.av1.<container> beside the source. Existing outputs are skipped.
 #
 # Profiles (SVT-AV1 preset / CRF):
 #   fast      7 / 28   bulk conversion, previews
@@ -22,6 +28,7 @@
 set -u
 
 profile=balanced
+container=mkv
 delete_source=0
 inputs=()
 
@@ -29,8 +36,12 @@ while (( $# )); do
 	case "$1" in
 		--fast|--balanced|--quality|--archive) profile="${1#--}" ;;
 		-p|--profile) shift; profile="${1:-}" ;;
+		--mp4|--mkv) container="${1#--}" ;;
+		--container)
+			(( $# >= 2 )) || { print -u2 "encode-av1: --container requires mp4 or mkv"; exit 2 }
+			shift; container="$1" ;;
 		-d|--delete) delete_source=1 ;;
-		-h|--help) sed -n '2,20p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+		-h|--help) sed -n '2,/^$/p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
 		--) shift; inputs+=("$@"); break ;;
 		-*) print -u2 "encode-av1: unknown option: $1"; exit 2 ;;
 		*) inputs+=("$1") ;;
@@ -38,7 +49,14 @@ while (( $# )); do
 	shift
 done
 
-(( ${#inputs} )) || { print -u2 "usage: encode-av1 [--fast|--balanced|--quality|--archive] [-d] <input>..."; exit 2 }
+(( ${#inputs} )) || { print -u2 "usage: encode-av1 [--mp4|--mkv] [--fast|--balanced|--quality|--archive] [-d] <input>..."; exit 2 }
+
+typeset -a container_args=()
+case "$container" in
+	mp4) container_args=(-movflags +faststart) ;;
+	mkv) ;;
+	*) print -u2 "encode-av1: unknown container: $container (expected mp4 or mkv)"; exit 2 ;;
+esac
 
 case "$profile" in
 	fast)     preset=7; crf=28 ;;
@@ -48,30 +66,56 @@ case "$profile" in
 	*) print -u2 "encode-av1: unknown profile: $profile"; exit 2 ;;
 esac
 
+# MP4 only takes a handful of audio codecs; everything else (FLAC, DTS, TrueHD,
+# Vorbis, PCM, ...) goes to AAC through AudioToolbox. MKV takes anything.
+audio_args() {
+	local -a codecs
+	codecs=(${(f)"$(ffprobe -v error -select_streams a -show_entries stream=codec_name \
+		-of default=nw=1:nk=1 -- "$1" 2>/dev/null)"})
+	(( ${#codecs} )) || { print -- "-an"; return }
+	local codec
+	for codec in $codecs; do
+		case "$codec" in
+			aac|alac|ac3|eac3|mp3|opus) ;;
+			*) print -- "-c:a aac_at -b:a 256k"; return ;;
+		esac
+	done
+	print -- "-c:a copy"
+}
+
 rc=0
 for src in "${inputs[@]}"; do
 	if [[ ! -f "$src" ]]; then
 		print -u2 "encode-av1: not a file: $src"; rc=1; continue
 	fi
-	dst="${src:r}.av1.mkv"
+	dst="${src:r}.av1.${container}"
 	if [[ -e "$dst" ]]; then
 		print -u2 "encode-av1: exists, skipping: $dst"; continue
 	fi
 
-	# Matroska cannot hold MP4's mov_text; turn it into SRT, copy anything else.
-	sub_codec=copy
-	if ffprobe -v error -select_streams s -show_entries stream=codec_name \
-		-of default=nw=1:nk=1 -- "$src" 2>/dev/null | grep -qx mov_text; then
-		sub_codec=srt
+	typeset -a map_args stream_args
+	if [[ "$container" == mkv ]]; then
+		# Matroska cannot hold MP4's mov_text; turn it into SRT, copy anything else.
+		sub_codec=copy
+		if ffprobe -v error -select_streams s -show_entries stream=codec_name \
+			-of default=nw=1:nk=1 -- "$src" 2>/dev/null | grep -qx mov_text; then
+			sub_codec=srt
+		fi
+		map_args=(-map 0:v:0 -map '0:a?' -map '0:s?' -map '0:t?')
+		stream_args=(-c:a copy -c:s "$sub_codec" -c:t copy)
+	else
+		map_args=(-map 0:v:0 -map '0:a?')
+		stream_args=(${(z)$(audio_args "$src")})
 	fi
 
-	print -- "→ ${src:t}  [$profile: preset $preset, crf $crf]"
+	print -- "→ ${src:t}  [$container, $profile: preset $preset, crf $crf]"
 	if ffmpeg -hide_banner -nostdin -i "$src" \
-		-map 0:v:0 -map '0:a?' -map '0:s?' -map '0:t?' -map_metadata 0 \
+		"${map_args[@]}" -map_metadata 0 \
 		-c:v libsvtav1 -preset "$preset" -crf "$crf" \
 		-pix_fmt yuv420p10le \
 		-svtav1-params "tune=0:keyint=10s:film-grain=0" \
-		-c:a copy -c:s "$sub_codec" -c:t copy \
+		"${stream_args[@]}" \
+		"${container_args[@]}" \
 		-- "$dst"
 	then
 		touch -r "$src" "$dst" 2>/dev/null
