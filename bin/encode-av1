@@ -1,16 +1,17 @@
 #!/usr/bin/env zsh
-# Encode video to AV1 (SVT-AV1) in an MP4 that plays natively on macOS.
+# Encode video to AV1 (SVT-AV1) in an MKV.
 #
-# Targets the Apple hardware AV1 decoder (M3 / A17 Pro and later): Main
-# profile, 4:2:0, 10-bit, no film-grain synthesis, faststart MP4. Audio is
-# copied when it is already an MP4-native codec, otherwise re-encoded to AAC
-# through AudioToolbox. Subtitle tracks are dropped (MP4 only takes mov_text).
+# The stream targets the Apple hardware AV1 decoder (M3 / A17 Pro and later):
+# Main profile, 4:2:0, 10-bit, no film-grain synthesis. mpv, VLC and anything
+# else built on VideoToolbox decode it in hardware; QuickTime and Finder do
+# not open MKV at all. Every audio and subtitle track is copied untouched,
+# except MP4 mov_text subtitles, which become SRT.
 #
 # Usage:
 #   encode-av1 [--fast|--balanced|--quality|--archive] [-d|--delete] <input>...
 #   encode-av1 -p <profile> <input>...
 #
-# Output: <input stem>.av1.mp4 next to the source. Existing outputs are skipped.
+# Output: <input stem>.av1.mkv next to the source. Existing outputs are skipped.
 #
 # Profiles (SVT-AV1 preset / CRF):
 #   fast      7 / 28   bulk conversion, previews
@@ -47,39 +48,30 @@ case "$profile" in
 	*) print -u2 "encode-av1: unknown profile: $profile"; exit 2 ;;
 esac
 
-# MP4-native audio codecs that QuickTime/AVFoundation decode without help.
-typeset -a mp4_audio=(aac alac mp3 ac3 eac3)
-
-audio_args() {
-	local src="$1" codec
-	codec="$(ffprobe -v error -select_streams a:0 -show_entries stream=codec_name \
-		-of default=nw=1:nk=1 -- "$src" 2>/dev/null)"
-	[[ -z "$codec" ]] && { print -- "-an"; return }
-	if (( ${mp4_audio[(Ie)$codec]} )); then
-		print -- "-c:a copy"
-	else
-		print -- "-c:a aac_at -b:a 192k"
-	fi
-}
-
 rc=0
 for src in "${inputs[@]}"; do
 	if [[ ! -f "$src" ]]; then
 		print -u2 "encode-av1: not a file: $src"; rc=1; continue
 	fi
-	dst="${src:r}.av1.mp4"
+	dst="${src:r}.av1.mkv"
 	if [[ -e "$dst" ]]; then
 		print -u2 "encode-av1: exists, skipping: $dst"; continue
 	fi
 
+	# Matroska cannot hold MP4's mov_text; turn it into SRT, copy anything else.
+	sub_codec=copy
+	if ffprobe -v error -select_streams s -show_entries stream=codec_name \
+		-of default=nw=1:nk=1 -- "$src" 2>/dev/null | grep -qx mov_text; then
+		sub_codec=srt
+	fi
+
 	print -- "→ ${src:t}  [$profile: preset $preset, crf $crf]"
 	if ffmpeg -hide_banner -nostdin -i "$src" \
-		-map 0:v:0 -map '0:a:0?' -map_metadata 0 \
+		-map 0:v:0 -map '0:a?' -map '0:s?' -map '0:t?' -map_metadata 0 \
 		-c:v libsvtav1 -preset "$preset" -crf "$crf" \
 		-pix_fmt yuv420p10le \
 		-svtav1-params "tune=0:keyint=10s:film-grain=0" \
-		${(z)$(audio_args "$src")} \
-		-movflags +faststart \
+		-c:a copy -c:s "$sub_codec" -c:t copy \
 		-- "$dst"
 	then
 		touch -r "$src" "$dst" 2>/dev/null

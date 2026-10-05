@@ -97,7 +97,10 @@ while IFS='=' read -r k v; do [[ -n $k ]] && F[$k]=$v; done < <(
 
 local nominal=$(frac ${S[r_frame_rate]})
 local avg=$(frac ${S[avg_frame_rate]})
-local dur=${S[duration]:-${F[duration]}}
+local dur=${S[duration]}
+# Matroska/WebM carry no per-stream duration: ffprobe prints a literal "N/A"
+# there, which is non-empty, so a plain ${a:-b} never reached the container's.
+[[ -z $dur || $dur == N/A ]] && dur=${F[duration]}
 [[ -z $dur || $dur == N/A ]] && dur=0
 local nb=${S[nb_frames]:-N/A}
 
@@ -157,6 +160,7 @@ scan_kept() {  # $1=seek offset ('' = start)  $2=duration ('' = to end)
 }
 
 local kept=0 dropped=0 total=0 unique=0 dupe_pct=0 scanned=0
+local claimed=$nominal  # the rate the verdict holds the unique rate against
 local nwin=6 win=20
 if (( quick )); then
   note "\n(skipped duplicate scan — quick mode)"
@@ -195,7 +199,12 @@ else
     scanned=1
     (( kept > total )) && kept=$total
     dropped=$(( total - kept ))
-    (( dur != 0 )) && unique=$(printf '%.3f' $(( ${kept}.0 / ${dur} )))
+    if (( dur != 0 )); then
+      unique=$(printf '%.3f' $(( ${kept}.0 / ${dur} )))
+    else  # no duration anywhere (raw streams): scale the claimed rate instead
+      (( avg > 0 )) && claimed=$avg  # r_frame_rate is a guess without timestamps
+      unique=$(printf '%.3f' $(( ${kept}.0 / ${total} * claimed )))
+    fi
     dupe_pct=$(printf '%.1f' $(( ${dropped}.0 / ${total} * 100 )))
     kv "Frames decoded" "$total"
     kv "Unique frames"  "${C_B}${kept}${C_RST}  ${C_DIM}(${dropped} redundant, ${dupe_pct}%)${C_RST}"
@@ -209,12 +218,12 @@ fi
 hdr "Verdict"
 
 if (( scanned )); then
-  if (( unique < nominal * 0.6 )); then
-    print -- "  ${C_RED}${C_B}✗ Padded.${C_RST} Container says ${nominal}fps but real motion is ${C_B}~${unique}fps${C_RST} — ${dupe_pct}% of frames are duplicates. This is why it feels like ~${unique%.*}."
-  elif (( unique < nominal * 0.9 )); then
-    print -- "  ${C_YLW}${C_B}△ Mixed.${C_RST} Some duplicate frames (${dupe_pct}%); effective motion ~${C_B}${unique}fps${C_RST} vs ${nominal}fps claimed."
+  if (( unique < claimed * 0.6 )); then
+    print -- "  ${C_RED}${C_B}✗ Padded.${C_RST} Container says ${claimed}fps but real motion is ${C_B}~${unique}fps${C_RST} — ${dupe_pct}% of frames are duplicates. This is why it feels like ~${unique%.*}."
+  elif (( unique < claimed * 0.9 )); then
+    print -- "  ${C_YLW}${C_B}△ Mixed.${C_RST} Some duplicate frames (${dupe_pct}%); effective motion ~${C_B}${unique}fps${C_RST} vs ${claimed}fps claimed."
   else
-    print -- "  ${C_GRN}${C_B}✓ Genuine.${C_RST} Unique frames (~${unique}fps) match the ${nominal}fps container."
+    print -- "  ${C_GRN}${C_B}✓ Genuine.${C_RST} Unique frames (~${unique}fps) match the ${claimed}fps container."
   fi
 fi
 

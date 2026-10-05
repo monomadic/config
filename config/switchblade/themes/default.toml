@@ -164,9 +164,9 @@ codec = [1.0, 1.0, 1.0, 1.0]
 # The design system's four heat stops, --heat-1 … --heat-4, rarest → most
 # used. A tag wears exactly ONE of them, never a blend.
 fill = [
-  [0.627, 0.012, 1.0, 0.957],
-  [0.0, 0.765, 0.322, 1.0],
-  [0.0, 0.157, 0.859, 0.878],
+  [0.0, 0.7, 0.2, 1.0],
+  [1.0, 0.065, 0.922, 1.0],
+  [0.0, 0.157, 0.859, 1.0],
   [1.0, 0.235, 0.804, 1.0],
 ]
 # Label colour ramp and size ramp [min, max], sampled by the same heat.
@@ -184,7 +184,7 @@ scale = "log"
 counts = true
 # The panel itself, and how far non-matching chips fade (they fade IN
 # PLACE — the layout never reflows under your typing).
-backdrop = [0.0, 0.0, 0.0, 0.6]
+backdrop = [0.0, 0.0, 0.0, 0.8]
 faded = 0.12
 # Hovering or cursoring a chip previews its clips: everything else in the
 # grid fades to this.
@@ -197,7 +197,7 @@ dim = 1.0
 ring = [1.0, 1.0, 1.0, 0.55]
 ring_width = 2.0
 # Panel geometry and chip padding.
-width = 900.0
+width = 300.0
 max_height = 0.95
 gap = 8.0  # vertical gap between tags
 inset = 30.0  # padding in the panel
@@ -344,7 +344,6 @@ fade_ms = 160.0
 # The panel's opacity over the design layer's `theme.surface`.
 backdrop_alpha = 0.94
 
-
 # ── Actors popup (@) ────────────────────────────────────────────────────
 # The cast comes from the FILENAME's prefix: "Yeri Blue, Nala - Harbour
 # Wall.mp4" names two people (commas, "&" and "and" separate names). Press
@@ -425,7 +424,6 @@ fade_ms = 150.0
 # (click/right-click/⌘-click) and gamepad (pad_*) buttons aren't in the
 # keymap, so they stay fixed labels. Esc or `?` again closes it.
 
-
 # ── Rating stars ── the design system's gold (was the built-in white-dim unlit)
 [rating]
 lit = [1.0, 0.831, 0.373, 1.0]  # --neon-gold #ffd45f
@@ -444,23 +442,23 @@ padding = 20
 
 # The grid's tiles. States: hover, selected, marked, empty.
 [tile]
-radius = 8.0      # was corner_radius
+radius = 8.0  # was corner_radius
 # Aspect cap (long:short) for the selected/hovered tile. Clips beyond it
 # get pan-and-scan cropped: portrait loses top/bottom, ultrawide loses
 # sides. 1.5 also gently crops 16:9; set 1.78 to leave landscape untouched.
 max_aspect = 1.5  # was max_display_aspect
 
 [tile.hover]
-scale = 1.02                     # was hover_scale
-border.width = 1.0               # was hover_border_width
-border.color = [1.0, 1.0, 1.0]   # was hover_border
+scale = 1.02  # was hover_scale
+border.width = 1.0  # was hover_border_width
+border.color = [1.0, 1.0, 1.0]  # was hover_border
 
 # The selected tile. `zoom_boost` makes it stand out more as you zoom out
 # (0 = off). Scale 1.0 = it doesn't grow.
 [tile.selected]
-radius = 10.0       # was selection_corner_radius
-scale = 1.0         # was selection_scale
-zoom_boost = 0.0    # was selection_zoom_boost
+radius = 10.0  # was selection_corner_radius
+scale = 1.0  # was selection_scale
+zoom_boost = 0.0  # was selection_zoom_boost
 border.width = 4.0  # was selection_border_width
 
 [tile.focused]
@@ -479,26 +477,26 @@ border.color = [0.02, 0.02, 0.02]  # was empty_border
 # The quickview filmstrip. States: selected, hover.
 [strip]
 height = 96.0  # chip height (width follows the clip's aspect) — was strip_height
-gap = 4.0      # was strip_gap
+gap = 4.0  # was strip_gap
 radius = 10.0  # was strip_corner_radius
-snap = 0.5     # strip chasing the selection (0.99 ≈ instant) — was strip_snap_strength
+snap = 0.5  # strip chasing the selection (0.99 ≈ instant) — was strip_snap_strength
 
 [strip.selected]
-scale = 1.36        # was strip_selection_scale
+scale = 1.36  # was strip_selection_scale
 border.width = 4.0  # was strip_border_width
 
 # `ease_k`: how fast a chip grows into the hover and shrinks back out —
 # a fraction of the remaining distance per frame at 60fps.
 [strip.hover]
-scale = 1.36   # was strip_hover_scale
+scale = 1.36  # was strip_hover_scale
 ease_k = 0.22  # was strip_hover_k
 
 # Triple play's panes. State: focused.
 [triple]
-gap = 3.0       # was triple_gap
-radius = 20.0   # was triple_corner_radius
-cover = true    # fill the pane and crop; false = letterbox it — was triple_cover
-fade_ms = 130.0 # was triple_fade_ms
+gap = 3.0  # was triple_gap
+radius = 20.0  # was triple_corner_radius
+cover = true  # fill the pane and crop; false = letterbox it — was triple_cover
+fade_ms = 130.0  # was triple_fade_ms
 
 # The focused pane's ring is the only focus cue; unfocused panes aren't dimmed.
 [triple.focused]
@@ -511,6 +509,6 @@ border.width = 3.0  # was triple_border_width
 # frosts the grid under the strip view (0 = none). These replace the old
 # quickview_dim / quickview_blur / quickview_backdrop keys.
 [backdrop.strip]
-color = [0.0, 0.0, 0.0, 0.70]   # was quickview_dim = 0.60
+color = [0.0, 0.0, 0.0, 0.70]  # was quickview_dim = 0.60
 fall = 0.0
-blur = 0.0                      # was quickview_blur = 0.0
+blur = 0.0  # was quickview_blur = 0.0
