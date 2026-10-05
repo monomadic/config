@@ -120,6 +120,22 @@ human_bytes() {
   fi
 }
 
+# Width/height/fps as yt-dlp reports them → "1920×1080 · 60fps". Any of them can
+# be absent ("NA", "none" or empty): audio-only gives nothing at all, and some
+# extractors only know the height.
+format_video_info() {
+  local w="${1//[^0-9]/}" h="${2//[^0-9]/}" fps="${3//[^0-9.]/}" out=""
+  if   [[ -n "$w" && -n "$h" ]]; then out="${w}×${h}"
+  elif [[ -n "$h" ]];            then out="${h}p"
+  fi
+  if [[ "$fps" == [0-9]* ]] && (( fps > 0 )); then
+    fps="$(printf '%.2f' "$fps")"               # 29.97002997 → 29.97, 60.0 → 60
+    fps="${fps%%0#}"; fps="${fps%.}"
+    out+="${out:+ · }${fps}fps"
+  fi
+  print -rn -- "$out"
+}
+
 # ── disk space ───────────────────────────────────────────────────────────────
 # Two floors on the filesystem we're writing into: below LOW_SPACE_WARN the run
 # asks before it starts at all, below LOW_SPACE_HALT it stops mid-download.
@@ -200,6 +216,7 @@ typeset -g rating=0 touched=0            # touched: user changed rating or metad
 typeset -g final_path="" final_real="" proposed_dir="" dl_dest=""
 typeset -ga final_files=()               # every after_move path, for the subtitle pass
 typeset -g video_id="" extractor_key="" archive_key=""
+typeset -g video_info=""                  # "1920×1080 · 60fps", known from the preflight on
 typeset -gi in_archive=0
 typeset -gA archive_set                   # loaded once: archive_set[<extractor> <id>]=1
 typeset -g pct=0 dl_str="—" tot_str="—" spd_str="—" eta_str="—" dstatus="starting"
@@ -255,6 +272,9 @@ preflight() {
     --print "%(playlist,playlist_id)s" \
     --print "%(extractor_key)s" \
     --print "%(id)s" \
+    --print "%(width)s" \
+    --print "%(height)s" \
+    --print "%(fps)s" \
     "${passthru[@]}" "$url" 2>"$errf")}" )
   local rc=$?
   if (( rc != 0 )) || [[ -z "${lines[1]:-}" ]]; then
@@ -301,6 +321,10 @@ preflight() {
 
   in_archive=0
   [[ -n "$archive_key" && -n "${archive_set[$archive_key]:-}" ]] && in_archive=1
+
+  # The format is already selected at this point, so this is the resolution and
+  # frame rate of the file the real run will write.
+  video_info="$(format_video_info "${lines[10]:-}" "${lines[11]:-}" "${lines[12]:-}")"
 }
 
 # Read the whole download-archive file into a hash once, so both the single-file
@@ -548,6 +572,7 @@ render() {
       buf+="   ${C_DESC}id${C_RESET}      ${C_DIM}${curr_akey}${C_RESET}${nl}"
     fi
   fi
+  [[ -n "$video_info" ]] && buf+="   ${C_DESC}video${C_RESET}   ${C_BOLD}${video_info}${C_RESET}${nl}"
   buf+="   ${C_DESC}file${C_RESET}    ${C_FILE}${previewname}${C_RESET}${nl}"
   (( band )) || [[ -z "$thumb_file" ]] || buf+="   ${C_DESC}thumb${C_RESET}   ${C_OK}✓ cached${C_RESET}${nl}"
   [[ -n "$msg" ]] && buf+="${nl}   ${C_ACCENT}$(clip "$msg" $(( textw - 1 )))${C_RESET}${nl}"
@@ -639,8 +664,9 @@ handle_line() {
   fi
   # gallery: one ITEM line per entry, printed before that entry's download starts.
   if [[ "$line" == ITEM\|* ]]; then
-    local rest="${line#ITEM|}" idx stem turl fname akey
-    IFS='|' read -r idx stem turl fname akey <<<"$rest"
+    local rest="${line#ITEM|}" idx stem vw vh vfps turl fname akey
+    IFS='|' read -r idx stem vw vh vfps turl fname akey <<<"$rest"
+    video_info="$(format_video_info "$vw" "$vh" "$vfps")"
     gal_index="${idx//[^0-9]/}"; (( gal_index > 0 )) || (( gal_index = gal_done + 1 ))
     [[ -n "$fname" ]] && gal_name="${fname:t}"
     pct=0; dl_str="—"; tot_str="—"; spd_str="—"; eta_str="—"; dstatus="starting"
@@ -864,7 +890,7 @@ typeset -a item_print=()
 # gallery: one line per entry as it starts, so the UI can follow the index, the
 # current filename and that entry's thumbnail without a second extraction pass.
 (( gallery )) && item_print=(
-  --print "before_dl:ITEM|%(playlist_index)s|%(extractor)s_%(id)s|%(thumbnail)s|%(filename)s|%(extractor)s %(id)s"
+  --print "before_dl:ITEM|%(playlist_index)s|%(extractor)s_%(id)s|%(width)s|%(height)s|%(fps)s|%(thumbnail)s|%(filename)s|%(extractor)s %(id)s"
   --ignore-errors                     # one dead entry must not kill the whole gallery
 )
 
@@ -938,6 +964,7 @@ if [[ ! -e "$src" ]]; then
 fi
 
 print -r -- "${C_OK}✓${C_RESET} downloaded  ${C_FILE}${src:t}${C_RESET}"
+[[ -n "$video_info" ]] && print -r -- "  ${C_DESC}video:${C_RESET} ${video_info}"
 [[ -z "$thumb_file" ]] && thumb_file="$(cached_thumb)"
 [[ -n "$thumb_file" ]] && print -r -- "  ${C_DESC}thumbnail:${C_RESET} ${thumb_file:t} ${C_DIM}(cached)${C_RESET}"
 [[ -n "$json_file" && -s "$json_file" ]] && print -r -- "  ${C_DESC}metadata:${C_RESET} ${json_file:t} ${C_DIM}(cached)${C_RESET}"
