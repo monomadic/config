@@ -16,8 +16,10 @@
 #   encode-av1 [--mp4|--mkv] [--fast|--balanced|--quality|--archive] [-d|--delete] <input>...
 #   encode-av1 -p <profile> <input>...
 #   encode-av1 --container <mp4|mkv> <input>...
+#   encode-av1 -o <dir> <input>...
 #
-# Output: <input stem>.av1.<container> beside the source. Existing outputs are skipped.
+# Output: <input stem>.av1.<container> beside the source, or in the -o/--output-dir
+# directory (created if missing). Existing outputs are skipped.
 #
 # Profiles (SVT-AV1 preset / CRF):
 #   fast      7 / 28   bulk conversion, previews
@@ -30,6 +32,7 @@ set -u
 profile=balanced
 container=mkv
 delete_source=0
+output_dir=
 inputs=()
 
 while (( $# )); do
@@ -40,6 +43,9 @@ while (( $# )); do
 		--container)
 			(( $# >= 2 )) || { print -u2 "encode-av1: --container requires mp4 or mkv"; exit 2 }
 			shift; container="$1" ;;
+		-o|--output-dir)
+			(( $# >= 2 )) || { print -u2 "encode-av1: --output-dir requires a directory"; exit 2 }
+			shift; output_dir="$1" ;;
 		-d|--delete) delete_source=1 ;;
 		-h|--help) sed -n '2,/^$/p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
 		--) shift; inputs+=("$@"); break ;;
@@ -49,7 +55,11 @@ while (( $# )); do
 	shift
 done
 
-(( ${#inputs} )) || { print -u2 "usage: encode-av1 [--mp4|--mkv] [--fast|--balanced|--quality|--archive] [-d] <input>..."; exit 2 }
+(( ${#inputs} )) || { print -u2 "usage: encode-av1 [--mp4|--mkv] [--fast|--balanced|--quality|--archive] [-o dir] [-d] <input>..."; exit 2 }
+
+if [[ -n "$output_dir" ]]; then
+	mkdir -p -- "$output_dir" || { print -u2 "encode-av1: cannot create: $output_dir"; exit 2 }
+fi
 
 typeset -a container_args=()
 case "$container" in
@@ -89,6 +99,7 @@ for src in "${inputs[@]}"; do
 		print -u2 "encode-av1: not a file: $src"; rc=1; continue
 	fi
 	dst="${src:r}.av1.${container}"
+	[[ -n "$output_dir" ]] && dst="$output_dir/${dst:t}"
 	if [[ -e "$dst" ]]; then
 		print -u2 "encode-av1: exists, skipping: $dst"; continue
 	fi

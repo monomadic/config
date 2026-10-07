@@ -75,10 +75,17 @@ class Tab2ChordPro:
                 if match:
                     self.metadata['tempo'] = match.group(1)
 
+            if 'Tuning:' in line:
+                # "Tuning: E A D G B E" — a row of note names, possibly with
+                # accidentals (Drop D: "D A D G B E", half-step down: "Eb Ab ...").
+                match = re.search(r'Tuning:\s*((?:[A-G][#b]?\s*){4,8})\s*$', line)
+                if match:
+                    self.metadata['tuning'] = ' '.join(match.group(1).split())
+
     # A single, fully-anchored chord token (e.g. F, Bb, Dm7, Fsus2, G/B).
     _CHORD_TOKEN = re.compile(
-        r'^[A-G][#b]?(?:m|mi|min|aug|\+|dim|0|h)?(?:maj)?(?:\d+)?'
-        r'(?:sus\d?)?(?:add\d)?(?:[b#]\d)?(?:/[A-G][#b]?)?$'
+        r'^[A-G][#b]?(?:min|mi|m|aug|\+|dim|0|h)?(?:maj|Maj|M|Δ)?(?:\d+)?'
+        r'(?:sus\d?)?(?:add\d+)?(?:[b#]\d+)*(?:/[A-G][#b]?)?$'
     )
 
     def is_chord_line(self, line: str) -> bool:
@@ -100,17 +107,18 @@ class Tab2ChordPro:
         return bool(tokens) and all(self._CHORD_TOKEN.match(t) for t in tokens)
 
     def extract_chords_with_positions(self, chord_line: str) -> List[Tuple[str, int]]:
-        """Extract chord names and their column positions."""
-        chords = []
-        # Comprehensive chord pattern
-        pattern = r'[A-G][#b]?(?:m|mi|min|aug|\+|dim|0|h)?(?:maj)?(?:\d+)?(?:sus\d)?(?:add\d)?(?:b\d|#\d)?(?:/[A-G][#b]?)?'
+        """Extract chord names and their column positions.
 
-        for match in re.finditer(pattern, chord_line):
-            chord = match.group(0)
-            pos = match.start()
-            chords.append((chord, pos))
-
-        return chords
+        Tokenise on whitespace and match each token as a *whole* chord. An
+        unanchored search would stop at the first satisfiable prefix, which
+        turned ``Dmaj7`` into ``Dm`` (the alternation tried ``m`` before
+        ``maj`` and nothing forced it to consume the rest of the token).
+        """
+        return [
+            (m.group(0), m.start())
+            for m in re.finditer(r'\S+', chord_line)
+            if self._CHORD_TOKEN.match(m.group(0))
+        ]
 
     def merge_chord_lyric(self, chord_line: str, lyric_line: str) -> str:
         """Merge chord line with lyric line by monospaced column position.
@@ -258,17 +266,16 @@ class Tab2ChordPro:
     def _open_section(self, section: str) -> None:
         """Close any open section and open the new one.
 
-        Environment sections (verse/chorus/bridge) are wrapped; chorus needs
-        no label. Anything else becomes a plain comment and stays sectionless.
+        Environment sections (verse/chorus/bridge) are wrapped without a
+        label — "Verse 1" / "Verse 2" numbering from the source is dropped,
+        a verse is just a verse. Anything else becomes a plain comment and
+        stays sectionless.
         """
         self._close_section()
         section_type = self._parse_section_type(section)
 
-        if section_type == 'chorus':
-            self.output.append('{start_of_chorus}')
-            self._open = 'chorus'
-        elif section_type in self.ENVIRONMENTS:
-            self.output.append(f'{{start_of_{section_type}: label="{section}"}}')
+        if section_type in self.ENVIRONMENTS:
+            self.output.append(f'{{start_of_{section_type}}}')
             self._open = section_type
         else:
             self.output.append(f'{{comment: {section}}}')
@@ -298,6 +305,8 @@ class Tab2ChordPro:
             header.append(f'{{capo: {self.metadata["capo"]}}}')
         if 'tempo' in self.metadata:
             header.append(f'{{tempo: {self.metadata["tempo"]}}}')
+        if 'tuning' in self.metadata:
+            header.append(f'{{tuning: {self.metadata["tuning"]}}}')
 
         if header:
             header.append('')

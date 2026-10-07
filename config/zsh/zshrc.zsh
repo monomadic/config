@@ -332,5 +332,10 @@ if [[ -o interactive && -r "$_fsh_dir/fast-syntax-highlighting.plugin.zsh" ]]; t
     command cp "$_fsh_dir/share/free_theme.zsh" "$FAST_WORK_DIR/secondary_theme.zsh"
   fi
   source "$_fsh_dir/fast-syntax-highlighting.plugin.zsh"
+  # The default theme paints alias, builtin and command the same green;
+  # make aliases tell apart from real commands.
+  FAST_HIGHLIGHT_STYLES[alias]='fg=cyan'
+  FAST_HIGHLIGHT_STYLES[suffix-alias]='fg=cyan,underline'
+  FAST_HIGHLIGHT_STYLES[global-alias]='fg=cyan,bold'
 fi
 unset _fsh_dir

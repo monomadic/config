@@ -35,5 +35,5 @@ side-section-titles = "auto"
 # One of: none (directory order), name (by title), date (newest first).
 sort-songs = "date"
 
-superscript-chord-quality = true
+superscript-chord-quality = false
 plain-chords = true
