@@ -15,7 +15,8 @@
 
 # In-panel bindings: chord = action. Entries here override the defaults for
 # the same chord; "none" unbinds one. Actions: open, launch-new, reveal,
-# clear, dismiss, select-all, move-up, move-down, refresh-config.
+# clear, dismiss, select-all, move-up, move-down, refresh-config,
+# show-commands, toggle-crt.
 [keys]
 "enter" = "open"  # activate running app / launch installed one
 # "cmd+enter" = "launch-new"   # real open (reopen event) even if running
@@ -28,6 +29,7 @@
 "up" = "move-up"
 "down" = "move-down"
 "cmd+shift+r" = "refresh-config"  # re-read this file live
+"cmd+=" = "toggle-crt"  # flip the [crt] overlay for the session
 
 # Black-glass look. Colors are "#rrggbb"; opacities 0.0–1.0; sizes in points.
 #
@@ -76,10 +78,18 @@ item_font_weight = ""  # row text weight: ultralight/thin/light/regular/
 # medium/semibold/bold/heavy/black, or -1.0..1.0.
 # Ignored when font_family names a weighted variant.
 
+# CRT tube overlay. Global, over whatever theme is active; cmd+= flips it
+# live. Strengths are 0.0–1.0.
+[crt]
+enabled = true
+scanlines = 0.6   # soft dark lines over the whole panel
+glow = 0.6        # phosphor glow in item_foreground_highlight + vignette
+
 # Motion, not appearance — themes never touch this section.
 [animation]
 fade = false  # AppKit's utility-panel fade on summon/dismiss; false = instant
 scroll = true  # ease the row window when a key or wheel notch moves it a row
+hint_delay = 300  # ms ⌘ stays down before the row-jump hints fade in
 # (a trackpad never eases — it tracks your fingers)
 
 # Glyphs. search and the four row-state glyphs are literal strings (SF

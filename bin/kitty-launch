@@ -4,7 +4,8 @@
 #
 # Behavior:
 #   - If Kitty IPC is reachable, open a new Kitty window/tab via `kitten @ launch`.
-#   - If not reachable, start a new Kitty instance listening on the chosen socket.
+#   - If not reachable, or with --spawn, start a fresh Kitty instance in its own
+#     OS window, half the height of a normal Kitty window (--height to change).
 #   - If no command is provided, open an interactive login shell.
 #   - --shell runs the command through the login $SHELL, for its env/PATH;
 #     --interactive does the same with -i, so .zshrc is read too.
@@ -46,6 +47,24 @@ float_lines=16
 auto_hide=false
 via_shell=false
 shell_flags="-lc"
+use_ipc=true
+window_height=""
+
+# Height of the fresh-instance OS window: half of kitty.conf's
+# initial_window_height (pixels or "Nc" cells; kitty's default is 400px).
+default_window_height() {
+  local conf="${KITTY_CONFIG_DIRECTORY:-${XDG_CONFIG_HOME:-$HOME/.config}/kitty}/kitty.conf"
+  local value="" unit=""
+  [[ -r "$conf" ]] && value="$(awk '$1 == "initial_window_height" { v = $2 } END { print v }' "$conf")"
+  if [[ "$value" == <->c ]]; then
+    unit="c"
+    value="${value%c}"
+  elif [[ "$value" != <-> ]]; then
+    value=400
+  fi
+  (( value = value / 2 > 0 ? value / 2 : 1 ))
+  print -r -- "${value}${unit}"
+}
 
 usage() {
   cat <<EOF
@@ -59,6 +78,11 @@ Usage:
   $script_name [options] [-- command [args...]]
 
 Options:
+  --spawn            Always start a fresh Kitty instance in its own OS window,
+                     ignoring any running Kitty (aliases: --isolated, --no-ipc)
+  --height H         OS window height for a fresh instance, in pixels or
+                     cells ("20c"); default: half of kitty.conf's
+                     initial_window_height ($(default_window_height))
   --tab              Open in a new Kitty tab (default)
   --window           Open in a new Kitty window inside current OS window
   --os-window        Open in a new top-level OS window
@@ -82,7 +106,7 @@ Options:
   --activate         Focus/show the launched Kitty window after launch (default)
   --no-activate      Do not focus/show the launched Kitty window after launch
   --socket ADDR      Kitty IPC address
-  --no-detach        Do not detach when starting Kitty fallback
+  --no-detach        Do not detach when starting a fresh Kitty instance
   --debug            Print chosen socket and command
   -h, --help         Show help
 
@@ -101,6 +125,7 @@ Examples:
   $script_name --tab -- zsh -lc 'cd ~/src && hx .'
   $script_name --tab --shell -- 'cd ~/src && hx .'
   $script_name --window -- yazi ~/Downloads
+  $script_name --spawn --height 600 -- hx ~/src
   $script_name --auto-hide --shell -- make test
   $script_name --float --hold-on-fail --shell -- cargo build --release
   $script_name --os-window -- zsh -l
@@ -139,6 +164,22 @@ normalize_cwd() {
 
 while (( $# )); do
   case "$1" in
+    --spawn|--isolated|--no-ipc)
+      use_ipc=false
+      shift
+      ;;
+    --height)
+      (( $# >= 2 )) || {
+        print -u2 -- "missing argument for --height"
+        exit 2
+      }
+      [[ "$2" == (<->|<->c) ]] || {
+        print -u2 -- "--height expects pixels or cells (e.g. 400 or 20c): $2"
+        exit 2
+      }
+      window_height="$2"
+      shift 2
+      ;;
     --tab)
       launch_type="tab"
       shift
@@ -374,7 +415,7 @@ discover_socket() {
   return 1
 }
 
-if discovered_socket="$(discover_socket)"; then
+if $use_ipc && discovered_socket="$(discover_socket)"; then
   socket_addr="$discovered_socket"
 
   $debug && {
@@ -416,17 +457,25 @@ if discovered_socket="$(discover_socket)"; then
   exit 0
 fi
 
-# No reachable socket. Spawning a fresh Kitty only makes sense inside the
-# logged-in GUI session; over ssh (or from cron/launchd) run inline instead.
+# Fresh instance (--spawn, or no reachable socket). Spawning a
+# Kitty only makes sense inside the logged-in GUI session; over ssh (or from
+# cron/launchd) run inline instead.
 gui_session || {
   run_inline_fallback
-  print -u2 -- "no reachable Kitty socket, no GUI session, and no tty to run inline"
+  print -u2 -- "no GUI session to spawn Kitty in, and no tty to run inline"
   exit 1
 }
 
+# Each instance gets its own socket: binding the shared one would collide with
+# a running Kitty. kitty expands {kitty_pid} itself and exports KITTY_LISTEN_ON,
+# which kitty-hold-on-error needs under allow_remote_control=socket-only.
+socket_addr="unix:/tmp/kitty-launch-{kitty_pid}"
+[[ -n "$window_height" ]] || window_height="$(default_window_height)"
+
 $debug && {
-  print -u2 -- "mode:            fallback-new-kitty"
+  print -u2 -- "mode:            new-instance"
   print -u2 -- "socket:          $socket_addr"
+  print -u2 -- "height:          $window_height"
   print -u2 -- "launch_type:     $launch_type"
   print -u2 -- "cwd:             ${cwd:-}"
   print -u2 -- "title:           ${title:-}"
@@ -441,6 +490,8 @@ $debug && {
 kitty_args=(
   --listen-on "$socket_addr"
   -o allow_remote_control=socket-only
+  -o "initial_window_height=$window_height"
+  -o remember_window_size=no
 )
 
 [[ -n "$cwd" ]] && kitty_args+=( --directory "$cwd" )
@@ -459,8 +510,8 @@ case "$launch_type" in
     # Starting a fresh Kitty app already creates an OS window.
     ;;
   tab|window)
-    # Fallback cannot create a tab/window inside a non-existent Kitty instance;
-    # this starts a fresh OS window instead.
+    # A fresh instance has no existing window to put a tab/window in;
+    # its first OS window is used instead.
     ;;
 esac
 
