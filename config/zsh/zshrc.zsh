@@ -319,3 +319,18 @@ export PATH="$HOME/.conductor/bin:$HOME/.local/bin:$PATH"
 export GOROOT="$HOME/.local/go"
 
 export PATH="$GOROOT/bin:$PATH"
+
+# Syntax highlighting of the command line (vendored fast-syntax-highlighting).
+# Must be sourced last: it wraps every ZLE widget defined above it.
+# FAST_WORK_DIR is seeded from the vendored theme so the plugin never
+# downloads its "secondary theme" over the network on first load.
+_fsh_dir="$ZSH_DOTFILES_DIR/vendor/fast-syntax-highlighting"
+if [[ -o interactive && -r "$_fsh_dir/fast-syntax-highlighting.plugin.zsh" ]]; then
+  export FAST_WORK_DIR="${XDG_CACHE_HOME:-$HOME/.cache}/fast-syntax-highlighting"
+  if [[ ! -e "$FAST_WORK_DIR/secondary_theme.zsh" ]]; then
+    command mkdir -p "$FAST_WORK_DIR"
+    command cp "$_fsh_dir/share/free_theme.zsh" "$FAST_WORK_DIR/secondary_theme.zsh"
+  fi
+  source "$_fsh_dir/fast-syntax-highlighting.plugin.zsh"
+fi
+unset _fsh_dir
