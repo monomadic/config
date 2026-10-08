@@ -18,6 +18,7 @@ theme = "default"
 
 [tuning]
 libraries = [
+  { name = "External", path = "/Volumes/*/Movies/Porn" },
   { name = "FD-Media", exec = "fd-media" },
   { name = "Footage", exec = "fd-media --path ~/Movies/Private --path /Volumes/*/Movies/Private" },
   { name = "Latest Adult", exec = "fd-media --sort-created ~/Movies/Porn" },

@@ -5,7 +5,7 @@
 # Tracked in the dotfiles repo (config/jobs/interpolate-resolve/job.sh) and
 # linked into ~/jobs/interpolate-resolve/ by the Deployfile. Drop or `mv` a
 # video into ~/jobs/interpolate-resolve/input/ and the result appears in
-# output/ as <name>.hevc60.mp4.
+# output/ as <name>.hevc60.mkv.
 #
 # For one-off settings, interpolate-resolve-job sets up a separate generated
 # workflow per fps/quality instead (interpolate-resolve-120fps, …); this one is
@@ -18,19 +18,23 @@ set -euo pipefail
 
 fps=60
 quality=speed-warp-metal  # Speed Warp on Metal; interpolate-resolve --help lists the others
-codec=hevc                # hevc (MP4) or prores (ProRes 422 Proxy MOV)
+codec=hevc                # hevc or prores (ProRes 422 Proxy, always MOV)
+container=mkv             # for hevc: mkv (the repo-wide default) or mp4 (QuickTime-openable)
 
 : "${INPUT:?run me through job-folder, or set INPUT and OUTPUT_DIR}"
 : "${OUTPUT_DIR:?run me through job-folder, or set INPUT and OUTPUT_DIR}"
 
 typeset -a render_args=( --fps "$fps" --quality "$quality" )
-ext=mp4
+ext=$container
 if [[ "$codec" == prores ]]; then
   render_args+=( --prores )
   ext=mov
+elif [[ "$container" == mkv ]]; then
+  render_args+=( --mkv )
 fi
 
-# interpolate-resolve's own naming: clip.hevc60.mp4, clip.prores60.mov.
+# interpolate-resolve's own naming: clip.hevc60.mkv, clip.hevc60.mp4,
+# clip.prores60.mov.
 name="${INPUT_NAME:-${${INPUT:t}:r}}.$codec${fps//./p}.$ext"
 
 # A rerun of an input that already finished is a no-op, not a second render.

@@ -8,8 +8,8 @@
 #
 # The codec settings live in bin/encode-av1 (10-bit 4:2:0 Main profile for the
 # Apple hardware decoder; audio, subtitles and attachments copied). Change the
-# profile or container here, not in ~/jobs — that file is a link. av1-quality
-# is the same workflow with profile=quality.
+# profile or container here, not in ~/jobs — that file is a link. av1-balanced
+# is the same workflow with profile=balanced.
 #
 # SVT-AV1 uses every core: set job-folder's Workers to 1 if another encode
 # workflow may be busy at the same time.
