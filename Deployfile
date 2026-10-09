@@ -47,6 +47,7 @@ link_file config/kitty/kitty.conf "$HOME/.config/kitty/kitty.conf"
 link_file config/kitty/quick-access-terminal.conf "$HOME/.config/kitty/quick-access-terminal.conf"
 link_file config/kitty/tab_bar.py "$HOME/.config/kitty/tab_bar.py"
 link_file config/kitty/themes/1984-dark "$HOME/.config/kitty/themes/1984-dark"
+link_file config/kitty/themes/float-black "$HOME/.config/kitty/themes/float-black"
 
 # link_file config/tmux/tmux.conf "$HOME/.tmux.conf"
 

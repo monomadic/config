@@ -1,0 +1,27 @@
+# float-black: pure black with saturated, bright colours.
+# Used by `kitty-launch --float` panels; also selectable with kitty-theme.
+
+foreground #f2f2f2
+background #000000
+selection_foreground #000000
+selection_background #00e5ff
+cursor #00e5ff
+cursor_text_color #000000
+url_color #ff3df5
+
+color0 #000000
+color1 #ff2e63
+color2 #39ff14
+color3 #ffe600
+color4 #2f8cff
+color5 #ff3df5
+color6 #00e5ff
+color7 #e6e6e6
+color8 #666666
+color9 #ff5c85
+color10 #7dff5c
+color11 #fff04d
+color12 #5cabff
+color13 #ff70f8
+color14 #5cf0ff
+color15 #ffffff

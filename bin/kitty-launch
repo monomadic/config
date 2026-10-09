@@ -43,11 +43,13 @@ detach=true
 debug=false
 hold=false
 hold_on_fail=false
-float_lines=9
+float_lines=16
 # The float sits over other work, so it is see-through and denser than a
-# normal window (kitty.conf: background_opacity 0.95, font_size 15).
-float_opacity=0.8
+# normal window (kitty.conf: background_opacity 0.95, font_size 15), with
+# its own colours.
+float_opacity=0.7
 float_font_size=13
+float_theme="${KITTY_CONFIG_DIRECTORY:-${XDG_CONFIG_HOME:-$HOME/.config}/kitty}/themes/float-black"
 auto_hide=false
 via_shell=false
 shell_flags="-lc"
@@ -394,6 +396,31 @@ style_float_window() {
 
   "${kitten_cmd[@]}" @ --to "$socket_addr" set-background-opacity --match "id:$window_id" "$float_opacity" >/dev/null 2>&1 || true
   "${kitten_cmd[@]}" @ --to "$socket_addr" action --match "id:$window_id" change_font_size current "$float_font_size" >/dev/null 2>&1 || true
+  [[ -r "$float_theme" ]] && \
+    "${kitten_cmd[@]}" @ --to "$socket_addr" set-colors --match "id:$window_id" "$float_theme" >/dev/null 2>&1 || true
+}
+
+front_bundle_id() {
+  lsappinfo info -only bundleid "$(lsappinfo front 2>/dev/null)" 2>/dev/null | sed -nE 's/.*(bundleID|"CFBundleIdentifier")="([^"]*)".*/\2/p'
+}
+
+# The panel lives in the running Kitty, so while it has focus Kitty is the
+# active app; when it closes, macOS hands focus to Kitty's next window and
+# raises it. Give focus back to whatever app was in front before the launch,
+# unless the user has already moved on to another app.
+restore_front_app_when_window_closes() {
+  local window_id="${1:-}" previous="${2:-}"
+  [[ "$window_id" == <-> && -n "$previous" ]] || return 1
+  [[ "$previous" == net.kovidgoyal.kitty ]] && return 0
+
+  (
+    while "${kitten_cmd[@]}" @ --to "$socket_addr" ls --match "id:$window_id" >/dev/null 2>&1; do
+      sleep 0.2
+    done
+
+    [[ "$(front_bundle_id)" == net.kovidgoyal.kitty ]] && \
+      osascript -e "tell application id \"$previous\" to activate"
+  ) >/dev/null 2>&1 &!
 }
 
 auto_hide_when_window_closes() {
@@ -476,6 +503,8 @@ if $use_ipc && discovered_socket="$(discover_socket)"; then
   $hold && launch_args+=( --hold )
   [[ "$launch_type" == os-panel ]] && launch_args+=( --os-panel=${^panel_opts} )
 
+  [[ "$launch_type" == os-panel ]] && previous_app="$(front_bundle_id)"
+
   launched_window_id="$("${kitten_cmd[@]}" "${launch_args[@]}" -- "${command_argv[@]}")"
   [[ -n "$launched_window_id" ]] && print -r -- "$launched_window_id"
 
@@ -487,7 +516,11 @@ if $use_ipc && discovered_socket="$(discover_socket)"; then
     focus_launched_window "$launched_window_id"
   fi
 
-  $auto_hide && auto_hide_when_window_closes "$launched_window_id"
+  if $auto_hide; then
+    auto_hide_when_window_closes "$launched_window_id"
+  elif [[ "$launch_type" == os-panel ]]; then
+    restore_front_app_when_window_closes "$launched_window_id" "${previous_app:-}"
+  fi
 
   exit 0
 fi
@@ -545,6 +578,7 @@ case "$launch_type" in
       -o "background_opacity=$float_opacity"
       -o "font_size=$float_font_size"
     )
+    [[ -r "$float_theme" ]] && kitty_args+=( -o "include=$float_theme" )
     ;;
   os-window)
     # Starting a fresh Kitty app already creates an OS window.
