@@ -116,7 +116,7 @@ snapshot() {
   local -i budget=$(( MAX_TOTAL_MB * 1024 * 1024 )) junk=0 over=0
   untracked=(${(0)"$(git ls-files -oz --exclude-standard)"})
   for f in $untracked; do
-    if [[ /$f == */${~JUNK_DIRS}/* || ${(L)f:e} == ${~JUNK_EXTS} ]]; then
+    if [[ /$f == */${~JUNK_DIRS}/* || ${(L)f:e} == ${~JUNK_EXTS} || ${f:t} == .DS_Store ]]; then
       (( ++junk )); continue
     fi
     zstat -A sz +size -- $f 2>/dev/null || continue
