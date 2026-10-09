@@ -174,7 +174,7 @@ engine = "􀢾"  # [search_engines] entries that set no icon of their own
 "Build" = "kitty-launch --float --hold-on-fail --interactive -- update motherfucker"
 
 [commands.Abner]
-"Build" = "kitty-launch --float --hold-on-fail --interactive -- update abner"
+"Build" = "kitty-launch --float --hold-on-fail --interactive -- /Users/nom/src/abner/packaging/build-app.sh --install --open"
 
 [commands.M4]
 "Mount Tower" = "open -j smb://m4.local/Tower"
@@ -202,7 +202,8 @@ engine = "􀢾"  # [search_engines] entries that set no icon of their own
 "Open Tower (live)" = "$HOME/.local/bin/switchblade --fast-fullscreen /Volumes/Tower/Movies/Porn/Downloads"
 "Settings (Local)" = "kitty-launch --cwd $HOME/.config/switchblade -- hx switchblade.toml"
 "Settings (Default)" = "kitty-launch --cwd $HOME/src/switchblade -- hx switchblade.toml"
-"Build" = "kitty-launch --float --hold-on-fail --interactive -- update switchblade"
+#"Build" = "kitty-launch --float --hold-on-fail --interactive -- update switchblade"
+"Build" = "kitty-launch --float --hold-on-fail --interactive -- /Users/nom/src/switchblade/packaging/build-app.sh --install --open"
 
 # The real System Settings.app: enter opens it normally, ⇥ deep-links a pane.
 [commands.System Settings]

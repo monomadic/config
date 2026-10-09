@@ -438,7 +438,7 @@ border.color = [1.0, 1.0, 1.0]  # was hover_border
 radius = 10.0  # was selection_corner_radius
 scale = 1.0  # was selection_scale
 zoom_boost = 0.0  # was selection_zoom_boost
-border.width = 4.0  # was selection_border_width
+border.width = 2.0  # was selection_border_width
 
 [tile.focused]
 border.width = 1.0
@@ -446,7 +446,7 @@ border.width = 1.0
 # A cmd/shift-clicked tile: the selection ring, border only. The old
 # selection_border_width drove this too.
 [tile.marked]
-border.width = 4.0
+border.width = 2.0
 
 # A tile still waiting for its thumbnail: a thin outline in its own colour.
 [tile.empty]
