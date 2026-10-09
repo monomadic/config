@@ -43,7 +43,7 @@ detach=true
 debug=false
 hold=false
 hold_on_fail=false
-float_lines=16
+float_lines=9
 # The float sits over other work, so it is see-through and denser than a
 # normal window (kitty.conf: background_opacity 0.95, font_size 15).
 float_opacity=0.8

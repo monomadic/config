@@ -1,0 +1,30 @@
+#!/bin/zsh -f
+# cargo wrapper: inside a linked git worktree, build into the MAIN checkout's
+# target dir, so a worktree costs its source files instead of another
+# multi-GB target/. Everywhere else it is a plain pass-through.
+# Skipped when CARGO_TARGET_DIR is already set. Concurrent builds from the
+# main checkout and its worktrees take turns on Cargo's build-dir lock.
+
+self=${0:A}
+real=
+for c in ${(f)"$(whence -ap cargo)"}; do
+  [[ ${c:A} == $self ]] && continue
+  real=$c
+  break
+done
+[[ -n $real ]] || { print -ru2 -- "cargo wrapper: no real cargo on PATH"; exit 127 }
+
+if [[ -z ${CARGO_TARGET_DIR:-} ]] \
+  && top=$(git rev-parse --show-toplevel 2>/dev/null) \
+  && common=$(git rev-parse --path-format=absolute --git-common-dir 2>/dev/null) \
+  && [[ ${common:t} == .git && ${common:h:A} != ${top:A} ]] \
+  && ws=$("$real" locate-project --workspace --message-format plain 2>/dev/null); then
+  # Mirror the workspace's position inside the worktree onto the main
+  # checkout, so a crate in a subdirectory shares that crate's target/.
+  ws=${ws:h:A} top=${top:A}
+  if [[ $ws == $top || $ws == $top/* ]]; then
+    export CARGO_TARGET_DIR=${common:h:A}${ws#$top}/target
+  fi
+fi
+
+exec "$real" "$@"

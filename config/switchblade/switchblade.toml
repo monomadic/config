@@ -18,12 +18,13 @@ theme = "default"
 
 [tuning]
 libraries = [
+  { name = "Latest (Local)", exec = "fd-media --sort-created ~/Movies/Porn" },
   { name = "External", path = "/Volumes/*/Movies/Porn" },
-  { name = "FD-Media", exec = "fd-media" },
-  { name = "Footage", exec = "fd-media --path ~/Movies/Private --path /Volumes/*/Movies/Private" },
-  { name = "Latest Adult", exec = "fd-media --sort-created ~/Movies/Porn" },
+  { name = "Tower", path = "/Volumes/Tower/Movies/Porn" },
+  { name = "Visuals (External)", path = "/Volumes/*/Movies/Visuals" },
+  { name = "Private (Local)", path = "~/Movies/Private" },
+  { name = "fd", exec = "fd-media" },
   { name = "Private Sorted", exec = "fd-media --sort-created --match-string Alice . ~/Movies/Private /Volumes/*/Movies/Private" },
-  { name = "Visuals", path = "/Volumes/*/Movies/Visuals" },
   "/Volumes/*/Movies/Porn",
   "~/Movies/Private",
   "~/Movies/Porn",

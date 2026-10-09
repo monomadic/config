@@ -1,0 +1,24 @@
+{
+  "enabledPlugins": {
+    "claude-code-setup@claude-plugins-official": true,
+    "claude-md-management@claude-plugins-official": true,
+    "code-simplifier@claude-plugins-official": true,
+    "commit-commands@claude-plugins-official": true,
+    "figma@claude-plugins-official": true
+  },
+  "alwaysThinkingEnabled": true,
+  "tui": "fullscreen",
+  "feedbackDrafts": "off",
+  "hooks": {
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "~/.claude/hooks/commit-guard.sh"
+          }
+        ]
+      }
+    ]
+  }
+}

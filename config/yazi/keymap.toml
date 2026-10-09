@@ -385,7 +385,7 @@ desc = "Open with (opener menu)"
 [[mgr.prepend_keymap]]
 on = "e"
 for = "unix"
-run = '''shell --orphan -- /Users/nom/.local/bin/kitty-launch --tab --cwd %d1 -- /Users/nom/.local/bin/tagform %s'''
+run = '''shell --orphan -- /Users/nom/.local/bin/kitty-launch --tab --interactive --cwd %d1 -- tagform %s'''
 desc = "Edit tags (tagform)"
 
 [[tasks.prepend_keymap]]

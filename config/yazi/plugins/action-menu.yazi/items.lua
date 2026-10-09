@@ -33,6 +33,11 @@ end
 
 return { groups = {
 	{
+		group = "Tags",
+		when = { kind = "video" },
+		{ desc = "Edit Tags", run = kitty("--tab", "tagform", BIN .. "tagform %s"), orphan = true },
+	},
+	{
 		group = "Topaz Video",
 		when = { kind = "video" },
 		{ desc = "􀰙  Enhance with FFMpeg (older models)", run = kitty("--tab --hold", "topaz", BIN .. "topaz-select-preset %s"), orphan = true },
@@ -86,7 +91,6 @@ return { groups = {
 	{
 		group = "Video",
 		when = { kind = "video" },
-		{ desc = "Edit Tags", run = kitty("--tab", "tagform", BIN .. "tagform %s"), orphan = true },
 		{ desc = "Rename Based On Metadata Tags", run = kitty("--window --hold", "rename video", BIN .. "rename-video --color --icons %s"), orphan = true },
 		{ desc = "Media Audit", run = kitty("--tab --hold", "media-audit", BIN .. "media-audit-batch %s"), orphan = true },
 		{ desc = "Autodetect Chapters", run = kitty("--window --hold", "chapters", BIN .. "ffmpeg-scenedetect-chapters %s"), orphan = true },
@@ -94,7 +98,6 @@ return { groups = {
 		{ desc = "Rotate Left (lossless)", run = BIN .. "video-rotate-lossless --left %s", block = true },
 		{ desc = "Convert To ProRes", run = "convert-to-pro-res %s .", orphan = true },
 		{ desc = "Convert To HEVC", run = "convert-to-hevc %s .", orphan = true },
-		{ desc = "MediaInfo", run = "mediainfo %s1; echo 'Press enter to exit'; read _", block = true, when = { single = true } },
 	},
 	{
 		group = "AV1",
@@ -152,6 +155,11 @@ return { groups = {
 		{ desc = "Open (Default)", run = "open %s" },
 		{ desc = "Reveal in Finder", run = "open -R %s1", when = { single = true } },
 		{ desc = "Drag Out", run = "kitten dnd %s" },
+		-- One hovered folder: bulk-rename treats a lone dir as "rename its contents".
+		{ desc = "Bulk Rename", run = BIN .. "bulk-rename %s", block = true, when = function(t) return not (#t == 1 and t[1].is_dir) end },
+		{ desc = "Bulk Rename Folder Contents", run = BIN .. "bulk-rename %s", block = true, when = function(t) return #t == 1 and t[1].is_dir end },
+		-- Finder-style "name copy.ext" / "name copy 2.ext" beside each target, never overwriting; APFS clone when possible.
+		{ desc = "Duplicate", run = [==[zsh -lc 'for f in "$@"; do f=${f%/}; if [[ ! -d $f && ${f:t} == ?*.?* ]]; then b=${f:r} e=.${f:e}; else b=$f e=; fi; t="$b copy$e"; i=2; while [[ -e $t || -L $t ]]; do t="$b copy $i$e"; ((i++)); done; cp -cRp -- "$f" "$t"; done' zsh %s]==] },
 		{ desc = "File", run = "clear; file %s1; echo 'Press enter to exit'; read _", block = true, when = { single = true } },
 		{ desc = "MediaInfo", run = "clear; mediainfo %s1; echo 'Press enter to exit'; read _", block = true, when = { single = true } },
 		{ desc = "EXIFTool", run = "clear; exiftool %s1; echo 'Press enter to exit'; read _", block = true, when = { single = true } },

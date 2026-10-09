@@ -32,6 +32,11 @@ link_tree bin "$HOME/.local/bin"
 
 link_file config/starship/starship.toml "$HOME/.config/starship.toml"
 
+# --- Claude Code --------------------------------------------------------------
+
+link_file config/claude/settings.json "$HOME/.claude/settings.json"
+link_tree config/claude/hooks "$HOME/.claude/hooks"
+
 # --- Terminals ----------------------------------------------------------------
 
 link_file config/alacritty/alacritty.toml "$HOME/.config/alacritty/alacritty.toml"
