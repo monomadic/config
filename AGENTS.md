@@ -220,6 +220,17 @@ composite models (Starlight Mini) so their parts aren't reported as unused. Path
 thresholds are `CLEANUP_*` env vars (listed in the script header). Test it against
 temp dirs with `CLEANUP_SYNC_SRC/DST`, `CLEANUP_ARCHIVE`, `TOPAZ_APP` and
 `CLEANUP_TOWER_UP=1` — never by answering its prompts with the live paths.
+**Coding agents commit their own work.** `bin/agent-commit-guard` is the Stop
+hook for Claude Code (`config/claude/settings.json`) and Codex
+(`config/codex/hooks.json`): a turn can't end on a dirty tree, and the commit
+carries a `Claude-Session:` / `Codex-Session:` trailer. Behind it,
+`bin/agent-snapshot` (LaunchAgent from
+`scripts/install/install-agent-snapshot.sh`, every 5 min) saves each dirty
+worktree under `$SRC_PATH` and this repo to `refs/wip/<branch>` without
+touching the branch, index or files, naming the sessions that were active
+there. Its untracked-file limits (junk dirs, media, per-file and per-snapshot
+size) exist because an unignored venv once put 768 MB into a repo's `.git` —
+keep them.
 
 ## Recipe: add config for a new tool
 
