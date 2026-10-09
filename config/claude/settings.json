@@ -15,7 +15,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "~/.claude/hooks/commit-guard.sh"
+            "command": "~/.local/bin/agent-commit-guard claude"
           }
         ]
       }

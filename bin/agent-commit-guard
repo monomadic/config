@@ -1,0 +1,21 @@
+#!/bin/bash
+# Stop hook for coding agents (Claude Code, Codex): refuse to end a turn while
+# the repo has uncommitted changes, and have the agent tag its commit with its
+# session ID so the commit leads back to the conversation.
+#   agent-commit-guard claude   ->  Claude-Session: <id>   (claude --resume <id>)
+#   agent-commit-guard codex    ->  Codex-Session: <id>    (codex resume <id>)
+# Both agents speak the same Stop-hook protocol: JSON on stdin, a
+# {"decision":"block"} reply sends the agent back to work.
+# Nags once per stop (stop_hook_active), so changes that belong to another
+# session can't trap the agent in a loop.
+agent=${1:-agent}
+trailer="$(tr '[:lower:]' '[:upper:]' <<<"${agent:0:1}")${agent:1}-Session"
+input=$(cat)
+[ "$(jq -r .stop_hook_active <<<"$input")" = "true" ] && exit 0
+git rev-parse --is-inside-work-tree >/dev/null 2>&1 || exit 0
+[ -z "$(git status --porcelain)" ] && exit 0
+sid=$(jq -r .session_id <<<"$input")
+jq -n --arg t "$trailer: $sid" '{
+  decision: "block",
+  reason: ("The repo has uncommitted changes. Commit ONLY the files you changed in this session (never `git add -A`), with a descriptive message ending in the trailer `" + $t + "`. If some changes are not yours, leave them alone and say which ones.")
+}'

@@ -32,10 +32,10 @@ link_tree bin "$HOME/.local/bin"
 
 link_file config/starship/starship.toml "$HOME/.config/starship.toml"
 
-# --- Claude Code --------------------------------------------------------------
+# --- Coding agents ------------------------------------------------------------
 
 link_file config/claude/settings.json "$HOME/.claude/settings.json"
-link_tree config/claude/hooks "$HOME/.claude/hooks"
+link_file config/codex/hooks.json "$HOME/.codex/hooks.json"
 
 # --- Terminals ----------------------------------------------------------------
 

@@ -1,0 +1,11 @@
+{
+  "hooks": {
+    "Stop": [
+      {
+        "hooks": [
+          { "type": "command", "command": "~/.local/bin/agent-commit-guard codex", "timeout": 30 }
+        ]
+      }
+    ]
+  }
+}
