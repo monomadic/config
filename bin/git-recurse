@@ -1,0 +1,194 @@
+#!/usr/bin/env zsh
+# git-recurse — every git repo under a tree, as an fzf table of what needs doing.
+#
+# Lists repos with uncommitted work, unpushed commits, commits to pull, stashes,
+# conflicts or no upstream. The table appears at once from local state, then
+# refreshes when every remote has been fetched (in parallel). Enter runs git-sync
+# in the repo under the cursor, or in each selected one in turn.
+#
+# Usage:
+#   git-recurse [--all] [--no-fetch] [dir]   (dir defaults to $SRC_PATH, then ~/src)
+#
+# Keys: enter sync · tab mark · cmd-a mark all (kitty sends alt-a) ·
+#       ctrl-r refetch · ? preview · esc quit
+#
+# Environment:
+#   GIT_RECURSE_JOBS     parallel fetches (default 8)
+#   GIT_RECURSE_TIMEOUT  seconds before a fetch is abandoned (default 20)
+
+emulate -L zsh
+setopt pipe_fail extended_glob
+
+self=${0:A}
+jobs=${GIT_RECURSE_JOBS:-8}
+fetch_timeout=${GIT_RECURSE_TIMEOUT:-20}
+
+E=$'\e'
+c() {   # colour, width (0 = unpadded), text
+  if (( $2 )); then print -rn -- "${E}[${1}m${(r:$2:)3}${E}[0m"
+  else print -rn -- "${E}[${1}m${3}${E}[0m"; fi
+}
+
+I_BRANCH=$'' I_UP=$'' I_DOWN=$'' I_STAGED=$'' I_MOD=$''
+I_NEW=$'' I_STASH=$'' I_CONFLICT=$'' I_LOCAL=$''
+I_CLEAN=$'' I_DIRTY=$'' I_SYNC=$'' I_ERR=$''
+
+# A hung remote must not hold up the table, so each fetch gets a watchdog.
+fetch_repo() {
+  [[ -n $(git -C $1 remote) ]] || return
+  GIT_TERMINAL_PROMPT=0 GIT_SSH_COMMAND='ssh -o BatchMode=yes -o ConnectTimeout=5' \
+    git -C $1 fetch --quiet --no-tags >/dev/null 2>&1 </dev/null &
+  local pid=$!
+  ( sleep $fetch_timeout; kill $pid ) >/dev/null 2>&1 </dev/null &
+  local dog=$!
+  wait $pid
+  kill $dog 2>/dev/null
+}
+
+# One repo -> "abs-path \t needs-attention(0|1) \t name \t coloured row".
+row() {
+  local r=$1 root=$2 fetch=$3
+  [[ $fetch == 1 ]] && fetch_repo $r
+  local name=${r#$root/}; [[ $r == $root ]] && name=${r:t}
+  local st
+  if ! st=$(git -C $r status --porcelain=v2 --branch --show-stash 2>/dev/null); then
+    print -r -- "$r"$'\t1\t'"$name"$'\t'"$(c 31 2 $I_ERR)$(c 1 32 $name)$(c 31 0 'git status failed')"
+    return
+  fi
+
+  local head='?' up='' l
+  local -a ab
+  integer a=0 b=0 staged=0 mod=0 new=0 conf=0 stash=0
+  for l in ${(f)st}; do
+    case $l in
+      ('# branch.head '*)     head=${l#\# branch.head } ;;
+      ('# branch.upstream '*) up=${l#\# branch.upstream } ;;
+      ('# branch.ab '*)       ab=(${=l}); a=${ab[3]#+}; b=${ab[4]#-} ;;
+      ('# stash '*)           stash=${l#\# stash } ;;
+      ([12]' '*)              [[ ${l[3]} != . ]] && (( staged++ )); [[ ${l[4]} != . ]] && (( mod++ )) ;;
+      ('u '*)                 (( conf++ )) ;;
+      ('? '*)                 (( new++ )) ;;
+    esac
+  done
+
+  local icon need=1
+  if (( conf )); then icon=$(c 31 2 $I_CONFLICT)
+  elif (( staged + mod + new )); then icon=$(c 33 2 $I_DIRTY)
+  elif (( a + b )); then icon=$(c 36 2 $I_SYNC)
+  elif (( stash )) || [[ -z $up ]]; then icon=$(c 34 2 $I_STASH)
+  else icon=$(c '2;32' 2 $I_CLEAN); need=0
+  fi
+
+  local -a cols=(
+    "$icon"
+    "$(c 1 32 ${name[1,31]})"
+    "$(c 35 22 "$I_BRANCH ${head[1,19]}")"
+    "$( (( a ))     && c 32 7 "$I_UP $a"       || c 0 7 '')"
+    "$( (( b ))     && c 36 7 "$I_DOWN $b"     || c 0 7 '')"
+    "$( (( staged ))&& c 32 7 "$I_STAGED $staged" || c 0 7 '')"
+    "$( (( mod ))   && c 33 7 "$I_MOD $mod"    || c 0 7 '')"
+    "$( (( new ))   && c 90 7 "$I_NEW $new"    || c 0 7 '')"
+    "$( (( stash )) && c 34 7 "$I_STASH $stash" || c 0 7 '')"
+    "$( (( conf ))  && c 31 7 "$I_CONFLICT $conf" || c 0 7 '')"
+    "$( [[ -z $up ]] && c 90 0 "$I_LOCAL no upstream" || c 0 0 '')"
+  )
+  print -r -- "$r"$'\t'"$need"$'\t'"$name"$'\t'"${(j::)cols}"
+}
+
+header() {
+  print -rn -- "$(c 90 2 '')$(c 90 32 repo)$(c 90 22 branch)$(c 90 7 ahead)$(c 90 7 behind)"
+  print -r -- "$(c 90 7 staged)$(c 90 7 mod)$(c 90 7 new)$(c 90 7 stash)$(c 90 7 confl)"
+}
+
+list() {   # root fetch all
+  local root=$1 fetch=$2 all=$3
+  fd -H -t d -g .git $root 2>/dev/null |
+    sed 's#/\.git/*$##' |
+    xargs -P $jobs -I{} $self --row {} $root $fetch |
+    sort -t $'\t' -k3 |
+    if [[ $all == 1 ]]; then cat; else awk -F'\t' '$2 == 1'; fi |
+    cut -f1,4
+}
+
+preview() {
+  local r=$1
+  print -r -- "${E}[1m${r/#$HOME/~}${E}[0m"; print
+  git -C $r -c color.status=always status -sb 2>&1 | head -40
+  if git -C $r rev-parse -q --verify '@{u}' >/dev/null 2>&1; then
+    local out
+    out=$(git -C $r log --color --oneline -n 15 '@{u}..' 2>/dev/null)
+    [[ -n $out ]] && print "\n${E}[32m$I_UP to push${E}[0m\n$out"
+    out=$(git -C $r log --color --oneline -n 15 '..@{u}' 2>/dev/null)
+    [[ -n $out ]] && print "\n${E}[36m$I_DOWN to pull${E}[0m\n$out"
+  fi
+  local stashes=$(git -C $r stash list --color 2>/dev/null | head -10)
+  [[ -n $stashes ]] && print "\n${E}[34m$I_STASH stashes${E}[0m\n$stashes"
+}
+
+# fzf 'load' hook: the first load (local state) kicks off the fetch; every
+# later one just restores the column header.
+on_load() {   # state root fetch all
+  if [[ $3 == 1 && ! -e $1 ]]; then
+    : > $1
+    print -r -- "change-header(fetching remotes…)+reload($self --list ${(q)2} 1 $4)"
+  else
+    print -r -- "change-header($(header))"
+  fi
+}
+
+# {+f}: the marked lines, or the one under the cursor.
+sync_repos() {
+  local -a repos=(${(f)"$(cut -f1 $1)"}) failed=()
+  local r
+  for r in $repos; do
+    print -P "\n%F{63}%B󰊢 ${r/#$HOME/~}%b%f"
+    ( cd $r && git-sync ) || failed+=($r)
+  done
+  print
+  if (( $#failed )); then
+    print -P "%F{196}%B✘ git-sync failed in ${#failed} of ${#repos}:%b%f"
+    printf '  %s\n' ${failed/#$HOME/~}
+  else
+    print -P "%F{82}%B✓ synced ${#repos} repo$( (( $#repos > 1 )) && print s)%b%f"
+  fi
+  print -Pn '%F{245}press any key to return%f'; read -sk1
+}
+
+case $1 in
+  --row)     shift; row "$@"; exit ;;
+  --list)    shift; list "$@"; exit ;;
+  --preview) shift; preview "$@"; exit ;;
+  --sync)    shift; sync_repos "$@"; exit ;;
+  --on-load) shift; on_load "$@"; exit ;;
+esac
+
+all=0 fetch=1 root=
+while (( $# )); do
+  case $1 in
+    --all)      all=1 ;;
+    --no-fetch) fetch=0 ;;
+    -h|--help)  sed -n '2,15p' $self | sed 's/^# \{0,1\}//'; exit 0 ;;
+    -*)         print -u2 "git-recurse: unknown option $1"; exit 2 ;;
+    *)          root=$1 ;;
+  esac
+  shift
+done
+root=${${root:-${SRC_PATH:-$HOME/src}}:A}
+[[ -d $root ]] || { print -u2 "git-recurse: no such directory: $root"; exit 1; }
+for dep in fd fzf git-sync; do
+  (( $+commands[$dep] )) || { print -u2 "git-recurse: missing $dep"; exit 1; }
+done
+
+state=${TMPDIR:-/tmp}/git-recurse.$$
+trap 'rm -f $state' EXIT
+
+q=${(q)root}
+$self --list $root 0 $all | fzf --ansi --multi --no-sort --layout=reverse --delimiter=$'\t' --with-nth=2 \
+  --prompt="󰊢 ${root/#$HOME/~} › " --pointer='▌' --marker='┃' --info=inline-right \
+  --no-scrollbar --highlight-line --header='scanning…' --header-first \
+  --color='fg+:252,bg+:236,hl:215,hl+:215,pointer:215,marker:82,prompt:109,header:245,info:240,border:238,gutter:-1' \
+  --preview="$self --preview {1}" --preview-window='right,40%,wrap,border-left,hidden' \
+  --bind="load:transform($self --on-load $state $q $fetch $all)" \
+  --bind="enter:execute($self --sync {+f})+clear-selection+reload($self --list $q 0 $all)" \
+  --bind="alt-a:select-all,ctrl-r:change-header(fetching remotes…)+reload($self --list $q 1 $all)" \
+  --bind='?:toggle-preview,esc:abort'
