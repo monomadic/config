@@ -1,0 +1,43 @@
+#!/usr/bin/env zsh
+# flac-tags <file.flac>... — dump every Vorbis comment (and embedded pictures)
+# exactly as stored, via metaflac. Keys are aligned; repeated keys are kept.
+
+if (( ! $# )); then
+  print -u2 "usage: ${0:t} <file.flac>..."
+  exit 1
+fi
+
+st=0
+for f in "$@"; do
+  if [[ ! -f $f ]]; then
+    print -u2 -P "%F{red}not found:%f $f"
+    st=1; continue
+  fi
+  (( $# > 1 )) && print -P "%F{yellow}${f//\%/%%}%f"
+
+  # Exported tags are KEY=value, one per line; values may themselves contain '='.
+  tags=("${(@f)$(metaflac --no-utf8-convert --export-tags-to=- -- "$f" 2>/dev/null)}")
+  if (( $? )); then
+    print -u2 -P "%F{red}not a FLAC file:%f $f"
+    st=1; continue
+  fi
+  tags=(${tags:#})
+
+  if (( ${#tags} )); then
+    w=0
+    for t in $tags; do (( ${#${t%%=*}} > w )) && w=${#${t%%=*}}; done
+    for t in $tags; do
+      printf "\e[36m%-${w}s\e[0m  %s\n" "${t%%=*}" "${t#*=}"
+    done
+  else
+    print -P "%F{8}(no tags)%f"
+  fi
+
+  # Embedded artwork: one summary line per PICTURE block.
+  metaflac --list --block-type=PICTURE -- "$f" 2>/dev/null |
+    awk -F': ' '/^  type:/{t=$2} /^  MIME type:/{m=$2} /^  width:/{w=$2} /^  height:/{h=$2}
+                /^  data length:/{printf "\033[35m%s\033[0m  %s %sx%s, %s bytes\n", "PICTURE", m, w, h, $2}'
+
+  (( $# > 1 )) && print
+done
+exit $st
