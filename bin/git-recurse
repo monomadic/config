@@ -33,6 +33,13 @@ I_BRANCH=$'' I_UP=$'' I_DOWN=$'' I_STAGED=$'' I_MOD=$''
 I_NEW=$'' I_STASH=$'' I_CONFLICT=$'' I_LOCAL=$''
 I_CLEAN=$'' I_DIRTY=$'' I_SYNC=$'' I_ERR=$''
 
+# Column widths, shared by the rows and the header.
+W_PUSH=11 W_PULL=11 W_STAGE=9 W_MOD=11 W_NEW=12 W_STASH=8 W_CONF=10
+
+cell() {   # colour width icon count — blank when the count is 0
+  if (( $4 )); then c $1 $2 "$3 $4"; else c 0 $2 ''; fi
+}
+
 # A hung remote must not hold up the table, so each fetch gets a watchdog.
 fetch_repo() {
   [[ -n $(git -C $1 remote) ]] || return
@@ -74,8 +81,8 @@ row() {
   local icon need=1
   if (( conf )); then icon=$(c 31 2 $I_CONFLICT)
   elif (( staged + mod + new )); then icon=$(c 33 2 $I_DIRTY)
-  elif (( a + b )); then icon=$(c 36 2 $I_SYNC)
-  elif (( stash )) || [[ -z $up ]]; then icon=$(c 34 2 $I_STASH)
+  elif (( a + b )); then icon=$(c 34 2 $I_SYNC)
+  elif (( stash )) || [[ -z $up ]]; then icon=$(c 36 2 $I_STASH)
   else icon=$(c '2;32' 2 $I_CLEAN); need=0
   fi
 
@@ -83,21 +90,25 @@ row() {
     "$icon"
     "$(c 1 32 ${name[1,31]})"
     "$(c 35 22 "$I_BRANCH ${head[1,19]}")"
-    "$( (( a ))     && c 32 7 "$I_UP $a"       || c 0 7 '')"
-    "$( (( b ))     && c 36 7 "$I_DOWN $b"     || c 0 7 '')"
-    "$( (( staged ))&& c 32 7 "$I_STAGED $staged" || c 0 7 '')"
-    "$( (( mod ))   && c 33 7 "$I_MOD $mod"    || c 0 7 '')"
-    "$( (( new ))   && c 90 7 "$I_NEW $new"    || c 0 7 '')"
-    "$( (( stash )) && c 34 7 "$I_STASH $stash" || c 0 7 '')"
-    "$( (( conf ))  && c 31 7 "$I_CONFLICT $conf" || c 0 7 '')"
+    "$(cell 34 $W_PUSH  $I_UP       $a)"
+    "$(cell 34 $W_PULL  $I_DOWN     $b)"
+    "$(cell 32 $W_STAGE $I_STAGED   $staged)"
+    "$(cell 33 $W_MOD   $I_MOD      $mod)"
+    "$(cell 31 $W_NEW   $I_NEW      $new)"
+    "$(cell 36 $W_STASH $I_STASH    $stash)"
+    "$(cell '1;31' $W_CONF $I_CONFLICT $conf)"
     "$( [[ -z $up ]] && c 90 0 "$I_LOCAL no upstream" || c 0 0 '')"
   )
   print -r -- "$r"$'\t'"$need"$'\t'"$name"$'\t'"${(j::)cols}"
 }
 
+# The header doubles as the legend: each column's icon and colour, named.
 header() {
-  print -rn -- "$(c 90 2 '')$(c 90 32 repo)$(c 90 22 branch)$(c 90 7 ahead)$(c 90 7 behind)"
-  print -r -- "$(c 90 7 staged)$(c 90 7 mod)$(c 90 7 new)$(c 90 7 stash)$(c 90 7 confl)"
+  print -r -- "$(c 90 2 '')$(c 90 32 repo)$(c 35 22 "$I_BRANCH branch")$(
+    )$(c 34 $W_PUSH "$I_UP unpushed")$(c 34 $W_PULL "$I_DOWN unpulled")$(
+    )$(c 32 $W_STAGE "$I_STAGED staged")$(c 33 $W_MOD "$I_MOD unstaged")$(
+    )$(c 31 $W_NEW "$I_NEW untracked")$(c 36 $W_STASH "$I_STASH stash")$(
+    )$(c '1;31' $W_CONF "$I_CONFLICT conflict")"
 }
 
 list() {   # root fetch all
