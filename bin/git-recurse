@@ -90,10 +90,10 @@ row() {
     "$icon"
     "$(c 1 32 ${name[1,31]})"
     "$(c 35 22 "$I_BRANCH ${head[1,19]}")"
-    "$(cell 34 $W_PUSH  $I_UP       $a)"
+    "$(cell 31 $W_PUSH  $I_UP       $a)"
     "$(cell 34 $W_PULL  $I_DOWN     $b)"
     "$(cell 32 $W_STAGE $I_STAGED   $staged)"
-    "$(cell 33 $W_MOD   $I_MOD      $mod)"
+    "$(cell 31 $W_MOD   $I_MOD      $mod)"
     "$(cell 31 $W_NEW   $I_NEW      $new)"
     "$(cell 36 $W_STASH $I_STASH    $stash)"
     "$(cell '1;31' $W_CONF $I_CONFLICT $conf)"
@@ -105,8 +105,8 @@ row() {
 # The header doubles as the legend: each column's icon and colour, named.
 header() {
   print -r -- "$(c 90 2 '')$(c 90 32 repo)$(c 35 22 "$I_BRANCH branch")$(
-    )$(c 34 $W_PUSH "$I_UP unpushed")$(c 34 $W_PULL "$I_DOWN unpulled")$(
-    )$(c 32 $W_STAGE "$I_STAGED staged")$(c 33 $W_MOD "$I_MOD unstaged")$(
+    )$(c 31 $W_PUSH "$I_UP unpushed")$(c 34 $W_PULL "$I_DOWN unpulled")$(
+    )$(c 32 $W_STAGE "$I_STAGED staged")$(c 31 $W_MOD "$I_MOD unstaged")$(
     )$(c 31 $W_NEW "$I_NEW untracked")$(c 36 $W_STASH "$I_STASH stash")$(
     )$(c '1;31' $W_CONF "$I_CONFLICT conflict")"
 }
