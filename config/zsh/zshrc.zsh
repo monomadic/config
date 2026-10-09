@@ -316,9 +316,10 @@ export PATH="$HOME/go/bin:$PATH"
 
 export PATH="$HOME/.conductor/bin:$HOME/.local/bin:$PATH"
 
-export GOROOT="$HOME/.local/go"
-
-export PATH="$GOROOT/bin:$PATH"
+# ~/.local/go is an old GOPATH-style dir (gopls, chordpro-tui), not a Go
+# toolchain — never point GOROOT at it, or go loses its go.env defaults
+# (GOPROXY, GOSUMDB) and every module download fails.
+export PATH="$HOME/.local/go/bin:$PATH"
 
 # Syntax highlighting of the command line (vendored fast-syntax-highlighting).
 # Must be sourced last: it wraps every ZLE widget defined above it.
