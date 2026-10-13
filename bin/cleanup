@@ -34,6 +34,7 @@
 # CLEANUP_BIG_MB     "large" threshold                               (default 250)
 # CLEANUP_YTDLP_DAYS partial downloads older than this are stale     (default 7)
 # CLEANUP_YTDLP_JSON where yt-dlp writes its info.json  (default iCloud Sync/JSON)
+# CLEANUP_YTDLP_ARCHIVE  yt-dlp's --download-archive    (default iCloud Sync/archive.txt)
 # YT_DLP_TEMP_DIR    yt-dlp's temp dir                  (default ~/.cache/yt-dlp-tmp)
 # CLEANUP_SYNC_SRC   folder pushed to the Tower      (default ~/Movies/Porn/Downloads)
 # CLEANUP_SYNC_DST   its home on the Tower           (default <Tower>/Movies/Porn/Downloads)
@@ -65,6 +66,7 @@ presets_dir=$dotfiles/bin/lib/topaz-presets
 ytdlp_tmp=${YT_DLP_TEMP_DIR:-$HOME/.cache/yt-dlp-tmp}
 ytdlp_days=${CLEANUP_YTDLP_DAYS:-7}
 ytdlp_json=${CLEANUP_YTDLP_JSON:-$HOME/Library/Mobile Documents/com~apple~CloudDocs/Sync/JSON}
+ytdlp_archive=${CLEANUP_YTDLP_ARCHIVE:-$HOME/Library/Mobile Documents/com~apple~CloudDocs/Sync/archive.txt}
 
 # Partial downloads and Finder litter never travel to the Tower.
 sync_skip='(.DS_Store|._*|*.part|*.ytdl|*.crdownload|*.download|*.aria2)'
@@ -414,13 +416,14 @@ scan_ytdlp() {
   # everything nobody has touched for a while.
   [[ -d $ytdlp_tmp ]] || return
   local raw=$CLEANUP_TMP/sub-ytdlp.raw tsv=$CLEANUP_TMP/ytdlp.tsv
-  local kb mtime nfiles url fmt alias src base text risk total old_kb
-  local n=0 nres=0 now=$(date +%s)
+  local kb mtime nfiles url fmt alias src state base text risk total old_kb
+  local n=0 nres=0 ndone=0 now=$(date +%s)
   : > $raw
-  python3 $dotfiles/bin/lib/cleanup-ytdlp-partials.py $ytdlp_tmp $ytdlp_json > $tsv 2>/dev/null
-  while IFS=$'\t' read -r kb mtime nfiles url fmt alias src base; do
+  python3 $dotfiles/bin/lib/cleanup-ytdlp-partials.py $ytdlp_tmp $ytdlp_json $ytdlp_archive > $tsv 2>/dev/null
+  while IFS=$'\t' read -r kb mtime nfiles url fmt alias src state base; do
     (( n++ ))
-    if [[ $url == - ]]; then risk=s text="${c_amb}no URL found${o}"
+    if [[ $state == done ]]; then risk=s text="${c_grn}already downloaded${o} ${dim}· leftover, delete it${o}"; (( ndone++ ))
+    elif [[ $url == - ]]; then risk=s text="${c_amb}no URL found${o}"
     else risk=c text="${c_grn}resumable${o} ${dim}· URL from its $src${o}"; (( nres++ )); fi
     row $kb - ytpart $base - ytdlp $risk "${base:t}  ${dim}$(( (now - mtime) / 86400 ))d old${o}  $text" >> $raw
   done < $tsv
@@ -431,21 +434,21 @@ scan_ytdlp() {
 
   kb_of $ytdlp_tmp; total=$REPLY
   (( total > 10240 )) || return
-  row $total - menu ytdlp - ytdlp c "yt-dlp partials ${ICON[more]}  ${dim}$n downloads that died · $nres resumable${o}"
+  row $total - menu ytdlp - ytdlp c "yt-dlp partials ${ICON[more]}  ${dim}$n downloads that died · $nres resumable$( (( ndone )) && print -n " · $ndone already downloaded" )${o}"
   if (( old_kb > 10240 )); then
     human $old_kb
     tip 5 "$REPLY of yt-dlp partials are older than $ytdlp_days days  ${dim}→ yt-dlp partials ${ICON[more]}: resume or delete${o}"
   fi
 }
 
-# The scan's record for one partial -> reply=(kb mtime files url fmt alias src base).
+# The scan's record for one partial -> reply=(kb mtime files url fmt alias src state base).
 # fzf hands the base over with trailing blanks stripped, so compare without them.
 ytpart_rec() {
   local line
   line=$(B=$1 awk -F'\t' 'BEGIN {want = ENVIRON["B"]; sub(/[ \t]+$/, "", want)}
-    {b = $8; sub(/[ \t]+$/, "", b)} b == want {print; exit}' $CLEANUP_TMP/ytdlp.tsv 2>/dev/null)
+    {b = $9; sub(/[ \t]+$/, "", b)} b == want {print; exit}' $CLEANUP_TMP/ytdlp.tsv 2>/dev/null)
   reply=("${(@ps:\t:)line}")
-  (( $#reply == 8 ))
+  (( $#reply == 9 ))
 }
 
 scan_caches() {
@@ -657,6 +660,11 @@ ytdlp_resume() {  # base url format alias
     # changed on the site, or the alias's template has since.
     local new=$ytdlp_tmp/${want:h:t}/${want:t:r} f
     [[ $alias == visuals ]] && new=$ytdlp_tmp/${want:t:r}
+    if [[ -e $new.${want:e} ]]; then
+      # A later run already fetched all of it and died afterwards.
+      print -r -- "${c_grn}a finished download of this is waiting in the temp dir${o} — yt-dlp will pick that up; the partial is left over."
+      print; $cmd $url; return
+    fi
     print -r -- "${c_amb}yt-dlp now names this download${o}"
     print -r -- "  ${want:t}"
     print -r -- "which is not the partial's name, so as it stands it would start from zero."
@@ -774,8 +782,8 @@ run() {
 
     ytpart)
       ytpart_rec $a1 || fail "no record of ${a1:t} — rescan with ctrl-r"
-      local url=$reply[4] fmt=$reply[5] alias=$reply[6] mtime=$reply[2] hsz mins ytdlp_base=
-      a1=$reply[8]
+      local url=$reply[4] fmt=$reply[5] alias=$reply[6] mtime=$reply[2] state=$reply[8] hsz mins ytdlp_base=
+      a1=$reply[9]
       [[ $a1 == $ytdlp_tmp/* ]] || fail "not in the yt-dlp temp dir: $a1"
       local -a files=($a1.*(N.))
       (( $#files )) || fail "${a1:t} has no files left"
@@ -785,13 +793,24 @@ run() {
       if (( mins < 10 )); then
         confirm_always "written to $mins min ago — a yt-dlp may still be downloading it. carry on?" || return
       fi
-      if [[ $url == - ]]; then choose "$what ($hsz, no URL found): [d]elete · [r]eveal in Finder · [c]ancel" d r c
+      if [[ $state == done ]]; then
+        print -r -- "${c_grn}yt-dlp's archive already has this video${o} — a later run finished it, so there is nothing to resume."
+        url=-; choose "$what ($hsz, leftover): [d]elete · [r]eveal in Finder · [c]ancel" d r c
+      elif [[ $url == - ]]; then choose "$what ($hsz, no URL found): [d]elete · [r]eveal in Finder · [c]ancel" d r c
       else choose "$what ($hsz): [r]esume · [d]elete · [c]ancel" r d c; fi
       case $REPLY in
         r) if [[ $url == - ]]; then open -R $files[1]; return; fi
            if ytdlp_resume $a1 $url $fmt $alias; then
-             files=(${ytdlp_base:-$a1}.*.(part|ytdl)(N.))
-             (( $#files )) || { msg="resumed and finished $what"; before=0 }
+             # yt-dlp exited clean, so the video is complete (or was already):
+             # any partial still here was not what it used.
+             files=({$a1,${ytdlp_base:-$a1}}.*.(part|ytdl)(N.))
+             msg="resumed and finished $what"; before=0
+             if (( $#files )); then
+               kb_of $files; before=$REPLY; human $before
+               rm -f -- $files
+               print; print -r -- "${dim}the download was already complete — removed $#files leftover partial files ($REPLY)${o}"
+               msg="$what was already complete — removed its leftover partial ($REPLY)"
+             fi
            fi
            if [[ -z $msg ]]; then
              print; print -r -- "${c_amb}not finished — the partial is kept, resume it again later${o}"
@@ -1142,23 +1161,25 @@ preview_topaz() {
 preview_ytdlp() {
   local tsv=$CLEANUP_TMP/ytdlp.tsv
   [[ -e $tsv ]] || return
-  local kb mtime nfiles url fmt alias src base line age total
-  local n=0 pkb=0 rkb=0 nkb=0 skb=0 nstale=0 now=$(date +%s)
-  local -a res nourl
-  while IFS=$'\t' read -r kb mtime nfiles url fmt alias src base; do
+  local kb mtime nfiles url fmt alias src state base line age total
+  local n=0 pkb=0 rkb=0 nkb=0 skb=0 dkb=0 nstale=0 now=$(date +%s)
+  local -a res nourl fin
+  while IFS=$'\t' read -r kb mtime nfiles url fmt alias src state base; do
     (( n++, pkb += kb ))
     age=$(( (now - mtime) / 86400 ))
     sized $kb; line="$REPLY  "
     if (( age > ytdlp_days )); then line+="${c_amb}$(printf '%4sd' $age)${o}"; (( nstale++, skb += kb ))
     else line+="${c_grn}$(printf '%4sd' $age)${o}"; fi
     line+="  ${base:t}  ${dim}$nfiles file$( (( nfiles == 1 )) || print -n s )"
-    if [[ $url == - ]]; then nourl+=("$kb"$'\t'"$line${o}"); (( nkb += kb ))
+    if [[ $state == done ]]; then fin+=("$kb"$'\t'"$line${o}"); (( dkb += kb ))
+    elif [[ $url == - ]]; then nourl+=("$kb"$'\t'"$line${o}"); (( nkb += kb ))
     else res+=("$kb"$'\t'"$line · ${fmt:#-}${${fmt:#-}:+ · }$src${o}"); (( rkb += kb )); fi
   done < $tsv
 
   human $pkb
   print -r -- "${bold}$n downloads that died${o} · ${bold}$REPLY${o}"
   (( $#res ))   && { human $rkb; print -r -- "${c_grn}$#res resumable${o} · $REPLY" }
+  (( $#fin ))   && { human $dkb; print -r -- "${c_grn}$#fin already downloaded${o} · $REPLY ${dim}— leftovers, safe to delete${o}" }
   (( $#nourl )) && { human $nkb; print -r -- "${c_amb}$#nourl with no URL${o} · $REPLY ${dim}— delete, or resume by hand${o}" }
   (( nstale ))  && { human $skb; print -r -- "${c_red}$nstale untouched for $ytdlp_days+ days${o} · $REPLY" }
   kb_of $ytdlp_tmp; total=$REPLY
@@ -1169,6 +1190,10 @@ preview_ytdlp() {
   if (( $#res )); then
     print; print -r -- "${c_grn}${bold}resumable${o}  ${dim}size · age · name${o}"
     print -rl -- $res | sort -t$'\t' -k1,1rn | cut -f2-
+  fi
+  if (( $#fin )); then
+    print; print -r -- "${c_grn}${bold}already downloaded${o}  ${dim}leftovers of a run that a later one finished${o}"
+    print -rl -- $fin | sort -t$'\t' -k1,1rn | cut -f2-
   fi
   if (( $#nourl )); then
     print; print -r -- "${c_amb}${bold}no URL found${o}"
@@ -1231,8 +1256,9 @@ preview() {
         print -r -- "${bold}url${o}     ${reply[4]/#%-/none found}"
         [[ $reply[4] != - ]] && print -r -- "${bold}from${o}    its $reply[7]${${reply[5]:#-}:+ · format $reply[5]} · alias $reply[6]"
         print -r -- "${bold}touched${o} $(date -r $reply[2] '+%Y-%m-%d %H:%M')"
+        [[ $reply[8] == done ]] && print -r -- "${c_grn}already in yt-dlp's archive${o} — finished by a later run; this is a leftover"
         print; print -r -- "${bold}files${o}"
-        du -sk -- $reply[8].*(N.) 2>/dev/null | sort -rn | head -12 |
+        du -sk -- $reply[9].*(N.) 2>/dev/null | sort -rn | head -12 |
           while IFS=$'\t' read -r kb p; do sized $kb; printf '%s  %s\n' $REPLY ${p:t}; done
         (( reply[3] > 12 )) && print "         … $(( reply[3] - 12 )) more"
       fi
