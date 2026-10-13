@@ -803,7 +803,7 @@ run() {
            if ytdlp_resume $a1 $url $fmt $alias; then
              # yt-dlp exited clean, so the video is complete (or was already):
              # any partial still here was not what it used.
-             files=({$a1,${ytdlp_base:-$a1}}.*.(part|ytdl)(N.))
+             files=({$a1,${ytdlp_base:-$a1}}.*.(part|ytdl)(N.)); files=(${(u)files})
              msg="resumed and finished $what"; before=0
              if (( $#files )); then
                kb_of $files; before=$REPLY; human $before
