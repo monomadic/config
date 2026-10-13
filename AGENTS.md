@@ -216,9 +216,15 @@ Tower is overwritten or deleted, same-path files with a different size are liste
 and left alone — and anything "moved" locally goes to the Trash after a size check on
 the Tower, never `rm`. Repos with unpushed, uncommitted or remote-less work refuse
 removal. Topaz rows come from `bin/lib/cleanup-topaz-models.py`, which follows
-composite models (Starlight Mini) so their parts aren't reported as unused. Paths and
+composite models (Starlight Mini) so their parts aren't reported as unused. The
+yt-dlp submenu lists each dead download from `bin/lib/cleanup-ytdlp-partials.py`,
+which recovers the URL from the info.json the run left behind (or the id in the
+name); resume re-runs it through the alias that made it, but only after
+`--print filename` confirms yt-dlp would reuse the partial's name — on a mismatch
+it renames the partial rather than download from zero. Paths and
 thresholds are `CLEANUP_*` env vars (listed in the script header). Test it against
-temp dirs with `CLEANUP_SYNC_SRC/DST`, `CLEANUP_ARCHIVE`, `TOPAZ_APP` and
+temp dirs with `CLEANUP_SYNC_SRC/DST`, `CLEANUP_ARCHIVE`, `TOPAZ_APP`,
+`YT_DLP_TEMP_DIR`, `CLEANUP_YTDLP_JSON` (and stub `yt-dlp`/`dl-porn` on `PATH`) and
 `CLEANUP_TOWER_UP=1` — never by answering its prompts with the live paths.
 **Coding agents commit their own work.** `bin/agent-commit-guard` is the Stop
 hook for Claude Code (`config/claude/settings.json`) and Codex

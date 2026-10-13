@@ -14,6 +14,8 @@
 #   Large files ▸       files over 250M in ~/Movies ~/Music ~/Downloads ~/Pictures
 #   ~/src ▸             repos (dirty / unpushed work flagged), worktrees, cargo
 #                       target dirs, and directories that aren't git at all
+#   yt-dlp partials ▸   downloads that died, one row each: resume it (the URL
+#                       comes from its leftover info.json or its id) or delete it
 #   …and brew, tool caches, known cache dirs, big app caches, the Trash.
 #
 # Keys (vim):  j/k move · g/G top/bottom · ctrl-d/u half page · enter or l run
@@ -22,7 +24,7 @@
 #              ctrl-r rescan
 #
 #   cleanup              main menu
-#   cleanup topaz        jump straight into a submenu (topaz | files | src)
+#   cleanup topaz        jump straight into a submenu (topaz | files | src | ytdlp)
 #   cleanup --list [v]   print a view and exit (no fzf)
 #
 # CLEANUP_ROOTS      dirs searched for worktrees and cargo projects (default $HOME)
@@ -31,6 +33,8 @@
 # CLEANUP_BIG_DIRS   dirs scanned for large files    (default ~/Movies ~/Music ~/Downloads ~/Pictures)
 # CLEANUP_BIG_MB     "large" threshold                               (default 250)
 # CLEANUP_YTDLP_DAYS partial downloads older than this are stale     (default 7)
+# CLEANUP_YTDLP_JSON where yt-dlp writes its info.json  (default iCloud Sync/JSON)
+# YT_DLP_TEMP_DIR    yt-dlp's temp dir                  (default ~/.cache/yt-dlp-tmp)
 # CLEANUP_SYNC_SRC   folder pushed to the Tower      (default ~/Movies/Porn/Downloads)
 # CLEANUP_SYNC_DST   its home on the Tower           (default <Tower>/Movies/Porn/Downloads)
 # CLEANUP_TOWER      the Tower's mount point         (default /Volumes/Tower)
@@ -60,6 +64,7 @@ models_dir=$(topaz_resolve_models_dir 2>/dev/null)
 presets_dir=$dotfiles/bin/lib/topaz-presets
 ytdlp_tmp=${YT_DLP_TEMP_DIR:-$HOME/.cache/yt-dlp-tmp}
 ytdlp_days=${CLEANUP_YTDLP_DAYS:-7}
+ytdlp_json=${CLEANUP_YTDLP_JSON:-$HOME/Library/Mobile Documents/com~apple~CloudDocs/Sync/JSON}
 
 # Partial downloads and Finder litter never travel to the Tower.
 sync_skip='(.DS_Store|._*|*.part|*.ytdl|*.crdownload|*.download|*.aria2)'
@@ -404,14 +409,42 @@ scan_brew() {
 }
 
 scan_ytdlp() {
-  # yt-dlp's temp dir: only partials nobody has touched for a while are stale.
+  # yt-dlp's temp dir: a row per download that died, and the sweep of
+  # everything nobody has touched for a while.
   [[ -d $ytdlp_tmp ]] || return
-  local old_kb
+  local raw=$CLEANUP_TMP/sub-ytdlp.raw tsv=$CLEANUP_TMP/ytdlp.tsv
+  local kb mtime nfiles url fmt alias src base text risk total old_kb
+  local n=0 nres=0 now=$(date +%s)
+  : > $raw
+  python3 $dotfiles/bin/lib/cleanup-ytdlp-partials.py $ytdlp_tmp $ytdlp_json > $tsv 2>/dev/null
+  while IFS=$'\t' read -r kb mtime nfiles url fmt alias src base; do
+    (( n++ ))
+    if [[ $url == - ]]; then risk=s text="${c_amb}no URL found${o}"
+    else risk=c text="${c_grn}resumable${o} ${dim}· URL from its $src${o}"; (( nres++ )); fi
+    row $kb - ytpart $base - ytdlp $risk "${base:t}  ${dim}$(( (now - mtime) / 86400 ))d old${o}  $text" >> $raw
+  done < $tsv
   old_kb=$(find $ytdlp_tmp -type f -mtime +$ytdlp_days -print0 | xargs -0 stat -f%z 2>/dev/null | awk '{s += $1} END {print int(s / 1024)}')
-  (( old_kb > 10240 )) || return
-  row $old_kb - ytdlp $ytdlp_tmp - ytdlp s "yt-dlp temp  ${dim}partial downloads untouched for $ytdlp_days+ days${o}"
-  human $old_kb
-  tip 5 "$REPLY of abandoned yt-dlp partials (older than $ytdlp_days days)  ${dim}→ yt-dlp temp row; recent ones are left alone${o}"
+  (( old_kb > 10240 )) &&
+    row $old_kb - ytdlp $ytdlp_tmp - ytdlp s "ALL files untouched for $ytdlp_days+ days ${dim}— delete without resuming${o}" >> $raw
+  format < $raw > $CLEANUP_TMP/list.ytdlp
+
+  kb_of $ytdlp_tmp; total=$REPLY
+  (( total > 10240 )) || return
+  row $total - menu ytdlp - ytdlp c "yt-dlp partials ${ICON[more]}  ${dim}$n downloads that died · $nres resumable${o}"
+  if (( old_kb > 10240 )); then
+    human $old_kb
+    tip 5 "$REPLY of yt-dlp partials are older than $ytdlp_days days  ${dim}→ yt-dlp partials ${ICON[more]}: resume or delete${o}"
+  fi
+}
+
+# The scan's record for one partial -> reply=(kb mtime files url fmt alias src base).
+# fzf hands the base over with trailing blanks stripped, so compare without them.
+ytpart_rec() {
+  local line
+  line=$(B=$1 awk -F'\t' 'BEGIN {want = ENVIRON["B"]; sub(/[ \t]+$/, "", want)}
+    {b = $8; sub(/[ \t]+$/, "", b)} b == want {print; exit}' $CLEANUP_TMP/ytdlp.tsv 2>/dev/null)
+  reply=("${(@ps:\t:)line}")
+  (( $#reply == 8 ))
 }
 
 scan_caches() {
@@ -499,7 +532,7 @@ list_main() {
 list_view() {
   case $1 in
     main) list_main ;;
-    topaz|files|src)
+    topaz|files|src|ytdlp)
       : > $CLEANUP_TMP/drop
       rm -f $CLEANUP_TMP/list.$1
       CLEANUP_NOTIPS=1 scan_$1 > /dev/null 2>&1
@@ -596,6 +629,48 @@ path_action() {
     *) return 1 ;;
   esac
   before=0
+}
+
+# Re-run a dead download so yt-dlp picks its partial up again. Resuming only
+# happens when the new run computes the same temp file name, so that is checked
+# first: a mismatch would start from zero and leave the old partial behind.
+ytdlp_resume() {  # base url format alias
+  local base=$1 url=$2 fmt=$3 alias=$4 rel=${1#$ytdlp_tmp/} want
+  local -a cmd probe
+  case $alias in
+    porn)    cmd=(dl-porn)            probe=(yt-dlp --porn) ;;
+    visuals) cmd=(yt-dlp --visuals)   probe=($cmd) ;;
+    *)       cmd=(yt-dlp)             probe=($cmd) ;;
+  esac
+  # The format the dead run chose; another one could share the file name.
+  [[ $fmt != - ]] && { cmd+=(-f $fmt); probe+=(-f $fmt) }
+  print -r -- "$url"
+  print -r -- "${dim}asking yt-dlp what it would name this download…${o}"
+  want=$($probe --no-download-archive --print filename $url | tail -1)
+  if [[ -z $want ]]; then
+    print -r -- "${c_red}yt-dlp can't get this video any more${o}${${fmt:#-}:+ (in format $fmt)} — see above. The partial is untouched."
+    return 1
+  fi
+  if [[ ${want:r} != */"$rel" ]]; then
+    # Same video (the URL came from this partial), different name: the title
+    # changed on the site, or the alias's template has since.
+    local new=$ytdlp_tmp/${want:h:t}/${want:t:r} f
+    [[ $alias == visuals ]] && new=$ytdlp_tmp/${want:t:r}
+    print -r -- "${c_amb}yt-dlp now names this download${o}"
+    print -r -- "  ${want:t}"
+    print -r -- "which is not the partial's name, so as it stands it would start from zero."
+    local -a clash=($new.*.(part|ytdl)(N.))
+    if (( $#clash )); then
+      print -r -- "${c_red}a partial under the new name exists already${o} — resume that row instead."
+      return 1
+    fi
+    confirm_always 'rename the partial to the new name and resume it?' || return 1
+    mkdir -p -- ${new:h} || return 1
+    for f in $base.*(N.); do mv -n -- $f $new${f#$base} || return 1; done
+    ytdlp_base=$new
+  fi
+  print -r -- "${dim}resuming with: $cmd${o}"; print
+  $cmd $url
 }
 
 run() {
@@ -696,8 +771,44 @@ run() {
       pause
       ;;
 
+    ytpart)
+      ytpart_rec $a1 || fail "no record of ${a1:t} — rescan with ctrl-r"
+      local url=$reply[4] fmt=$reply[5] alias=$reply[6] mtime=$reply[2] hsz mins ytdlp_base=
+      a1=$reply[8]
+      [[ $a1 == $ytdlp_tmp/* ]] || fail "not in the yt-dlp temp dir: $a1"
+      local -a files=($a1.*(N.))
+      (( $#files )) || fail "${a1:t} has no files left"
+      what=${a1:t}
+      kb_of $files; before=$REPLY; human $before; hsz=$REPLY
+      mins=$(( ($(date +%s) - mtime) / 60 ))
+      if (( mins < 10 )); then
+        confirm_always "written to $mins min ago — a yt-dlp may still be downloading it. carry on?" || return
+      fi
+      if [[ $url == - ]]; then choose "$what ($hsz, no URL found): [d]elete · [r]eveal in Finder · [c]ancel" d r c
+      else choose "$what ($hsz): [r]esume · [d]elete · [c]ancel" r d c; fi
+      case $REPLY in
+        r) if [[ $url == - ]]; then open -R $files[1]; return; fi
+           if ytdlp_resume $a1 $url $fmt $alias; then
+             files=(${ytdlp_base:-$a1}.*.(part|ytdl)(N.))
+             (( $#files )) || { msg="resumed and finished $what"; before=0 }
+           fi
+           if [[ -z $msg ]]; then
+             print; print -r -- "${c_amb}not finished — the partial is kept, resume it again later${o}"
+             print -r -- "resume of $what did not finish — the partial is kept" > $CLEANUP_TMP/last
+             # A renamed partial is a different row now.
+             [[ -n $ytdlp_base ]] && list_view ytdlp > /dev/null
+             pause; return
+           fi
+           pause ;;
+        d) confirm_always "delete the $#files files of this partial ($hsz)? it can't be resumed afterwards" || return
+           rm -f -- $files
+           [[ ${a1:h} != $ytdlp_tmp ]] && rmdir -- ${a1:h} 2>/dev/null ;;
+        *) return ;;
+      esac
+      ;;
+
     ytdlp)
-      [[ -d $a1 && ${a1:t} == yt-dlp-tmp ]] || fail "not the yt-dlp temp dir: $a1"
+      [[ -d $a1 && $a1 == $ytdlp_tmp ]] || fail "not the yt-dlp temp dir: $a1"
       what="stale yt-dlp partials"
       local nold
       nold=$(find $a1 -type f -mtime +$ytdlp_days | wc -l | tr -d ' ')
@@ -865,6 +976,7 @@ advice() {
       case $a1 in
         topaz) print -r -- 'Opens the list of Topaz models, one row each. Weights are re-downloaded on demand, so removing is recoverable — but only the app (or topaz-fetch-models) can fetch them.' ;;
         files) print -r -- "Opens the biggest files in ${(j:, :)big_nice}. Each can be moved to the Tower, trashed, or revealed in Finder." ;;
+        ytdlp) print -r -- "Opens yt-dlp's temp dir, one row per download that died. Each can be resumed where it stopped, or deleted." ;;
         src)   print -r -- 'Opens your repos, worktrees and cargo target dirs. Repos with unpushed or uncommitted work are marked red and refuse to be removed.' ;;
       esac ;;
     sync)
@@ -883,6 +995,11 @@ advice() {
     trestore)
       print s
       print -r -- 'Copies the archived files back into the Topaz app. The copy on the Tower stays. Check free space first.' ;;
+    ytpart)
+      print c
+      print -r -- 'A download that died. Resume re-runs it through the alias that made it (dl-porn, --visuals), in the format it had chosen, and yt-dlp carries on from where the partial stops. Before downloading it checks that yt-dlp would use this same file name; if the title changed on the site, or the alias has a new template, it offers to rename the partial to match rather than start again from zero.'
+      print
+      print -r -- 'The URL is not in the partial. It comes from the info.json the dead run left behind, or is rebuilt from the id in the name; a row with no URL can only be deleted, or resumed by hand with the original URL. Deleting removes the partial and its fragments for good.' ;;
     ytdlp)
       print s
       print -r -- "yt-dlp's temp dir (set in config/yt-dlp/config). Finished downloads are moved out; what stays are .part and .ytdl files from downloads that died or were abandoned. Only files untouched for $ytdlp_days+ days are removed, so a download in progress is safe."
@@ -994,6 +1111,17 @@ preview() {
       ls -lh -- $a1 | awk '{print $5, $6, $7, $8}'
       mdls -name kMDItemKind -name kMDItemDurationSeconds -name kMDItemPixelWidth -name kMDItemPixelHeight -- $a1 2>/dev/null | grep -v '(null)'
       ;;
+    ytpart)
+      if ytpart_rec $a1; then
+        print -r -- "${bold}url${o}     ${reply[4]/#%-/none found}"
+        [[ $reply[4] != - ]] && print -r -- "${bold}from${o}    its $reply[7]${${reply[5]:#-}:+ · format $reply[5]} · alias $reply[6]"
+        print -r -- "${bold}touched${o} $(date -r $reply[2] '+%Y-%m-%d %H:%M')"
+        print; print -r -- "${bold}files${o}"
+        du -sk -- $reply[8].*(N.) 2>/dev/null | sort -rn | head -12 |
+          while IFS=$'\t' read -r kb p; do human $kb; printf '%7s  %s\n' $REPLY ${p:t}; done
+        (( reply[3] > 12 )) && print "         … $(( reply[3] - 12 )) more"
+      fi
+      ;;
     ytdlp)
       print -r -- "${bold}stale partials by folder${o}"
       find $a1 -type f -mtime +$ytdlp_days -print0 | xargs -0 stat -f $'%z\t%N' 2>/dev/null |
@@ -1087,7 +1215,7 @@ for dep in fd fzf; do
 done
 
 case ${1:-main} in
-  main|topaz|files|src) view ${1:-main} ;;
-  *) print -u2 "cleanup: unknown view '$1' (main | topaz | files | src)"; exit 2 ;;
+  main|topaz|files|src|ytdlp) view ${1:-main} ;;
+  *) print -u2 "cleanup: unknown view '$1' (main | topaz | files | src | ytdlp)"; exit 2 ;;
 esac
 exit 0
