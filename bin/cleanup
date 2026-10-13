@@ -80,7 +80,7 @@ big_nice=(); for s in $big_dirs; do big_nice+=(${s/#$HOME/\~}); done
 # --- look -------------------------------------------------------------------
 
 o=$'\e[0m' dim=$'\e[2m' bold=$'\e[1m'
-c_red=$'\e[38;5;167m' c_amb=$'\e[38;5;179m' c_grn=$'\e[38;5;108m'
+c_red=$'\e[38;5;167m' c_amb=$'\e[38;5;179m' c_grn=$'\e[38;5;108m' c_cyan=$'\e[38;5;109m'
 
 typeset -A RISK=(s $c_grn c $c_amb d $c_red)
 typeset -A RISKTXT=(s 'safe to clear' c 'check first' d 'careful')
@@ -1058,12 +1058,27 @@ advice() {
   esac
 }
 
+# A size for a preview list, right-aligned and coloured by how much it is worth
+# chasing: red for the big ones, fading through amber to grey -> REPLY
+sized() {
+  local kb=$1 c
+  if   (( kb >= 2097152 )); then c=$'\e[1;38;5;203m'
+  elif (( kb >= 1048576 )); then c=$'\e[38;5;209m'
+  elif (( kb >=  512000 )); then c=$'\e[38;5;215m'
+  elif (( kb >=  204800 )); then c=$'\e[38;5;221m'
+  elif (( kb >=   51200 )); then c=$'\e[38;5;150m'
+  else                           c=$'\e[38;5;245m'
+  fi
+  human $kb
+  REPLY=$(printf '%s%7s%s' $c $REPLY $o)
+}
+
 listing() {  # biggest entries inside a directory
   local kb p
   print -r -- $1; print
   du -sk -- $1/*(DN) 2>/dev/null | sort -rn | head -30 |
   while IFS=$'\t' read -r kb p; do
-    human $kb; printf '%7s  %s\n' $REPLY ${p:t}
+    sized $kb; printf '%s  %s\n' $REPLY ${p:t}
   done
 }
 
@@ -1076,16 +1091,16 @@ preview_topaz() {
   local -a used unused stores arch orphans
   local -A have
   while IFS=$'\t' read -r kind key name wb cb n uses; do
-    kb=$(( (wb + cb) / 1024 )); human $kb
-    line=$(printf '%7s  %-8s %s' $REPLY $key "${name:#$key}")
+    kb=$(( (wb + cb) / 1024 )); sized $kb
+    line=$(printf '%s  %s%-8s%s %s' $REPLY $c_cyan $key $o "${name:#$key}")
     case $kind in
       model)
         have[$key]=1; (( nm++, wkb += wb / 1024, ckb += cb / 1024 ))
-        if (( uses )); then used+=("$kb"$'\t'"$line  ${dim}$uses preset${${uses:#1}:+s}${o}")
+        if (( uses )); then used+=("$kb"$'\t'"$line  ${c_grn}$uses preset${${uses:#1}:+s}${o}")
         else unused+=("$kb"$'\t'"$line"); (( ukb += kb )); fi ;;
       store)
         (( skb += kb ))
-        if (( uses )); then stores+=("$kb"$'\t'"$line  ${dim}$uses preset${${uses:#1}:+s}${o}")
+        if (( uses )); then stores+=("$kb"$'\t'"$line  ${c_grn}$uses preset${${uses:#1}:+s}${o}")
         else stores+=("$kb"$'\t'"$line  ${c_amb}unused — no enabled preset uses it${o}"); (( ukb += kb )); fi ;;
       restore-*) arch+=("$kb"$'\t'"$line") ;;
     esac
@@ -1099,7 +1114,7 @@ preview_topaz() {
 
   local sec title
   human $(( wkb + ckb )); line=$REPLY; human $wkb; local w=$REPLY; human $ckb
-  print -r -- "${bold}$nm models${o} · $line  ${dim}weights $w + compiled cache $REPLY${o}"
+  print -r -- "${bold}$nm models${o} · ${bold}$line${o}  ${dim}weights $w + compiled cache $REPLY${o}"
   (( skb )) && { human $skb; print -r -- "${bold}$#stores neuroserver store$( (( $#stores == 1 )) || print -n s )${o} · $REPLY" }
   if (( ukb + okb )); then
     human $(( ukb + okb ))
@@ -1108,10 +1123,10 @@ preview_topaz() {
   for sec in used unused stores arch; do
     (( ${(P)#sec} )) || continue
     case $sec in
-      used)   title='in use by your presets' ;;
+      used)   title="${c_grn}in use by your presets${o}" ;;
       unused) title="${c_amb}unused — no preset uses these${o}" ;;
-      stores) title='neuroserver stores (Starlight Precise)' ;;
-      arch)   title='archived on the Tower, not here' ;;
+      stores) title="${c_cyan}neuroserver stores (Starlight Precise)${o}" ;;
+      arch)   title="${c_cyan}archived on the Tower, not here${o}" ;;
     esac
     print; print -r -- "${bold}$title${o}"
     print -rl -- "${(P@)sec}" | sort -t$'\t' -k1,1rn | cut -f2-
@@ -1121,6 +1136,44 @@ preview_topaz() {
     print; print -r -- "${c_amb}$REPLY of compiled cache has no weights left${o} ${dim}($#orphans dirs in coreMLCache)${o}"
   fi
   tower_up || { print; print -r -- "${dim}Tower not mounted — archived models aren't shown${o}" }
+}
+
+# The yt-dlp menu row: every download that died, from the last scan.
+preview_ytdlp() {
+  local tsv=$CLEANUP_TMP/ytdlp.tsv
+  [[ -e $tsv ]] || return
+  local kb mtime nfiles url fmt alias src base line age total
+  local n=0 pkb=0 rkb=0 nkb=0 skb=0 nstale=0 now=$(date +%s)
+  local -a res nourl
+  while IFS=$'\t' read -r kb mtime nfiles url fmt alias src base; do
+    (( n++, pkb += kb ))
+    age=$(( (now - mtime) / 86400 ))
+    sized $kb; line="$REPLY  "
+    if (( age > ytdlp_days )); then line+="${c_amb}$(printf '%4sd' $age)${o}"; (( nstale++, skb += kb ))
+    else line+="${c_grn}$(printf '%4sd' $age)${o}"; fi
+    line+="  ${base:t}  ${dim}$nfiles file$( (( nfiles == 1 )) || print -n s )"
+    if [[ $url == - ]]; then nourl+=("$kb"$'\t'"$line${o}"); (( nkb += kb ))
+    else res+=("$kb"$'\t'"$line · ${fmt:#-}${${fmt:#-}:+ · }$src${o}"); (( rkb += kb )); fi
+  done < $tsv
+
+  human $pkb
+  print -r -- "${bold}$n downloads that died${o} · ${bold}$REPLY${o}"
+  (( $#res ))   && { human $rkb; print -r -- "${c_grn}$#res resumable${o} · $REPLY" }
+  (( $#nourl )) && { human $nkb; print -r -- "${c_amb}$#nourl with no URL${o} · $REPLY ${dim}— delete, or resume by hand${o}" }
+  (( nstale ))  && { human $skb; print -r -- "${c_red}$nstale untouched for $ytdlp_days+ days${o} · $REPLY" }
+  kb_of $ytdlp_tmp; total=$REPLY
+  if (( total - pkb > 1024 )); then
+    human $(( total - pkb ))
+    print -r -- "${dim}+ $REPLY of other leftovers (finished files, thumbnails, subtitles)${o}"
+  fi
+  if (( $#res )); then
+    print; print -r -- "${c_grn}${bold}resumable${o}  ${dim}size · age · name${o}"
+    print -rl -- $res | sort -t$'\t' -k1,1rn | cut -f2-
+  fi
+  if (( $#nourl )); then
+    print; print -r -- "${c_amb}${bold}no URL found${o}"
+    print -rl -- $nourl | sort -t$'\t' -k1,1rn | cut -f2-
+  fi
 }
 
 preview() {
@@ -1138,7 +1191,11 @@ preview() {
   print
 
   case $kind in
-    menu) [[ $a1 == topaz ]] && preview_topaz ;;
+    menu)
+      case $a1 in
+        topaz) preview_topaz ;;
+        ytdlp) preview_ytdlp ;;
+      esac ;;
     sync)
       [[ -s $CLEANUP_TMP/sync.new ]] && { print -r -- "${bold}new on this side${o}"; head -25 $CLEANUP_TMP/sync.new | sed 's/^/  /'
         (( $(wc -l < $CLEANUP_TMP/sync.new) > 25 )) && print "  …" }
@@ -1148,7 +1205,7 @@ preview() {
       local stem=${a1%-*} ver=${a1##*-}
       print -r -- "${bold}weights${o}"
       du -sk -- $models_dir/${stem}-v${ver}-*.tz3(N) 2>/dev/null | sort -rn | head -12 |
-        while IFS=$'\t' read -r kb p; do human $kb; printf '%7s  %s\n' $REPLY ${p:t}; done
+        while IFS=$'\t' read -r kb p; do sized $kb; printf '%s  %s\n' $REPLY ${p:t}; done
       print; print -r -- "${bold}presets using $a1${o}"
       grep -rlE "model=$a1([^0-9]|\$)" $presets_dir 2>/dev/null | sed "s|.*/||;s|\.toml||;s/^/  /" | head -15
       ;;
@@ -1162,7 +1219,7 @@ preview() {
       print; git -C $a1 -c color.ui=always status -sb 2>/dev/null | head -15
       print; print -r -- "${bold}remote${o}  $(git -C $a1 remote get-url origin 2>/dev/null || print none)"
       for p in target node_modules .venv; do
-        [[ -d $a1/$p ]] && { kb_of $a1/$p; human $REPLY; printf '%7s  %s/\n' $REPLY $p }
+        [[ -d $a1/$p ]] && { kb_of $a1/$p; sized $REPLY; printf '%s  %s/\n' $REPLY $p }
       done
       ;;
     file)
@@ -1176,7 +1233,7 @@ preview() {
         print -r -- "${bold}touched${o} $(date -r $reply[2] '+%Y-%m-%d %H:%M')"
         print; print -r -- "${bold}files${o}"
         du -sk -- $reply[8].*(N.) 2>/dev/null | sort -rn | head -12 |
-          while IFS=$'\t' read -r kb p; do human $kb; printf '%7s  %s\n' $REPLY ${p:t}; done
+          while IFS=$'\t' read -r kb p; do sized $kb; printf '%s  %s\n' $REPLY ${p:t}; done
         (( reply[3] > 12 )) && print "         … $(( reply[3] - 12 )) more"
       fi
       ;;
@@ -1185,7 +1242,7 @@ preview() {
       find $a1 -type f -mtime +$ytdlp_days -print0 | xargs -0 stat -f $'%z\t%N' 2>/dev/null |
         awk -F'\t' -v root="$a1/" '{ sub(root, "", $2); split($2, a, "/"); s[a[1]] += $1 }
           END { for (k in s) printf "%d\t%s\n", s[k] / 1024, k }' | sort -rn | head -20 |
-        while IFS=$'\t' read -r kb p; do human $kb; printf '%7s  %s\n' $REPLY $p; done
+        while IFS=$'\t' read -r kb p; do sized $kb; printf '%s  %s\n' $REPLY $p; done
       ;;
     brew)      cat $CLEANUP_TMP/brew.txt ;;
     cargo-all) cat $CLEANUP_TMP/cargo.txt ;;
