@@ -1086,7 +1086,7 @@ preview_topaz() {
       store)
         (( skb += kb ))
         if (( uses )); then stores+=("$kb"$'\t'"$line  ${dim}$uses preset${${uses:#1}:+s}${o}")
-        else stores+=("$kb"$'\t'"$line  ${c_amb}stale — no enabled preset uses it${o}"); (( ukb += kb )); fi ;;
+        else stores+=("$kb"$'\t'"$line  ${c_amb}unused — no enabled preset uses it${o}"); (( ukb += kb )); fi ;;
       restore-*) arch+=("$kb"$'\t'"$line") ;;
     esac
   done < $tsv
@@ -1103,13 +1103,13 @@ preview_topaz() {
   (( skb )) && { human $skb; print -r -- "${bold}$#stores neuroserver store$( (( $#stores == 1 )) || print -n s )${o} · $REPLY" }
   if (( ukb + okb )); then
     human $(( ukb + okb ))
-    print -r -- "${c_amb}$REPLY stale${o} ${dim}— not reached by any enabled preset${o}"
+    print -r -- "${c_amb}$REPLY unused${o} ${dim}— not reached by any enabled preset${o}"
   fi
   for sec in used unused stores arch; do
     (( ${(P)#sec} )) || continue
     case $sec in
       used)   title='in use by your presets' ;;
-      unused) title="${c_amb}stale — no preset uses these${o}" ;;
+      unused) title="${c_amb}unused — no preset uses these${o}" ;;
       stores) title='neuroserver stores (Starlight Precise)' ;;
       arch)   title='archived on the Tower, not here' ;;
     esac
