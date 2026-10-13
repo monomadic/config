@@ -45,3 +45,9 @@
 [user]
     name = monomadic
     email = 129359+monomadic@users.noreply.github.com
+[credential "https://github.com"]
+	helper = 
+	helper = !/opt/homebrew/bin/gh auth git-credential
+[credential "https://gist.github.com"]
+	helper = 
+	helper = !/opt/homebrew/bin/gh auth git-credential
