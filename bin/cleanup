@@ -207,6 +207,7 @@ scan_topaz() {
   : > $raw
   tower_up && arch=$arch_topaz
   lines=(${(f)"$(python3 $dotfiles/bin/lib/cleanup-topaz-models.py $models_dir $presets_dir $arch 2>/dev/null)"})
+  print -rl -- $lines > $CLEANUP_TMP/topaz.tsv   # the menu row's preview reads it
   for l in $lines; do
     IFS=$'\t' read -r kind key name wb cb n uses <<< $l
     kb=$(( (wb + cb) / 1024 ))
@@ -1066,6 +1067,62 @@ listing() {  # biggest entries inside a directory
   done
 }
 
+# The Topaz menu row: everything on disk at a glance, from the last scan.
+preview_topaz() {
+  local tsv=$CLEANUP_TMP/topaz.tsv
+  [[ -s $tsv ]] || return
+  local kind key name wb cb n uses kb line d
+  local nm=0 wkb=0 ckb=0 ukb=0 skb=0 okb=0
+  local -a used unused stores arch orphans
+  local -A have
+  while IFS=$'\t' read -r kind key name wb cb n uses; do
+    kb=$(( (wb + cb) / 1024 )); human $kb
+    line=$(printf '%7s  %-8s %s' $REPLY $key "${name:#$key}")
+    case $kind in
+      model)
+        have[$key]=1; (( nm++, wkb += wb / 1024, ckb += cb / 1024 ))
+        if (( uses )); then used+=("$kb"$'\t'"$line  ${dim}$uses preset${${uses:#1}:+s}${o}")
+        else unused+=("$kb"$'\t'"$line"); (( ukb += kb )); fi ;;
+      store)
+        (( skb += kb ))
+        if (( uses )); then stores+=("$kb"$'\t'"$line  ${dim}$uses preset${${uses:#1}:+s}${o}")
+        else stores+=("$kb"$'\t'"$line  ${c_amb}stale — no enabled preset uses it${o}"); (( ukb += kb )); fi ;;
+      restore-*) arch+=("$kb"$'\t'"$line") ;;
+    esac
+  done < $tsv
+  # Compiled caches whose weights are gone.
+  for d in $models_dir/coreMLCache/*(N/); do
+    [[ ${d:t} =~ '^(.+)-v([0-9]+)-' ]] || continue
+    [[ -n $have[$match[1]-$match[2]] ]] || orphans+=($d)
+  done
+  (( $#orphans )) && { kb_of $orphans; okb=$REPLY }
+
+  local sec title
+  human $(( wkb + ckb )); line=$REPLY; human $wkb; local w=$REPLY; human $ckb
+  print -r -- "${bold}$nm models${o} · $line  ${dim}weights $w + compiled cache $REPLY${o}"
+  (( skb )) && { human $skb; print -r -- "${bold}$#stores neuroserver store$( (( $#stores == 1 )) || print -n s )${o} · $REPLY" }
+  if (( ukb + okb )); then
+    human $(( ukb + okb ))
+    print -r -- "${c_amb}$REPLY stale${o} ${dim}— not reached by any enabled preset${o}"
+  fi
+  for sec in used unused stores arch; do
+    (( ${(P)#sec} )) || continue
+    case $sec in
+      used)   title='in use by your presets' ;;
+      unused) title="${c_amb}stale — no preset uses these${o}" ;;
+      stores) title='neuroserver stores (Starlight Precise)' ;;
+      arch)   title='archived on the Tower, not here' ;;
+    esac
+    print; print -r -- "${bold}$title${o}"
+    print -rl -- "${(P@)sec}" | sort -t$'\t' -k1,1rn | cut -f2-
+  done
+  if (( okb > 1024 )); then
+    human $okb
+    print; print -r -- "${c_amb}$REPLY of compiled cache has no weights left${o} ${dim}($#orphans dirs in coreMLCache)${o}"
+  fi
+  tower_up || { print; print -r -- "${dim}Tower not mounted — archived models aren't shown${o}" }
+}
+
 preview() {
   local kind=$1 a1=$2 a2=$3 kb p out risk users note=
   out=$(advice $kind $a1 $a2)
@@ -1081,6 +1138,7 @@ preview() {
   print
 
   case $kind in
+    menu) [[ $a1 == topaz ]] && preview_topaz ;;
     sync)
       [[ -s $CLEANUP_TMP/sync.new ]] && { print -r -- "${bold}new on this side${o}"; head -25 $CLEANUP_TMP/sync.new | sed 's/^/  /'
         (( $(wc -l < $CLEANUP_TMP/sync.new) > 25 )) && print "  …" }
