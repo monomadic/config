@@ -159,6 +159,43 @@ resolve_claude() {
   print -r -- "${bundled[-1]}"
 }
 
+# One readable line for a failed `claude --print` run. The JSON envelope puts
+# the explanation under .result even when the exit status is nonzero; only
+# when there is no envelope at all is stderr worth showing.
+claude_failure_reason() {
+  local json_file=$1 err_file=$2 reason
+  reason=$(jq -r '.result // .subtype // empty' "$json_file" 2>/dev/null) || reason=
+  [[ -n "$reason" ]] || reason=$(<"$err_file")
+  [[ -n "$reason" ]] || reason=$(<"$json_file")
+  print -r -- "${reason:-unknown error}"
+}
+
+# The standalone CLI keeps its own login, separate from the desktop app's
+# session. When it has lapsed, the fix is `claude auth login` — and in the
+# meantime the message can come from codex when it is installed and the
+# backend was not pinned with --claude.
+claude_auth_failed() {
+  setopt localoptions extendedglob
+  [[ "$1" == *(#i)(authenticat|oauth|logged in|login|api key|401)* ]]
+}
+
+claude_failed() {
+  local reason=$1
+
+  if claude_auth_failed "$reason"; then
+    warn "Claude failed: $reason"
+    note "Run \`claude auth login\` to log the CLI back in."
+    if [[ "${GC_BACKEND_PINNED:-false}" != true ]] && command -v codex >/dev/null 2>&1; then
+      warn "Falling back to codex for this run"
+      export GC_BACKEND=codex
+      return 0
+    fi
+    exit 1
+  fi
+
+  die "Claude failed: $reason"
+}
+
 # Write the diff the model gets to see. A full `git diff --cached` on a normal
 # commit here runs to tens of KB, and every byte is both payload and thinking
 # fodder, so trim it: a file-level summary (cheap, high signal) followed by a
@@ -325,7 +362,9 @@ generate_message() {
         -- \
         zsh -c "env ${(j: :)${(@)claude_env/#/-u }} MAX_THINKING_TOKENS=0 ${(q)GC_CLAUDE_BIN} ${(j: :)${(@q)claude_args}} < ${(q)prompt_file} > ${(q)json_file} 2> ${(q)err_file}"
       then
-        die "Claude failed: $(<"$err_file")$(<"$json_file")"
+        claude_failed "$(claude_failure_reason "$json_file" "$err_file")"
+        generate_message "$@"
+        return
       fi
 
       local elapsed=$(( EPOCHREALTIME - started ))
@@ -334,7 +373,9 @@ generate_message() {
       # explanation in .result — catch it here, or it gets committed as the
       # commit message.
       if [[ "$(jq -r '.is_error // false' "$json_file" 2>/dev/null)" == "true" ]]; then
-        die "Claude failed: $(jq -r '.result // .subtype // "unknown error"' "$json_file")"
+        claude_failed "$(claude_failure_reason "$json_file" "$err_file")"
+        generate_message "$@"
+        return
       fi
 
       jq -r '.result // empty' "$json_file" > "$output_file" 2>/dev/null \
@@ -719,12 +760,17 @@ main() {
   local staged_only=false
   export GC_MULTI=false
 
+  # A backend chosen by env or flag is pinned: the codex fallback on a Claude
+  # login failure only applies to the auto-detected default.
+  export GC_BACKEND_PINNED=false
   if [[ -z "${GC_BACKEND:-}" ]]; then
     if resolve_claude >/dev/null; then
       GC_BACKEND=claude
     else
       GC_BACKEND=codex
     fi
+  else
+    GC_BACKEND_PINNED=true
   fi
   export GC_BACKEND
 
@@ -737,10 +783,10 @@ main() {
         staged_only=true
         ;;
       --codex)
-        export GC_BACKEND=codex
+        export GC_BACKEND=codex GC_BACKEND_PINNED=true
         ;;
       --claude)
-        export GC_BACKEND=claude
+        export GC_BACKEND=claude GC_BACKEND_PINNED=true
         ;;
       -h|--help)
         usage
