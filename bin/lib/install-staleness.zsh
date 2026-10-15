@@ -30,8 +30,8 @@ _install_build_inputs() {
   local dir="$1"; shift
   find "$dir" \
     \( -name target -o -name .build -o -name .build-deps -o -name .swiftpm -o -name .git -o -name .claude -o -name designs -o -name design \) -prune -o \
-    -type f \( -name '*.rs' -o -name '*.go' -o -name '*.c' -o -name '*.h' -o -name '*.m' \
-      -o -name '*.swift' -o -name Package.resolved -o -name prepare.sh -o -name Cargo.toml -o -name Cargo.lock -o -name go.mod -o -name go.sum \) \
+    -type f \( -name '*.rs' -o -name '*.go' -o -name '*.c' -o -name '*.cpp' -o -name '*.h' -o -name '*.m' \
+      -o -name '*.swift' -o -name Package.resolved -o -name 'prepare*.sh' -o -name CMakeLists.txt -o -name Cargo.toml -o -name Cargo.lock -o -name go.mod -o -name go.sum \) \
     "$@" -print 2>/dev/null
 }
 

@@ -11,6 +11,7 @@ import tempfile
 
 parser = argparse.ArgumentParser()
 parser.add_argument("binary", type=lambda s: Path(s).resolve())
+parser.add_argument("--backend", choices=["metal", "ncnn"], default="metal")
 parser.add_argument("--large", action="store_true", help="also run 1080p and 4K smoke conversions")
 parser.add_argument("--report", type=Path)
 args = parser.parse_args()
@@ -50,7 +51,7 @@ with tempfile.TemporaryDirectory(prefix="rife-video-integration-") as temp:
     def convert(name, source, codec, tier, extra=(), target="60"):
         dest = d / (name + (".mov" if codec == "prores" else ".mp4"))
         stats = d / (name + ".json")
-        run([args.binary, source, dest, "--codec", codec, "--tier", tier, "--fps", target, "--stats", stats, *extra])
+        run([args.binary, source, dest, "--backend", args.backend, "--codec", codec, "--tier", tier, "--fps", target, "--stats", stats, *extra])
         s = json.loads(stats.read_text())
         streams = probe(dest); v = next(x for x in streams if x["codec_type"] == "video")
         src = next(x for x in probe(source) if x["codec_type"] == "video")
@@ -86,7 +87,14 @@ with tempfile.TemporaryDirectory(prefix="rife-video-integration-") as temp:
     run([args.binary, base, out], ok=False)
     assert out.read_bytes() == before
     run([args.binary, base, base, "--overwrite"], ok=False)
-    run([args.binary, base, out, "--overwrite", "--model", d/"missing.rmw"], ok=False)
+    run([args.binary, base, out, "--backend", args.backend, "--overwrite", "--model", d/"missing.rmw"], ok=False)
+    run([args.binary, base, out, "--overwrite", "--workers", "0"], ok=False)
+    if args.backend == "ncnn":
+        bad = d/"rife-v4.26"; bad.mkdir()
+        (bad/"flownet.param").write_text("invalid param")
+        (bad/"flownet.bin").write_bytes(b"invalid weights")
+        failure = run([args.binary, base, out, "--backend", "ncnn", "--overwrite", "--model", bad], ok=False)
+        assert "invalid NCNN param" in failure.stderr, failure.stderr
     assert out.read_bytes() == before
     assert not list(d.glob(".rife-video-*")), "failed run left staging behind"
     convert("25-balanced-prores", fixture("25", "25", count=25), "prores", "balanced")

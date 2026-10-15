@@ -1,5 +1,7 @@
 // swift-tools-version: 6.2
 import PackageDescription
+import Foundation
+let native = URL(fileURLWithPath: #filePath).deletingLastPathComponent().appendingPathComponent(".build-deps/native").path
 
 let package = Package(
     name: "rife-video",
@@ -11,8 +13,9 @@ let package = Package(
     ],
     targets: [
         .target(name: "RifeVideoCore"),
+        .target(name: "CNCNN", linkerSettings: [.unsafeFlags(["-L", native, "-lrife_native", "-Xlinker", "-rpath", "-Xlinker", "@executable_path", "-Xlinker", "-rpath", "-Xlinker", native])]),
         .executableTarget(name: "rife-video", dependencies: [
-            "RifeVideoCore",
+            "RifeVideoCore", "CNCNN",
             .product(name: "RifeMetal", package: "rife-metal"),
             .product(name: "ArgumentParser", package: "swift-argument-parser"),
         ]),

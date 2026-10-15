@@ -111,7 +111,7 @@ typeset -A about_for=(
   propainter                 "AI video inpainting (removes objects and logos)"
   rclone-tower-ui            "Tower backup dashboard"
   rife-arm64                 "RIFE AI frame interpolation"
-  rife-video                 "Streaming RIFE Metal video interpolation and encoding"
+  rife-video                 "Streaming RIFE Metal/NCNN video interpolation and encoding"
   safesync                   "Indexed drive sync with sentinels, offline lookup, TUI"
   spill                      "Fills a drive with files piped to it"
   switchblade                "Fullscreen media browser"

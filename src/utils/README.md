@@ -4,7 +4,7 @@
 |-----|------|-----------|-------|
 | avinterp | frame interpolation | VideoToolbox VTFrameRateConversion | built into macOS |
 | avupscale | super-resolution | VideoToolbox VTSuperResolutionScaler | downloaded on demand |
-| rife-video | streaming RIFE frame interpolation + video encoding | VideoToolbox decode/encode + Metal | pinned RIFE 4.26 |
+| rife-video | streaming RIFE frame interpolation + video encoding | VideoToolbox decode/encode + Metal/NCNN Vulkan | pinned RIFE models |
 | avremove | per-frame object removal | Vision + Core ML | LaMa (convert_lama.py) |
 
 The original three Apple-ML tools are Swift packages targeting macOS 26, with

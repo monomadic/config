@@ -9,11 +9,14 @@ import Darwin
 struct RifeVideo: AsyncParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "rife-video",
-        abstract: "Hardware-decode H.264/HEVC, interpolate with RIFE Metal, encode HEVC/ProRes/AV1. No PNG intermediates.",
-        version: "0.1.0 (RIFE Metal 0.1.7 / model 4.26)")
+        abstract: "Hardware-decode H.264/HEVC, interpolate with RIFE Metal or NCNN Vulkan, encode HEVC/ProRes/AV1. No PNG intermediates.",
+        version: "0.2.0 (Metal 0.1.7 / NCNN 13338e38)")
     @Argument(help: "Input H.264/HEVC video (BT.709 SDR; interpolation is 8-bit).") var input: String
     @Argument(help: "Output .mp4/.mov/.mkv; ProRes requires .mov.") var output: String
     @Option(help: "Target frame rate, integer or rational.") var fps = "60"
+    @Option(help: "metal | ncnn (resident Vulkan)") var backend: Backend = .metal
+    @Option(help: "NCNN concurrent GPU jobs (1–4); default auto: 1 for full 4K, otherwise 2.") var workers: Int?
+    @Flag(help: "Use FP16 arithmetic in NCNN (changes numerical results; benchmark quality before use).") var ncnnFp16 = false
     @Option(help: "hq | balanced | fast") var tier: Tier = .hq
     @Option(help: "hevc (hardware) | prores (hardware) | av1 (software)") var codec: Codec = .hevc
     @Option(help: "ProRes proxy | lt | standard | hq | 4444 | xq") var proresProfile: ProResProfile = .hq
@@ -22,11 +25,13 @@ struct RifeVideo: AsyncParsableCommand {
     @Option(help: "SVT-AV1 speed preset (0–13).") var preset = 8
     @Option(help: "copy | aac | none; incompatible audio copy fails without replacing the destination.") var audio: Audio = .copy
     @Option(help: "Write benchmark JSON (end-to-end wall time, RIFE calls, encode backpressure, frame counts).") var stats: String?
-    @Option(help: "Optional .rmw weights override; must match upstream RIFE 4.26 architecture.") var model: String?
+    @Option(help: "Metal .rmw weights or NCNN model directory override.") var model: String?
     @Flag(help: "Atomically replace an existing output only after successful encoding/muxing.") var overwrite = false
 
     mutating func validate() throws {
         _ = try FrameRate(fps)
+        if ncnnFp16 && backend != .ncnn { throw ValidationError("--ncnn-fp16 requires --backend ncnn") }
+        if let workers, !(1...4).contains(workers) { throw ValidationError("--workers must be 1–4") }
         guard (0...63).contains(crf), (0...13).contains(preset) else { throw ValidationError("--crf must be 0–63 and --preset 0–13") }
         if let mbps, !mbps.isFinite || mbps <= 0 || mbps > 1000 { throw ValidationError("--mbps must be > 0 and <= 1000") }
         let source = URL(fileURLWithPath: input).resolvingSymlinksInPath().standardizedFileURL
@@ -81,6 +86,7 @@ struct RifeVideo: AsyncParsableCommand {
             decoder = try await HardwareDecoder(url: decodeURL)
         }
         let info = decoder.info
+        let gpuWorkers = backend == .ncnn ? (workers ?? (info.width * info.height >= 3840 * 2160 ? 1 : 2)) : 1
         let angle = Double(-atan2(info.transform.b, info.transform.a) * 180 / .pi)
         if codec == .av1 {
             let t = info.transform
@@ -92,10 +98,17 @@ struct RifeVideo: AsyncParsableCommand {
         }
         log("\(info.width)x\(info.height) \(info.codec) @ \(String(format: "%.3f", info.fps)) → \(fps) fps; \(tier.rawValue), \(codec.rawValue)")
         log("8-bit BT.709 SDR interpolation; 10-bit source precision is reduced. Hardware decode required.")
-        let modelURL = model.map { URL(fileURLWithPath: $0) } ?? RifeConfiguration.bundledModelURL
-        let interpolation = try RifeInterpolator(configuration: RifeConfiguration(modelURL: modelURL,
-                                                  qualityTier: RifeQualityTier(rawValue: tier.rawValue)!))
-        let stream = try interpolation.makeStream(width: info.width, height: info.height)
+        let ncnnName = tier == .hq ? "rife-v4.26" : tier == .balanced ? "rife-v4.25" : "rife-v4.25-lite"
+        let defaultModel = backend == .metal ? RifeConfiguration.bundledModelURL :
+            FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".local/share/rife-ncnn-vulkan/\(ncnnName)")
+        let modelURL = model.map { URL(fileURLWithPath: $0) } ?? defaultModel
+        let stream: InterpolationStream
+        if backend == .metal {
+            stream = try MetalStream(model: modelURL, tier: tier, width: info.width, height: info.height)
+        } else {
+            stream = try NCNNStream(model: modelURL, workers: gpuWorkers, fp16Math: ncnnFp16, width: info.width, height: info.height)
+        }
+        log("Backend: \(backend.rawValue); model: \(modelURL.lastPathComponent); GPU jobs: \(gpuWorkers)")
         let videoURL = directory.appendingPathComponent(codec == .av1 ? "video.mp4" : "video.mov")
         let writer: FrameWriter
         if codec == .av1 {
@@ -115,6 +128,13 @@ struct RifeVideo: AsyncParsableCommand {
         _ = try stream.push(previous.buffer, timesteps: [])
         let primeTime = uptime() - warm
         var lastInterval = CMTime(value: 1, timescale: max(1, Int32(info.fps.rounded())))
+        var pending: [(CMTime, FrameResult)] = []
+        let pendingLimit = backend == .ncnn ? gpuWorkers * 3 : 1
+        func drainOne() async throws {
+            let (time, result) = pending.removeFirst()
+            let wait = uptime(); let buffer = try result.get(); inference += uptime() - wait
+            let w = uptime(); try await writer.append(buffer, at: time); appendTime += uptime() - w
+        }
         while let current = try queue.next() {
             decoded += 1
             let left = CMTimeSubtract(previous.time, origin), right = CMTimeSubtract(current.time, origin)
@@ -129,10 +149,11 @@ struct RifeVideo: AsyncParsableCommand {
             inference += uptime() - t
             var index = 0
             for item in plan {
-                let buffer: CVPixelBuffer
-                if item.phase == nil { buffer = previous.buffer; copied += 1 }
+                let buffer: FrameResult
+                if item.phase == nil { buffer = FrameResult(previous.buffer); copied += 1 }
                 else { buffer = results[index]; index += 1; generated += 1 }
-                let w = uptime(); try await writer.append(buffer, at: item.time); appendTime += uptime() - w
+                pending.append((item.time, buffer))
+                if pending.count >= pendingLimit { try await drainOne() }
             }
             previous = current
             if uptime() - lastProgress > 1 {
@@ -140,6 +161,7 @@ struct RifeVideo: AsyncParsableCommand {
                 lastProgress = uptime()
             }
         }
+        while !pending.isEmpty { try await drainOne() }
         let duration = previous.duration.isNumeric && previous.duration.seconds > 0 ? previous.duration : lastInterval
         var end = CMTimeSubtract(CMTimeAdd(previous.time, duration), origin)
         if info.end.isNumeric && CMTimeCompare(info.end, previous.time) > 0 {
@@ -186,10 +208,11 @@ struct RifeVideo: AsyncParsableCommand {
         try publish(finalURL, to: destination, overwrite: overwrite)
         let wall = uptime() - start
         let report: [String: Any] = [
-            "schema": 1, "input": source.path, "output": destination.path,
+            "schema": 2, "ncnn_fp16_arithmetic": backend == .ncnn && ncnnFp16, "backend": backend.rawValue, "workers": gpuWorkers, "input": source.path, "output": destination.path,
             "width": info.width, "height": info.height, "input_nominal_fps": info.fps,
             "target_fps": fps, "tier": tier.rawValue, "codec": codec.rawValue,
-            "model": modelURL.path, "rife_metal_version": "0.1.7", "model_version": "4.26",
+            "model": modelURL.path, "engine_version": backend == .metal ? "0.1.7" : "13338e38/ncnn-ec19da2b",
+            "model_version": backend == .metal ? "4.26" : modelURL.lastPathComponent,
             "hardware_decode_verified": decoder.hardwareVerified, "hardware_encode_required": codec != .av1,
             "input_frames": decoded, "output_frames": timeline.nextIndex, "generated_frames": generated,
             "copied_frames": copied, "tail_frames": held, "duration_s": outputEnd.seconds,
@@ -198,7 +221,7 @@ struct RifeVideo: AsyncParsableCommand {
             "encoder_flush_s": flushTime, "mux_s": muxTime,
             "output_fps_end_to_end": Double(timeline.nextIndex) / wall,
             "generated_fps_interpolation": Double(generated) / max(inference, 0.000001),
-            "timing_note": "Stages overlap; stage times must not be summed. RIFE calls include graph warm-up and empty-phase cache rebases. Wall includes probe, model load, decode, interpolation, encode, audio mux, publish.",
+            "timing_note": "Stages overlap; stage times must not be summed. Interpolation time is host submission plus ordered result waits, not summed GPU service time. Includes warm-up/cache rebases. Wall includes probe, model load, decode, interpolation, encode, audio mux, publish.",
         ]
         if let stats {
             let data = try JSONSerialization.data(withJSONObject: report, options: [.prettyPrinted, .sortedKeys])
