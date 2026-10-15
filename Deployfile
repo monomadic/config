@@ -112,6 +112,7 @@ link_file config/yt-dlp/plugins/faphouse/yt_dlp_plugins/extractor/faphouse.py "$
 link_file config/yt-dlp/plugins/faphouse/yt_dlp_plugins/extractor/hdsex.py "$HOME/.config/yt-dlp/plugins/faphouse/yt_dlp_plugins/extractor/hdsex.py"
 link_file config/yt-dlp/plugins/faphouse/yt_dlp_plugins/extractor/onlyfans.py "$HOME/.config/yt-dlp/plugins/faphouse/yt_dlp_plugins/extractor/onlyfans.py"
 link_file config/yt-dlp/plugins/faphouse/yt_dlp_plugins/extractor/pimpbunny.py "$HOME/.config/yt-dlp/plugins/faphouse/yt_dlp_plugins/extractor/pimpbunny.py"
+link_file config/yt-dlp/plugins/faphouse/yt_dlp_plugins/extractor/porntrex.py "$HOME/.config/yt-dlp/plugins/faphouse/yt_dlp_plugins/extractor/porntrex.py"
 link_file config/yt-dlp/plugins/faphouse/yt_dlp_plugins/extractor/xhamster.py "$HOME/.config/yt-dlp/plugins/faphouse/yt_dlp_plugins/extractor/xhamster.py"
 link_file config/yt-dlp/plugins/faphouse/yt_dlp_plugins/extractor/xvideos_red.py "$HOME/.config/yt-dlp/plugins/faphouse/yt_dlp_plugins/extractor/xvideos_red.py"
 link_file config/yt-dlp/plugins/faphouse/yt_dlp_plugins/postprocessor/titlecase.py "$HOME/.config/yt-dlp/plugins/faphouse/yt_dlp_plugins/postprocessor/titlecase.py"
