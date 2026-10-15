@@ -102,6 +102,7 @@ typeset -A about_for=(
   dupchk                     "Finds duplicate files by size"
   free-disk-space-widget     "Menu bar free disk space meter"
   go-apps                    "Small Go command-line tools"
+  interpolate-resolve        "VideoToolbox interpolation with ProRes and hardware HEVC export"
   job-folder                 "Jobs queue and its menu bar, in one app"
   menu-tidy                  "Hides menu bar clutter"
   motherfucker               "Spotlight replacement and app launcher"
