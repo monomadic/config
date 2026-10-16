@@ -167,6 +167,7 @@ engine = "􀢾"  # [search_engines] entries that set no icon of their own
 "ChordPro" = "/Users/nom/.local/bin/kitty-launch --os-window -- /Users/nom/.local/bin/chordpro-tui '/Users/nom/Library/Mobile Documents/com~apple~CloudDocs/Music/Tablature/ChordPro'"
 "Copy Phone Number" = "echo 09603111806 | pbcopy"
 "Yazi - plugins/action-menu.yml" = "kitty-launch --dismiss --cwd ~/config/config/yazi/plugins/action-menu.yazi -- hx items.lua"
+"M4" = "open -j smb://m4.local/Tower"
 
 [commands.Motherfucker]
 "Reload" = "launchctl kickstart -k gui/$UID/com.nom.motherfucker"

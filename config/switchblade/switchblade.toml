@@ -339,6 +339,10 @@ chapter_title_pad_y = 1.5
 # Everything above this line hot-reloads; everything below is read once
 # at launch.
 
+# Open fullscreen at launch: true/"native" (own Space), "fast" (borderless
+# mpv-style window), or false. --fullscreen / --fast-fullscreen override it.
+fullscreen = true
+
 # Walk directories given as inputs (CLI args or piped in) for video files
 # when true; skip them entirely when false. Non-video files never show
 # either way.
