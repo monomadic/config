@@ -46,8 +46,8 @@ return { groups = {
 	{
 		group = "Davinci Resolve",
 		when = { kind = "video" },
-		{ desc = "􁟽  Interpolate: 60 fps (HEVC)", run = kitty("--window --hold", "resolve 60fps hevc", BIN .. "interpolate-resolve --fps 60 %s"), orphan = true },
-		{ desc = "􁟽  Interpolate: 60 fps (ProRes)", run = kitty("--window --hold", "resolve 60fps prores", BIN .. "interpolate-resolve --prores --fps 60 %s"), orphan = true },
+		{ desc = "􁟽  Interpolate: 60 fps (HEVC / MKV)", run = kitty("--window --hold", "resolve 60fps hevc mkv", each(BIN .. "interpolate-resolve interpolate --hevc --mkv --target-fps 60 --")), orphan = true },
+		{ desc = "􁟽  Interpolate: 60 fps (ProRes / MOV)", run = kitty("--window --hold", "resolve 60fps prores mov", each(BIN .. "interpolate-resolve interpolate --encoder prores --container mov --target-fps 60 --")), orphan = true },
 		{ desc = "􁟽  Interpolate: 60 fps Optical Flow, Speed Warp Metal, Medium", run = kitty("--window --hold", "resolve 60fps speed warp metal", BIN .. "interpolate-resolve --quality speed-warp-metal --range medium %s"), orphan = true },
 		{ desc = "􁟽  Interpolate: 60 fps Optical Flow, Speed Warp Metal, Medium (MKV)", run = kitty("--window --hold", "resolve 60fps speed warp metal mkv", BIN .. "interpolate-resolve --mkv --quality speed-warp-metal --range medium %s"), orphan = true },
 		{ desc = "􁟽  Interpolate: 60 fps Optical Flow, Enhanced Faster, Medium", run = kitty("--window --hold", "resolve 60fps enhanced faster", BIN .. "interpolate-resolve --quality enhanced-faster --range medium %s"), orphan = true },
