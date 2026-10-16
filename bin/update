@@ -112,6 +112,7 @@ typeset -A about_for=(
   propainter                 "AI video inpainting (removes objects and logos)"
   rclone-tower-ui            "Tower backup dashboard"
   rife-arm64                 "RIFE AI frame interpolation"
+  rife-metal-rs              "Rust RIFE Metal interpolation with hardware HEVC/ProRes export"
   rife-video                 "Streaming RIFE Metal/NCNN video interpolation and encoding"
   safesync                   "Indexed drive sync with sentinels, offline lookup, TUI"
   spill                      "Fills a drive with files piped to it"
@@ -131,6 +132,12 @@ typeset -A about_for=(
 # Upstream-repo installers (lib/git-source-install.sh) name their repo on the
 # git_source_install line, then the build kind and, for an app, its bundle.
 git_source_repo() {
+  # Standalone local repository with a bundled native runtime installer.
+  # No remote URL is assumed until the project is published.
+  if [[ "${1:t}" == install-rife-metal-rs.sh ]]; then
+    print -r -- rife-metal-rs
+    return
+  fi
   awk '$1 == "git_source_install" { print $2; exit }' "$1"
 }
 
