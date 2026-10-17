@@ -1,0 +1,818 @@
+# Switchblade config (DESIGN.md §10)
+#
+# Edit this file while the app is running — changes apply within ~250ms.
+# The only exceptions are in "Startup settings" at the bottom, which are
+# read once at launch. Every feel constant lives here; if you find
+# yourself hardcoding one in the source, add a field instead.
+#
+# What's where:
+#   switchblade.toml    this file — behaviour and feel ([tuning], [pad])
+#   keys.toml           key bindings: the body of [keys], no header
+#   commands.toml       programs those keys launch: the body of [commands]
+#   themes/<name>.toml  the look: the shared design tokens, the elements
+#                       ([tile] [strip] [triple]) and every surface's own
+#                       table ([tags] [actors] [search] [libs] [help] ...)
+
+# Which theme file to read: themes/<name>.toml beside this file.
+theme = "default"
+
+[tuning]
+libraries = [
+  { name = "Latest (Local)", exec = "fd-media --sort-created ~/Movies/Porn" },
+  { name = "External", path = "/Volumes/*/Movies/Porn" },
+  { name = "Tower", path = "/Volumes/Tower/Movies/Porn" },
+  { name = "Visuals (External)", path = "/Volumes/*/Movies/Visuals" },
+  { name = "Private (Local)", path = "~/Movies/Private" },
+  { name = "fd", exec = "fd-media" },
+  { name = "Private Sorted Safe", exec = "fd-media --sort-created --match-string Alice . ~/Movies/Private /Volumes/*/Movies/Private" },
+  "/Volumes/*/Movies/Porn",
+  "~/Movies/Private",
+  "~/Movies/Porn",
+  "~/Movies/Porn/Downloads",
+]
+haptics = false
+chapter_snap = true  # snap seekbar clicks to the chapter start
+# ── Layout ──────────────────────────────────────────────────────────────
+# Grid layout:
+#   "flexible" (default) — justified rows: every tile keeps its clip's
+#   true aspect ratio at the row's shared height, and each row's height
+#   flexes a little (see row_height_min/max) so rows span the window,
+#   like the quickview filmstrip. "variable"/"mosaic" are aliases.
+#   "fixed" — the classic uniform grid: every tile is
+#   tile_width:tile_height, thumbs crop-filled into it. Alias "square".
+# grid_layout = "square"
+# Ideal tile size: width picks the column count (and, in flexible mode,
+# the nominal row height). In fixed mode tiles stretch so the columns
+# exactly fill the window; width:height sets the aspect (240:135 = 16:9).
+tile_width = 100.0
+tile_height = 100.0
+# Flexible rows justify by scaling their height; these caps (fractions of
+# the nominal tile height) keep one odd row from towering or vanishing —
+# a row that would need to leave the band leaves a little slack instead.
+row_height_min = 0.62
+row_height_max = 1.6
+gap = 2.0  # space between tiles
+
+thumb_width = 360  # ~2:1 — keeps the ultrawide hedge
+thumb_height = 360  # was 224: portrait clips (9:16) were fit-constrained to
+# ~126px wide in the old 2:1 box before being upscaled into the tile — this
+# gives them ~180px instead. Landscape/ultrawide are unaffected (still
+# width-constrained at 448). Regenerates the thumbnail cache on next run.
+# atlas_memory_mb = 600   # → 1566 slots (2.0× today's 768)
+chapter_images = 64
+
+# files to ignore during indexing: hidden, and names with a leading or
+# trailing underscore (before the extension) — `_clip.mp4`, `clip_.mp4`
+ignore = [".*", "_*", "*_.*"]
+
+# ── Colors ──────────────────────────────────────────────────────────────
+# All colors are [r, g, b] with 0..1 channels.
+# The window's own fill (and how much of the desktop shows through it) is
+# `[window] background` in the theme file — themes/default.toml.
+# The tile's shape, scale and borders are `[tile]` at the bottom of this
+# file; the selection ring's colour is `selection` in themes/default.toml.
+
+# ── Feel: trackpad & keyboard ───────────────────────────────────────────
+# All *_strength / *_smoothing / rubber_band values in this file are 0..1
+# fractions covered per frame at 60fps — higher = snappier, lower =
+# floatier, frame-rate independent either way.
+pan_sensitivity = 2.0  # scroll delta multiplier; negative flips direction
+pan_inertia = 0.0  # extra flick inertia (0 = off) — macOS trackpads
+# already send momentum events, so leave 0 there
+# or flicks will double-glide
+snap_strength = 0.22  # camera chasing a trackpad pan
+key_snap_strength = 0.12  # camera chasing a keyboard move — lower = gentler
+rubber_band = 0.25  # pull-back when scrolled past the edge
+scale_smoothing = 0.35  # tiles growing/shrinking (hover, selection)
+fade_in_ms = 0.0  # newly appearing tiles fade in over this long
+
+# ── Feel: zoom ──────────────────────────────────────────────────────────
+# A PINCH in the flexible grid grips the grid like paper: the library is one
+# strip of chips wrapped at the window width, held at the chip under your
+# fingers, so that chip stays put while its neighbours expand outward, chips
+# at a row edge clip against the window, and a chip pushed past one edge is
+# already entering the next row. Let go and it settles onto the nearest SAFE
+# layout — every chip whole, rows keeping whatever slack the gesture left
+# them, nothing slung sideways to re-align. The -/=/0 keys have no grip to
+# hold by, so they return the grid to the plain justified packing, animated
+# by the older row WRAP: a tile crossing a boundary slides off one edge and
+# re-enters on the next row, while tiles that just re-justify glide.
+# zoom_fade_ms is the crossfade used by the fixed grid and by shuffle/
+# library-swap rearranges (and by the flexible grid when zoom_wrap = false).
+pinch_sensitivity = 0.5
+zoom_min = 0.35
+zoom_max = 3.0
+zoom_smoothing = 0.35  # fixed grid only; with zoom_wrap the layout snaps and the tile tweens ARE the zoom animation
+zoom_fade_ms = 180.0
+zoom_ribbon_settle = 0.34  # how snappily a released ribbon settles; k = 1 - e^(-speed/60), so this is 25/s
+zoom_ribbon_blend = 21.5  # how fast rows loosen from justified into one uniform strip, per unit of |ln(zoom change)|
+zoom_ribbon_release_ms = 150.0  # quiet time after the last pinch event that ends the gesture
+zoom_wrap_ms = 220.0  # duration of one tile's row-wrap slide
+zoom_wrap_stagger_ms = 0.0  # per-row delay (0 = all rows wrap in lockstep)
+zoom_reflow_smoothing = 0.25  # glide rate toward the new layout (also paces the zoom feel in wrap mode)
+
+# ── Animation & live video ──────────────────────────────────────────────
+# How much moves — each level includes everything below it:
+#   none     snap everything: no tweens, no live video
+#   minimal  UI tweens back on; still no video
+#   normal   + live video (quickview, selected + hovered tiles)  [default]
+# The --animation CLI flag overrides this. ("full" — the old grid
+# sprite-sheet cycling — is gone; the name still parses as "normal".)
+animation = "normal"
+
+# ONE hires lane follows your attention: the hovered tile while you're
+# mousing, the selected tile while you're on the keyboard. A single click
+# on any tile opens quickview by promoting that already-running stream
+# (no handoff), and cmd/shift-click multi-selects — border-only marks that
+# never play. These two delays guard the two halves of it.
+#
+# Keyboard: playback starts only after the selection has settled this
+# long, so flying across the grid doesn't spawn a decoder per keypress.
+live_delay_ms = 50.0
+# Pointer: how long a hover must settle before the lane follows it. Hover
+# is more volatile than the selection and every settle costs a
+# quickview-resolution cold spawn, so this guard runs longer.
+# (Called attention_delay_ms before this became the only model; the old
+# key still parses.)
+hover_delay_ms = 50.0
+
+# A live lane needs the clip's cached probe meta (duration for the seek
+# anchor, coded dims for the decode size). That read happens off the
+# render thread, so a spawn waits at most this long for it before opening
+# on fallbacks (start of file, guessed size) — normally it lands within a
+# frame, since only the local cache is touched.
+meta_wait_ms = 120.0
+
+# [ / ] jump the playing clip by this fraction of its duration (wraps at
+# the ends). A binding can override the amount per key
+skip_fraction = 0.05
+
+# Where playback starts, as a fraction of each clip's duration (0.0 = the
+# very beginning, 0.10 = 10% in). The static thumbnail is extracted at
+# this same point so live video continues from the frame the tile shows
+# with no jolt — so changing this REGENERATES thumbnails on next run
+# (the default 0.10 reuses your existing cache; any other value rebuilds).
+# Startup-only: restart to apply.
+thumb_seek_fraction = 0.05
+
+# Dragging a grid tile or filmstrip chip this many logical pixels turns
+# the press into a native drag-out: drop the clip's file into Finder or
+# onto another app. Below this the press stays a click.
+drag_threshold = 6.0
+
+# Auto-skip ('t' toggles): while quickview or fullview is up, once the
+# selected clip has PLAYED this many seconds the selection auto-advances
+# to the next clip (wraps at the end) — a hands-free slideshow. The
+# countdown starts when video actually appears (decoder spin-up doesn't
+# eat watch time), resets whenever you skip to another clip, and
+# suspends while you're back in the grid. skip_timer_s is the legacy
+# spelling.
+auto_skip_s = 5.0
+# The timer: an arc ring in the video's top-right corner that fills up
+# clockwise toward the next clip. Set auto_skip_countdown = true to make
+# it drain like a classic countdown instead.
+auto_skip_ring_radius = 16.0
+auto_skip_countdown = false
+
+# Pause live playback while the window is unfocused (the grid stays
+# visible, just still — big CPU saver). Toggle at runtime with 'p'.
+pause_unfocused = true
+
+# ── Quickview (Space) ───────────────────────────────────────────────────
+# What the modals draw behind the video is the theme's [backdrop.strip] /
+# [backdrop.cinema] (themes/default.toml) since 2026-10-03.
+# Fade-in when quickview opens (dim + blur + the modal); 0 ≈ instant.
+quickview_fade_ms = 0.0
+# The clip's name above the video: the container's `title` tag when the
+# file carries one, the filename otherwise.
+quickview_title_size = 22.0
+quickview_title_weight = 700  # 400 regular, 600 semibold, 700 bold
+# (Playback resolution is quickview_max_width/height, under Startup
+# settings below.)
+
+# ── Triple play (3) ─────────────────────────────────────────────────────
+# Three clips at once, tiling the whole window: three portrait panes, or
+# two stacked landscape panes beside one portrait one. The arrangement is
+# not a setting — it is chosen from the three clips' own aspect ratios,
+# by whichever one crops them least. One pane is focused (and the focused
+# pane IS the selection); hjkl/arrows move between panes, "." / "," walk
+# the focused pane through the library, x re-rolls it, s re-rolls all
+# three, Enter (or clicking the focused pane) watches it in cinema mode.
+# The panes' gap, corners, fit, fade and focus ring are `[triple]` at the
+# bottom of this file.
+
+# The seekbar over the quickview/fullview video: pointer motion over the
+# video reveals it, seekbar_hide_s of stillness fades it out over
+# seekbar_fade_ms. It thickens from seekbar_height to
+# seekbar_hover_height under the pointer (the click/drag target is a
+# taller invisible band either way). Click to seek; hold and drag to
+# scrub — coarse keyframe hops while dragging, an exact landing on
+# release. Hovering the bar previews the nearest animated-thumbnail
+# frame at seekbar_thumb_width px wide (0 hides the preview).
+seekbar_hide_s = 1.0
+seekbar_fade_ms = 150.0
+# Cinema mode only: how far above the chapter bar's dock-reveal band
+# (chapter_dock_reveal_px) the seekbar rests. Both live at the bottom
+# edge, and revealing the drawer LIFTS the seekbar — so a bar resting
+# inside the band slides out from under the pointer that came for it.
+# Keep this above the hit band's 24px downward reach.
+seekbar_dock_gap = 34.0
+seekbar_height = 10.0
+seekbar_hover_height = 12.0
+seekbar_bg_opacity = 0.55
+seekbar_bg_pad = 0.5
+# The hover preview is FITTED into this box — width cap and height cap,
+# aspect ratio kept, touching whichever it reaches first — so a portrait
+# clip comes back narrow instead of towering over the picture.
+seekbar_thumb_width = 280.0
+seekbar_thumb_height = 160.0
+
+# Opacity (0..1) of the seekbar's background track — the unfilled part
+# behind the played fill. The fill stays solid white; lower this to make
+# the track more transparent over the video.
+seekbar_thumb_radius = 4.0
+seekbar_thumb_fade_ms = 150.0  # fade-OUT on leaving the bar (appear is instant)
+seekbar_thumb_border = 1.0
+seekbar_thumb_border_color = [0.85, 0.85, 0.9, 0.7]
+
+# The playhead knob: a white dot riding the end of the fill, sized as a
+# multiple of the bar's height (1.0 = flush with the bar, 0 hides it).
+# Two-stage swell, both eased: bar_swell (slight) while the pointer is
+# anywhere on the bar, swell (bigger) while it is on the knob itself or
+# scrubbing. knob_bg_* is its own dark backing disc, matching the bar's.
+# The knob animates out the moment the pointer leaves the bar and pops
+# back on return — it doesn't linger through the bar's fade.
+seekbar_knob_scale = 1.32
+seekbar_knob_bar_swell = 1.1
+seekbar_knob_swell = 1.16
+seekbar_knob_bg_opacity = 0.0
+seekbar_knob_bg_pad = 1.0
+seekbar_loop_color = [
+  1.0,
+  0.62,
+  0.2
+]  # cmd-click chapter-loop accent (armed segment + cmd-hover preview)
+
+# Minimum gap between two issued preview seeks. Sweeping the pointer
+# emits a position every frame; only the newest is ever serviced, and
+# this paces how often. Raise on slow or network storage.
+seekbar_preview_seek_ms = 60.0
+# Skip the re-seek when the pointer moved less than this fraction of the
+# duration — below one keyframe's travel it would land on the frame
+# that's already up.
+seekbar_preview_min_step = 0.002
+# How long the lane lingers after the pointer leaves the bar. Covers the
+# pointer crossing off and back; respawning costs a cold open.
+seekbar_preview_keep_s = 2.0
+# Opacity (0..1) of the seekbar's background track — the unfilled part
+# behind the played fill. The fill stays solid white; lower this to make
+# the track more transparent over the video.
+seekbar_track_opacity = 0.00
+# Opacity (0..1) of the ghost fill — the translucent click-preview bar
+# that follows the pointer along the track, showing where a click would
+# put the playhead. 0 disables.
+seekbar_ghost_opacity = 0.16
+
+# The filmstrip's chips — height, gap, corners, snap, and how the selected
+# and hovered chips look — are `[strip]` at the bottom of this file. What
+# stays here is how the strip answers input.
+# Wheel / trackpad over quickview scrubs the strip: pixels per chip-step
+# are divided by this, and the selection follows the nearest chip.
+# Bigger = faster; negative flips direction.
+strip_scroll_sensitivity = 1.0
+# true (default): scrolling commits the selection to the nearest chip —
+# magnetic, chip-by-chip flow. false: scrolling only PEEKS — the strip
+# pans while the selected clip keeps playing (hover still previews);
+# click a chip to play it. The strip re-centers when the selection moves.
+strip_scroll_selects = false
+
+# ── Chapter bar (g, inside fullview) ────────────────────────────────────
+# Filmstrip-style chapter chips slide up from the bottom of fullview
+# (pressing g anywhere enters fullview first). Real chapters when the
+# file has them; otherwise checkpoints: none under a minute, 4 over a
+# minute (every 25%), 8 over three minutes, 10 over ten. Chips share the
+# strip height at the clip's true aspect. Entering fullview pre-warms
+# both the chapter probe and the animated-thumbnail sheet the chips are
+# imaged from, so the bar usually opens fully populated. Wheel/trackpad
+# pans the strip; clicking a chip jumps the video there and slides the
+# bar down; Esc closes the bar first, then fullview. The bar shares the
+# filmstrip's strip_* tuning above.
+#
+# Vertical keys are a view-depth ladder: in fullview, down (j/↓) steps
+# out to the filmstrip quickview and up (k/↑) swipes the chapter bar back
+# down if it's up (else nothing); in quickview, up (k/↑) dives into
+# fullview and down (j/↓) drops back to the grid. A pinch in a modal
+# rides the same ladder (pinch-in dives deeper, pinch-out backs out).
+# Left/right (h/l) in fullview step chapters and briefly reveal the
+# chapter bar for chapter_peek_s seconds (each step refreshes it; a
+# deliberate g open stays up until dismissed). 0 disables the auto-peek.
+chapter_peek_s = 2.5
+
+# Dock-style reveal: moving the pointer within this many logical pixels
+# of the window's bottom edge in fullview slides the chapter bar up (as a
+# timed peek that slides back down once the pointer leaves). 0 disables.
+chapter_dock_reveal_px = 80.0
+
+# Chapter chips carry text: the chapter's start time in the top-left corner
+# and, along the bottom edge, its title. Only REAL chapters get a title (the
+# container's, or "Chapter N" when it names none) — a bar of synthesized
+# checkpoints shows times alone, so an invented bar never reads as an
+# authored one. A title longer than the chip ellipsizes.
+chapter_text = true
+chapter_text_size = 11.0
+# How far the labels tuck inside the chip's edges.
+chapter_text_inset_x = 8.0
+chapter_text_inset_y = 7.0
+# The chip is a video frame, and text over an arbitrary frame is not
+# legible without something behind it.
+chapter_text_fill = 0.55
+# chapter_text_color = [0.94, 0.94, 0.96]   # REMOVED from switchblade: folded into [theme] ink
+# Time and title each carry their own radius and padding — a timecode and a
+# sentence are different shapes.
+chapter_time_radius = 4.0
+chapter_time_pad_x = 3.0
+chapter_time_pad_y = 1.5
+chapter_title_radius = 4.0
+chapter_title_pad_x = 4.0
+chapter_title_pad_y = 1.5
+
+# ── Startup settings (restart to apply) ─────────────────────────────────
+# Everything above this line hot-reloads; everything below is read once
+# at launch.
+
+# Open fullscreen at launch: true/"native" (own Space), "fast" (borderless
+# mpv-style window), or false. --fullscreen / --fast-fullscreen override it.
+fullscreen = true
+
+# Walk directories given as inputs (CLI args or piped in) for video files
+# when true; skip them entirely when false. Non-video files never show
+# either way.
+recurse = true
+
+# The ingest gatekeeper's file checking: reject files whose bytes don't
+# match their video extension before they claim a chip, and drop a clip
+# from the grid once ffmpeg proves its file unplayable (corrupt,
+# truncated, vanished). false = every path with a video extension stays,
+# playable or not.
+gatekeeper = true
+
+# Gatekeeper ordering: "none" (default — sacred stdin/CLI order, arrivals
+# append), "newest" or "oldest" — arriving files merge into a grid sorted
+# by creation date as they stream in, tiles gliding aside when an
+# out-of-order file lands late. CLI --sort overrides. A shuffle (s) takes
+# over the arrangement for the rest of the session.
+sort = "none"
+
+# Thumbnails generate at exactly thumb_width x thumb_height — any size
+# works. The GPU atlas below is carved into fixed slots of this same
+# size, so this is a DIRECT TRADE against how many clips stay resident:
+# bigger thumbs are sharper on the selected/zoomed tile, and at a fixed
+# atlas_memory_mb you get proportionally fewer of them (768x432 costs
+# 1.44x what 640x360 does). thumb_quality is 1..10: 10 ≈ visually
+# lossless, 1 = heavily compressed but still presentable. Changing any of
+# these regenerates thumbnails (cache files are named by recipe; old ones
+# are kept).
+# thumb_width = 640
+# thumb_height = 320
+thumb_quality = 8
+
+# the fade in of thumbs
+thumb_fade_ms = 0
+
+# Storyboard sheet grid (the seekbar-hover preview + chapter chips):
+# frames = grid², frame size = thumb/grid. 3 = 9 frames, 2 = 4 crisper
+# frames. Sheets only generate on demand, when quickview or fullview
+# opens on a clip — never library-wide.
+# anim_grid = 3
+
+# Concurrent background thumbnail-sweep jobs allowed WHILE a clip is playing.
+# The sweep is throttled this narrow so it can't steal CPU / the VideoToolbox
+# media engine from a stream's cold spawn (benchmarked ~45% faster time-to-
+# first-frame vs an unthrottled sweep). 1 = gentle progress while watching;
+# raise it on fast local storage to fill the thumbnail/shuffle pool sooner;
+# 0 = never throttle the sweep. Nothing playing → the full worker pool always
+# runs. Startup-only.
+gen_live_concurrency = 1
+
+# How cached thumbnails are tied to source files (startup-only):
+#   "size_mtime" (default) size + mtime only, so the cache survives
+#                renames and moves — reshuffling a library or renaming
+#                clips (e.g. appending rating stars) keeps every
+#                thumbnail. Two distinct files that share an exact byte
+#                size AND mtime second would collide (vanishingly rare;
+#                worst case is a wrong thumb until --cleanup-cache), and
+#                exact duplicates deliberately share one entry.
+#   "path"       absolute path + size + mtime. A moved or RENAMED file
+#                loses its cache and regenerates from scratch.
+# "size_mtime" adopts existing "path"-keyed entries in place on first
+# access — it does NOT regenerate the library.
+cache_key = "size_mtime"
+
+# ── GPU atlas: how many thumbs stay resident on the GPU ─────────────────
+# One number: how much GPU memory thumbnails may use. Everything else is
+# derived — the app carves the biggest slot grid that fits the budget and
+# the hardware's 16384-per-side limit, so every byte it allocates holds a
+# real thumb. Startup logs what you got:
+#
+#   atlas: 21x36 = 756 thumbs resident, slots of 768x432 (995 MB ...)
+#
+# (Raised to 860 here alongside thumb_height 224→320: 448x320 slots cost
+# ~1.43x what 448x224 did, so this keeps roughly the same resident count.)
+# Slots = budget / (thumb_width x thumb_height x 4), so BIGGER THUMBS MEAN
+# FEWER OF THEM: at 1024 MB, 768x432 thumbs give ~756 slots and 640x360
+# give ~1160. Cost is memory only — rendering speed doesn't change.
+#
+# How many do you need? One per tile on screen, plus a margin for
+# prefetch. Zoomed all the way out on a 1600x1000 window that's ~484
+# tiles; a big display wants ~900. Too few and the zoomed-out grid fills
+# at the background sweep's pace and may never finish — the app warns
+# once, with the number to set, the first time it happens to you.
+#
+# (Raw atlas_width/atlas_height still work but are deprecated: they made
+# it easy to ask for a texture that got silently clamped, or to buy pixels
+# too small to hold a slot. Startup prints the atlas_memory_mb to replace
+# them with.)
+atlas_memory_mb = 860
+
+# The selected clip decodes ONCE at up to this size (never above the
+# source's own resolution): the tile shows it downscaled (mipmapped) and
+# quickview shows the same stream big — so quickview opens instantly with
+# zero skip. Higher = sharper + more decode CPU while selected.
+quickview_max_width = 3840
+quickview_max_height = 2160
+
+# ── Text (M7) ───────────────────────────────────────────────────────────
+# Hovering a grid tile or a filmstrip chip badges it with the duration, the
+# format marks (4K, 60) and the star rating — see tile_badge_layout below for
+# the arrangements. Marks and duration come from the clip's probed meta, so a
+# clip whose meta isn't cached yet shows only what it can; the rating is
+# parsed from a trailing ★ run in the filename and needs no probe at all.
+tile_badge = false
+tile_badge_size = 11.0
+# How far the badge tucks inside the tile's edges.
+tile_badge_inset_x = 14.0
+tile_badge_inset_y = 10.0
+# Below this tile width the whole left stack is dropped and the duration
+# kept — the duration is the half that still reads on a small tile.
+tile_badge_min_w = 70.0
+tile_badge_fill = 0.55  # opacity of the dark fill behind each label; 0 = none
+tile_badge_gap = 3.0  # vertical gap between stacked rows
+tile_badge_text = [0.94, 0.94, 0.96]
+
+# Where the 4K/60 boxes go — the rating always holds the bottom-left corner
+# and the duration the bottom-right; only the boxes move:
+#   "above"     stacked over the rating in the bottom-left
+#   "top"       hung off the TOP-left, stacking downward
+#   "topright"  hung off the TOP-right, stacking downward
+tile_badge_layout = "topright"
+
+# The badge rises the last few pixels into place as the hover fades in, each
+# row starting a little after the one above it, so it arrives with some life
+# instead of switching on. rise = 0 is static; stagger = 0 moves as one block.
+tile_badge_rise = 45.0
+tile_badge_stagger = 0.24
+
+# Each element has its own radius and internal padding — a boxed mark, a run
+# of stars and a duration are different shapes, and dialling one should never
+# drag the others with it.
+tile_badge_mark_radius = 4.5
+tile_badge_mark_pad_x = 3.0
+tile_badge_mark_pad_y = 1.0
+tile_badge_star_radius = 4.0
+tile_badge_star_pad_x = 3.0
+tile_badge_star_pad_y = 1.5
+tile_badge_time_radius = 4.0
+tile_badge_time_pad_x = 5.0
+tile_badge_time_pad_y = 1.5
+
+# Outline weight of a format mark, as a FRACTION of the badge size, so the
+# box stroke keeps matching the glyph stems at any size (~0.105 = the system
+# face's stem ratio at weight 600).
+tile_badge_mark_border = 0.150
+# How far the outline sits inside its fill: the fill extends past the
+# outline by this much, giving it a dark surround on bright frames.
+tile_badge_mark_inset = 2.0
+
+# Total clips loaded, in the grid's bottom-left corner: an icon and the
+# number on a capsule. Grows live while stdin is still streaming.
+library_count = true
+library_count_size = 14.0
+library_count_color = [0.655, 0.682, 0.725]  # --ink-2 #a7aeb9
+library_count_pill = 0.5
+
+# ── Keys & commands (DESIGN.md §11) ────────────────────────────────────────
+# Every key is remappable, movement included: hjkl and the arrows bind to
+# the context-sensitive `move_left`/`move_down`/`move_up`/`move_right`
+# actions by default — in the grid and quickview they move the selection,
+# in fullview (chapter bar up or not) left/right step the playing clip
+# between chapters (real chapters, or the synthesized checkpoints the
+# chapter bar shows) instead. The plain `next`/`prev` actions remain for
+# bindings that should always move the selection (auto-skip fires `next`).
+# Built-in defaults: enter/o = exec (play in mpv) · space = quickview ·
+# tab = fullview · c = copy_path · q = quit · f = fullscreen ·
+# p = toggle_focus_pause · r = reveal · -/=/0 = zoom · [ / ] = skip
+# back/fwd through the playing clip · D = browse the selected clip's
+# parent dir. Entries here override them.
+#
+# A key can name an internal action (quit, fullscreen, fast_fullscreen,
+# copy_path, quickview, fullview, chapter_mode,
+# toggle_focus_pause, zoom_in, zoom_out, zoom_reset, move_left,
+# move_right, move_up, move_down, next, prev, skip_forward, skip_back,
+# open_parent, open (swap the library, needs a path), jump_random,
+# shuffle_library, toggle_auto_skip) or any [commands.*] entry below. In
+# command args, {path}, {dir} and {name} expand against the selected clip.
+#
+# Several keys may share one action — the arrows ship bound to the same
+# move_* actions as hjkl, and you can point more keys at anything.
+#
+# `open` swaps the whole library to a directory named inline (a leading ~
+# expands, quote paths with spaces); it walks subfolders when `recurse`
+# is on, just like passing the dir on the command line. Handy for one-key
+# "library" switches ("open_library"/"open_dir"/"library" alias it):
+#   "1" = "open '~/Movies/Prawns/'"
+#   "2" = "open '/Volumes/Prawns/Movies/'"
+#
+# fullscreen = macOS native (the window animates into its own Space);
+# fast_fullscreen = mpv-style: a borderless window covering the screen —
+# instant, and you stay on the current Space. Either exits whichever
+# fullscreen mode is active, so bind one or both:
+# f = "fast_fullscreen"
+# The --fullscreen / --fast-fullscreen CLI flags start the app that way.
+
+# ── Added 2026-08-04: settings that were missing vs the shipped template ──
+
+# Zoom model prototype selector (cycle at runtime with `). strip = the
+# sticky ribbon (default); ribbon / wrap / fade are the older models.
+zoom_model = "strip"
+zoom_sticky_ms = 150.0  # how long a KEY press takes to reach the next packing
+
+# Live seekbar hover preview: its own decoder, keyframe-seeked under the
+# pointer; plays from that spot while the pointer rests.
+seekbar_preview_live = true
+
+# ── Hashtags popup (#) ──────────────────────────────────────────────────
+# Tags come from the FILENAME: "harbour pass #drone #4k.mp4" wears #drone
+# and #4k. No sidecar, no database — it survives a copy to another machine
+# and every file manager can already write it. Press "#" for a popup of
+# nothing but the library's tags; type to narrow (matching tags light up,
+# the rest fade in place), arrows walk the matches, Enter or a click
+# narrows the grid to that tag, Esc peels back out.
+#
+# The whole look is these ramps, sampled by each tag's clip count — the
+# temperature IS the count. A ONE-STOP ramp is a flat value, which is how
+# a uniform, flat popup falls out of exactly the same code as a heat map.
+# Colours are [r, g, b, a] in 0..1.
+
+# ── Added from the repo defaults, 2026-09-03 ──────────────────────────
+library_count_text = [0.957, 0.961, 0.969]  # --ink-1 #f4f5f7
+# While a tag/cast filter is applied the pills line up beside the count
+# and a black gradient rises from the bottom edge behind them: opacity at
+# the edge (0 = off), how far past the pill block it reaches, band count.
+filter_veil = 0.75
+filter_veil_reach = 90.0
+filter_veil_steps = 24
+# Esc clears the filter: the pills slide down off the bottom edge over this
+# many ms rather than vanishing.
+filter_exit_ms = 260.0
+# Selection MODE — the state cmd/shift-click puts the grid in by marking
+# clips. While anything is marked every unmarked tile fades back to this
+# (1 = no dim at all), so the marked set reads as the thing on screen;
+# `marked_fade_k` is how fast that dim eases in and out (per second).
+# Pointing at a dimmed tile lifts it to full while the pointer is on it,
+# and marked clips and the cursor tile never dim at all.
+marked_dim = 0.55
+marked_fade_k = 14.0
+# The video never teleports when the view changes: it grows out of the
+# selected TILE into quickview or cinema mode, and grows/shrinks between
+# the two modals. 0 disables (each view just draws it at its own rect).
+# Entering only — closing back to the grid cuts.
+modal_zoom_ms = 180.0
+# Clips this long or shorter get no seekbar at all (nor its title/details
+# lanes, hover preview or click-to-seek): a few seconds of loop has
+# nothing to navigate. 0 shows it on every clip.
+seekbar_min_s = 10.0
+# The bar is the middle of a three-lane block — the clip's title above it,
+# the technical tags and the duration below it — so it rests well clear of
+# the video's bottom edge, and both lanes sit one even gap off the bar.
+seekbar_bottom_pad = 48.0
+seekbar_row_gap = 8.0
+# The details line under the bar's LEFT end — what the probe measured
+# (resolution, rate, codec, chapters) plus the filename's rating.
+# Off by default (2026-08-30): the labels read as obtrusive under the
+# video and a better treatment is still to be worked out. The duration on
+# the right is separate and stays either way.
+seekbar_details = false
+# With it on, draw the measured facts as the design system's technical-tag
+# lockups (see [theme.tech_tag]) with the rating as plain text after them.
+# False runs the whole line as one plain middot string — which is also
+# what a clip whose probe hasn't answered yet falls back to.
+seekbar_details_pill = true
+seekbar_details_size = 12.0
+# The splash masthead — the wordmark banner above the drop frame, the
+# library list and the `L` picker's rows. Off, the page closes up around
+# the gap rather than leaving a hole where the image was.
+banner = true
+# A banner PNG of your own, replacing the built-in one. `~` expands; empty
+# = the app's own art. Startup-only because the assets texture is decoded
+# and uploaded once at launch. A path that isn't there, or isn't a PNG,
+# logs a warning and leaves the built-in in place.
+#
+# The .app bundle carries a whole FOLDER of banners
+# (Switchblade.app/Contents/Resources/banner/) and picks one at random
+# each launch; naming a file here overrides that too. Drop your own PNGs
+# in that folder to join the rotation.
+banner_image = ""
+# A directory you name (CLI path, drop, library binding) may carry a
+# `.index` file: newline-separated paths, pre-sorted by whatever produced
+# it (most recent first, usually). When present it drives that
+# directory's ingest INSTEAD of the walk, in the file's own order (the
+# default sort = "none" keeps it). false = ignore `.index` files and
+# always walk.
+use_index = true
+
+[pad]
+# Delay before a HELD direction starts repeating. This is the "I pushed
+# left and it sat there" number — lower it if the pad feels sticky,
+# raise it if a quick tap runs away from you.
+repeat_delay_ms = 340.0
+repeat_delay_fast_ms = 150.0
+
+# Interval between repeats once it's going: 240ms is about 4 clips a
+# second, 45ms about 22.
+repeat_ms = 240.0
+repeat_fast_ms = 45.0
+
+# The d-pad is digital — there's no "how hard" to read — so it gets one
+# fixed delay and interval.
+dpad_repeat_delay_ms = 10.0
+dpad_repeat_ms = 120.0
+
+# Response curve for the analog axes (right-stick pan, trigger zoom).
+# 1.0 = linear, which sounds right and feels wrong: the usable slow
+# range collapses into the first few degrees of travel and every nudge
+# overshoots. 2.0 squares it — half travel gives a quarter speed — for a
+# wide, precise slow zone with the same top speed. Higher = gentler
+# still through the middle.
+curve = 2.5
+
+# Right-stick pan speed at full tilt (logical px/s), and trigger zoom
+# speed at full squeeze (a full trackpad pinch totals roughly 1.0).
+scroll_speed = 1100.0
+zoom_speed = 1.3
+
+# n = "rename_script"    # any key -> any launched program; example below
+# "{" = "skip_back_big"  # a skip with its own amount; see below
+
+# Built-in default, shown for reference — override to change it:
+# reveal = "open -R {path}"
+
+# "open" is just a command like any other — swap mpv for whatever you
+# like, or add more commands and bind keys to them.
+# [commands.open]
+# type = "launch"
+# program = "mpv-send"
+# args = ["play", "{path}"]
+
+# Quick-Look-ish peek: windowed (never fullscreen), floats on top,
+# loops, opens instantly, capped at 70% of the screen.
+# [commands.preview]
+# type = "launch"
+# program = "mpv"
+# args = [
+#   "--no-fs",
+#   "--loop-file=inf",
+#   "--ontop",
+#   "--no-terminal",
+#   "--force-window=immediate",
+#   "--autofit-larger=70%x70%",
+#   "{path}",
+# ]
+
+# Built-in default, shown for reference — override to change it:
+# [commands.reveal]
+# type = "launch"
+# program = "open"
+# args = ["-R", "{path}"]
+
+# ffmpeg-lossless-cut is a terminal program, so it needs a TTY — launch it
+# in a Kitty window rather than firing it into the void from this GUI app.
+# [commands.trim]
+# type = "launch"
+# program = "/Users/nom/.local/bin/kitty-launch"
+# args = [
+#   "--os-window",
+#   "--auto-hide",
+#   "--cwd",
+#   "{dir}",
+#   "--",
+#   "/Users/nom/.local/bin/ffmpeg-lossless-cut",
+#   "{path}",
+# ]
+
+# [commands.yazi]
+# type = "launch"
+# program = "/Users/nom/.local/bin/kitty-launch"
+# args = [
+#   "--os-window",
+#   "--auto-hide",
+#   "--cwd",
+#   "{dir}",
+#   "--",
+#   "/opt/homebrew/bin/yazi",
+#   "{path}",
+# ]
+
+# [commands.mediainfo]
+# type = "launch"
+# program = "/Users/nom/.local/bin/kitty-launch"
+# args = [
+#   "--os-window",
+#   "--cwd",
+#   "{dir}",
+#   "--",
+#   "/opt/homebrew/bin/mediainfo",
+#   "{path}",
+# ]
+
+# Example: bind a key to your own script.
+# [commands.rename_script]
+# type = "launch"
+# program = "~/.local/bin/rename-video"
+# args = ["{path}"]
+
+# Internal actions take parameters too — a skip command with `amount`
+# jumps by that fraction instead of skip_fraction:
+# [commands.skip_back_big]
+# type = "internal"
+# action = "skip_back"
+# amount = 0.25
+
+# ══ Tables added from the repo defaults, 2026-09-03 ══════════════════
+
+# ── Keys & commands (DESIGN.md §11) ────────────────────────────────────────
+# Every key is remappable, movement included: hjkl and the arrows bind to
+# the context-sensitive `move_left`/`move_down`/`move_up`/`move_right`
+# actions by default — in the grid and quickview they move the selection,
+# in fullview (chapter bar up or not) left/right step the playing clip
+# between chapters (real chapters, or the synthesized checkpoints the
+# chapter bar shows) instead. The plain `next`/`prev` actions remain for
+# bindings that should always move the selection (auto-skip fires `next`).
+# Built-in defaults: enter/o = exec (play in mpv) · space = quickview ·
+# tab = fullview · c = copy_path · q = quit · f = fullscreen ·
+# n / p (and . / ,) = next / prev clip · P = toggle_focus_pause ·
+# 3 = triple play · r = reveal · -/=/0 = zoom · [ / ] = skip
+# back/fwd through the playing clip · / = search · # = hashtags popup ·
+# ? = keybindings help panel · D = browse the selected clip's
+# parent dir · R = reload the selected clip (re-stat it, re-check the
+# cache, re-read its metadata — for a file that changed on disk under a
+# running session). Entries here override them.
+#
+# A binding is a command name, optionally followed by an inline argument
+# in quotes — one shape for everything:
+#   "1" = "open '~/Movies/Prawns/'"                        # swap the library
+#   "a" = "exec 'cat ~/Movies/.index | sb --fast-fullscreen'"   # run a command
+#
+# A key can name an internal action (quit, fullscreen, fast_fullscreen,
+# copy_path, quickview, fullview, chapter_mode, triple_play,
+# toggle_focus_pause, zoom_in, zoom_out, zoom_reset, move_left,
+# move_right, move_up, move_down, next, prev, skip_forward, skip_back,
+# open_parent, open (swap the library, needs a path), reload, jump_random,
+# shuffle_library, toggle_auto_skip, tag_popup, search) or any
+# [commands.*] entry below. In
+# commands, {path}, {dir} and {name} expand against the selected clip.
+#
+# Several keys may share one action — the arrows ship bound to the same
+# move_* actions as hjkl, and you can point more keys at anything.
+#
+# `open` swaps the whole library to a directory named inline (a leading ~
+# expands, quote paths with spaces); it walks subfolders when `recurse`
+# is on, just like passing the dir on the command line. Handy for one-key
+# "library" switches ("open_library"/"open_dir"/"library" alias it):
+#   "1" = "open '~/Movies/Prawns/'"
+#   "2" = "open '/Volumes/Prawns/Movies/'"
+#
+# `exec '<command line>'` runs a command line the way you'd type it in a
+# terminal — pipes, flags, redirects and all — so one key can launch a
+# whole other library, a player with your own flags, or a script:
+#   "a" = "exec 'cat /Volumes/Tower/Movies/.index | sb --fast-fullscreen'"
+#   "v" = "exec 'mpv --loop-file=inf {path}'"
+#   "n" = "exec '~/bin/rename-media {path}'"
+# It runs in /bin/sh with nothing selected too (handy for the library
+# launchers above), and {path}/{dir}/{name} come out quoted, so spaces in
+# a filename never split into two arguments — write {path}, not "{path}".
+# ("run"/"sh"/"shell" alias exec; a bare `exec` runs [commands.exec].)
+#
+# fullscreen = macOS native (the window animates into its own Space);
+# fast_fullscreen = mpv-style: a borderless window covering the screen —
+# instant, and you stay on the current Space. Either exits whichever
+# fullscreen mode is active, so bind one or both:
+# f = "fast_fullscreen"
+# The --fullscreen / --fast-fullscreen CLI flags start the app that way.
+
+# ── Gamepad feel ────────────────────────────────────────────────────────
+# A stick is a RATE control, not a key: how far you push it sets how fast
+# the selection walks. Each pair below is [at the engage threshold, at
+# full deflection] — a light lean gets the first number, burying the
+# stick gets the second, and anything between is interpolated. Set a
+# pair to the same value on both ends for one fixed rate, keyboard-style.
+# All hot-reload: edit, save, feel the difference without restarting.

@@ -1,5 +1,5 @@
 "cmd+enter" = "triple_play"  # three clips at once — `3` here is a library switch below
-tab = "fullview"  # selected clip fills the window on black; Esc or Tab exits
+tab = "cinema"  # selected clip fills the window on black; Esc or Tab exits
 R = "reload"  # re-read the selected clip: fresh stat, cache lookup, metadata
 g = "jump_first"  # first clip: top of the grid, left end of the strip
 G = "jump_last"  # last clip: the bottom / the right end
@@ -17,8 +17,8 @@ L = "jump_rightmost"
 "/" = "search"  # search bar
 "?" = "help_panel"  # keybindings help
 space = "quickview"  # internal preview; Esc or Space closes, arrows browse
-enter = "fullview"
-a = "toggle_skip_timer"  # auto advance
+enter = "cinema"
+a = "timer"  # auto advance
 A = "exec 'open -a Abner {path}'"
 z = "cycle_fill_mode"
 "cmd+c" = "copy_path"
@@ -29,16 +29,16 @@ c = "chapter_mode"
 f = "fast_fullscreen"
 n = "next"
 o = "library_picker"
-"cmd+o" = "launch mpv-send play {path}"
+"cmd+o" = "exec mpv-send play {path}"
 p = "prev"
-"cmd+r" = "rescan"
+"cmd+r" = "reload_library"
 "cmd+shift+r" = "reload_library"
 r = "reveal"
 s = "shuffle_library"  # shuffle the whole grid in place ("shuffle" also works)
-e = "launch '/Users/nom/.local/bin/kitty-launch --spawn --os-window --hold-on-fail --interactive --cwd {dir} -- tagform {path}'"
-t = "launch '/Users/nom/.local/bin/kitty-launch --float --hold-on-fail --interactive --cwd {dir} -- ffmpeg-lossless-cut {path}'"
-u = "launch 'open {url}'"
-y = "launch '/Users/nom/.local/bin/kitty-launch --os-window --hold-on-fail --interactive --cwd {dir} -- yazi {path}'"
+e = "exec '/Users/nom/.local/bin/kitty-launch --spawn --os-window --hold-on-fail --interactive --cwd {dir} -- tagform {path}'"
+t = "exec '/Users/nom/.local/bin/kitty-launch --float --hold-on-fail --interactive --cwd {dir} -- ffmpeg-lossless-cut {path}'"
+u = "exec 'open {url}'"
+y = "exec '/Users/nom/.local/bin/kitty-launch --os-window --hold-on-fail --interactive --cwd {dir} -- yazi {path}'"
 "[" = "skip_back"  # jump by skip_fraction; wraps at the ends
 "]" = "skip_forward"
 "cmd+n" = "new_library"
@@ -59,18 +59,18 @@ y = "launch '/Users/nom/.local/bin/kitty-launch --os-window --hold-on-fail --int
 # not bindable. Shipped defaults, shown for reference:
 pad_south = "quickview"  # A: open the clip
 pad_east = "back"  # B: peel one layer (Esc's cascade, bindable)
-pad_north = "fullview"
+pad_north = "cinema"
 pad_west = "chapter_mode"
 pad_l1 = "skip_back"
 pad_r1 = "skip_forward"
-pad_start = "toggle_auto_skip"  # lean-back slideshow
+pad_start = "timer"  # lean-back slideshow
 pad_select = "fullscreen"
 pad_l3 = "shuffle_library"
 pad_r3 = "jump_random"
 
 # Per-view groups (2026-09-11): [keys] above is GLOBAL; a group here applies
 # only while that view is up and wins over the global entry for the same
-# key — [keys.grid], [keys.quickview], [keys.cinema] (alias fullview),
+# key — [keys.grid], [keys.quickview], [keys.cinema] ,
 # [keys.triple]. `"none"` in a group switches a global key OFF there.
 # Cinema's group ships built in; spelled out so the pause keys are visible
 # next to the global space / pad_south = "quickview" entries they shadow.
