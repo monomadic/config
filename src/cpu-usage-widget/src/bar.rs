@@ -59,6 +59,12 @@ pub fn percent(ratio: f64) -> String {
     format!("{:.0}%", ratio.clamp(0.0, 1.0) * 100.0)
 }
 
+/// A per-process share in Activity Monitor's convention: 100% is one core, so
+/// a multithreaded process reads above it rather than being clamped.
+pub fn cores_percent(cores: f64) -> String {
+    format!("{:.0}%", cores.max(0.0) * 100.0)
+}
+
 /// One vertical bar per column: a faint full-height track with a solid fill
 /// rising from the bottom. Gauges are separated by a wider gap than the
 /// columns within one, so a trailing GPU column reads as its own meter rather

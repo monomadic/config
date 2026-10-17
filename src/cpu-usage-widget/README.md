@@ -10,8 +10,8 @@ time it opens.
 ## Where the numbers come from
 
 **CPU** — one `host_processor_info` / `PROCESSOR_CPU_LOAD_INFO` call every two
-seconds, differenced against the previous sample. No `top`, no `ps`, no process
-enumeration, so a tick costs microseconds. Utilization is a rate rather than a
+seconds, differenced against the previous sample. No `top`, no `ps`, so the
+meter itself costs microseconds a tick. Utilization is a rate rather than a
 reading, so the first tick after launch reports zero: that is the baseline being
 primed.
 
@@ -20,6 +20,20 @@ the `IOAccelerator` IOKit service, which is the same number Activity Monitor's
 GPU History graph plots. It needs no elevated privileges, unlike `powermetrics`.
 On a machine with more than one accelerator the busiest one wins. Already a
 rate, so a single read is a complete answer.
+
+**Top processes** — the dropdown names the three processes that used the most
+CPU over the last interval, in Activity Monitor's convention (100% is one
+core, so a multithreaded process can read above it). Each tick reads every
+process's cumulative user+system time with `proc_pidinfo` and differences it
+against the previous tick, the way `top` does; that is a millisecond or two
+for a few hundred processes, and only the winners have their names resolved.
+Without root only your own processes are readable — `top` and `ps` are setuid
+root, which is how they see `kernel_task`, `WindowServer` and `coreaudiod`. So
+the share of the machine's busy time that the visible processes do not account
+for appears as one row, **everything else**, when it is big enough to rank.
+That remainder is root-owned processes, plus kernel time charged to no process
+and anything that exited during the interval, so it runs a little above what
+`top` shows for the root-owned processes alone.
 
 ## Layout styles
 

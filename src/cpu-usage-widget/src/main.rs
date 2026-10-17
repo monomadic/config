@@ -9,6 +9,7 @@
 mod bar;
 mod cpu;
 mod gpu;
+mod procs;
 
 use std::cell::RefCell;
 use std::fs;
@@ -180,6 +181,8 @@ impl Settings {
 struct Reading {
     cores: Vec<f64>,
     gpu: Option<gpu::Gpu>,
+    /// The busiest processes over the last interval, busiest first.
+    processes: Vec<procs::Process>,
 }
 
 impl Reading {
@@ -229,6 +232,7 @@ struct Ui {
     status_item: Retained<NSStatusItem>,
     settings: Settings,
     sampler: cpu::Sampler,
+    processes: procs::Sampler,
     reading: Reading,
 }
 
@@ -296,6 +300,7 @@ impl Widget {
             status_item,
             settings: Settings::load(),
             sampler: cpu::Sampler::default(),
+            processes: procs::Sampler::default(),
             reading: Reading::default(),
         });
         this
@@ -325,6 +330,10 @@ impl Widget {
                 Ok(cores) => ui.reading.cores = cores,
                 Err(err) => eprintln!("error reading cpu usage: {err}"),
             }
+            // Same interval as the core counters, so the remainder the
+            // process list cannot see is the difference between the two.
+            let busy_cores = ui.reading.cores.iter().sum();
+            ui.reading.processes = ui.processes.sample(busy_cores);
             // Only walk the IO registry when something is actually asking for
             // the GPU.
             ui.reading.gpu = ui.settings.sources.shows_gpu().then(gpu::read).flatten();
@@ -382,7 +391,7 @@ impl Widget {
         let mtm = MainThreadMarker::new().unwrap();
         menu.removeAllItems();
 
-        let (settings, cpu, cores, gpu) = {
+        let (settings, cpu, cores, gpu, processes) = {
             let ivars = self.ivars().borrow();
             let Some(ui) = ivars.as_ref() else { return };
             (
@@ -390,6 +399,11 @@ impl Widget {
                 ui.reading.cpu(),
                 ui.reading.cores.len(),
                 ui.reading.gpu,
+                ui.reading
+                    .processes
+                    .iter()
+                    .map(|p| format!("{:>4}  {}", bar::cores_percent(p.share), p.name))
+                    .collect::<Vec<_>>(),
             )
         };
 
@@ -424,6 +438,15 @@ impl Widget {
             // Only worth saying when the GPU was asked for and did not answer.
             None if settings.sources.shows_gpu() => info("GPU: not reporting".to_string()),
             None => {}
+        }
+
+        // Empty only on the first tick, before there is an interval to rank.
+        if !processes.is_empty() {
+            menu.addItem(&NSMenuItem::separatorItem(mtm));
+            info("Top processes".to_string());
+            for row in processes {
+                info(row);
+            }
         }
 
         menu.addItem(&NSMenuItem::separatorItem(mtm));
