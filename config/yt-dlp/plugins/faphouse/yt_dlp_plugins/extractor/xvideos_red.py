@@ -13,7 +13,7 @@ from yt_dlp.utils import (
 
 class XVideosRedIE(XVideosIE):
     IE_NAME = "xvideos-red"
-    _VALID_URL = r'https?://(?:www\.)?xvideos\.red/video\.[^/?#]+/.+'
+    _VALID_URL = r'https?://(?:www\.)?xvideos\.(?:com|red)/video\.[^/?#]+/.+'
 
     def _canonical_url(self, url):
         p = urlparse(url)
