@@ -10,11 +10,13 @@
 //! menu bar in light and dark appearance.
 
 use objc2::AnyThread;
+use objc2::Message;
 use objc2::rc::Retained;
 use objc2::runtime::{AnyObject, ProtocolObject};
 use objc2_app_kit::{
-    NSBezierPath, NSColor, NSFont, NSFontAttributeName, NSFontWeightRegular,
-    NSForegroundColorAttributeName, NSImage, NSStatusBar, NSStringDrawing,
+    NSBezierPath, NSColor, NSCompositingOperation, NSFont, NSFontAttributeName,
+    NSFontWeightRegular, NSForegroundColorAttributeName, NSImage, NSRectFillUsingOperation,
+    NSStatusBar, NSStringDrawing,
 };
 use objc2_foundation::{
     NSMutableAttributedString, NSMutableDictionary, NSPoint, NSRect, NSSize, NSString,
@@ -126,6 +128,32 @@ pub fn columns_image(gauges: &[Gauge]) -> Retained<NSImage> {
 /// what keeps a stacked item tight: a status item button carrying both a title
 /// and an image pads generously around each.
 pub fn bars_image(gauges: &[Gauge], with_text: bool) -> Retained<NSImage> {
+    bars(gauges, with_text, "100%", percent)
+}
+
+/// One process's meter for the dropdown: the aggregate bar with its share
+/// beside it, in the menu's text colour. The bar fills to one core and stops
+/// there; the number keeps counting, since a multithreaded process can hold
+/// several. Sized for the widest figure a row might show, so the column the
+/// meters sit in does not shift as the leaders change.
+pub fn meter_image(share: f64) -> Retained<NSImage> {
+    let gauge = Gauge {
+        label: "",
+        columns: Vec::new(),
+        value: share,
+    };
+    tinted(&bars(&[gauge], true, "999%", cores_percent))
+}
+
+/// The shared drawing behind the bar layouts. `widest` is the longest value
+/// text any row might carry, which sets the column width, and `value_text` is
+/// how a gauge's value reads.
+fn bars(
+    gauges: &[Gauge],
+    with_text: bool,
+    widest: &str,
+    value_text: fn(f64) -> String,
+) -> Retained<NSImage> {
     let font = font();
     let em = font.pointSize();
     let height = status_bar_height();
@@ -147,9 +175,9 @@ pub fn bars_image(gauges: &[Gauge], with_text: bool) -> Retained<NSImage> {
     // Widths come from the widest value the meter can ever show, not from the
     // current one, so the item never twitches as the load changes.
     let attrs = text_attributes(&text_font);
-    let value_width = with_text.then(|| measure("100%", &attrs).width.ceil());
+    let value_width = with_text.then(|| measure(widest, &attrs).width.ceil());
     let label_width = (with_text && stacked).then(|| measure("C", &attrs).width.ceil());
-    let text_height = measure("100%", &attrs).height;
+    let text_height = measure(widest, &attrs).height;
 
     let bar_x = label_width.map_or(0.0, |width| width + gap);
     let width = bar_x + bar_width + value_width.map_or(0.0, |value| gap + value);
@@ -178,7 +206,7 @@ pub fn bars_image(gauges: &[Gauge], with_text: bool) -> Retained<NSImage> {
         .map(|(index, gauge)| Row {
             y: bottom + index as f64 * (row_height + row_gap),
             fill: gauge.value.clamp(0.0, 1.0),
-            value: percent(gauge.value),
+            value: value_text(gauge.value),
             label: label_width.map(|_| gauge.label.to_string()),
         })
         .collect();
@@ -289,6 +317,25 @@ fn image(width: f64, height: f64, draw: impl Fn(&NSColor) + 'static) -> Retained
         NSImage::imageWithSize_flipped_drawingHandler(NSSize { width, height }, false, &handler);
     image.setTemplate(true);
     image
+}
+
+/// A template image is black ink plus alpha, for macOS to tint to the current
+/// appearance. The menu bar does that tinting and so does an `NSMenuItem`'s
+/// image well; a text attachment does not, which would put black ink on a
+/// dark menu. So the template is drawn and then flooded source-atop with the
+/// secondary label colour — the meters sit in disabled info rows, whose text
+/// is dimmed the same way — which keeps the alpha and replaces the black.
+/// Block-based, so the colour resolves at draw time and follows the system
+/// between light and dark.
+fn tinted(image: &NSImage) -> Retained<NSImage> {
+    let source = image.retain();
+    let handler = block2::RcBlock::new(move |bounds: NSRect| -> objc2::runtime::Bool {
+        source.drawInRect(bounds);
+        NSColor::secondaryLabelColor().set();
+        NSRectFillUsingOperation(bounds, NSCompositingOperation::SourceAtop);
+        objc2::runtime::Bool::YES
+    });
+    NSImage::imageWithSize_flipped_drawingHandler(image.size(), false, &handler)
 }
 
 fn pill(rect: NSRect, radius: f64) {

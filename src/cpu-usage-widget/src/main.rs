@@ -17,18 +17,29 @@ use std::path::PathBuf;
 use std::process::Command;
 
 use objc2::rc::Retained;
-use objc2::runtime::ProtocolObject;
-use objc2::{DefinedClass, MainThreadMarker, MainThreadOnly, define_class, msg_send, sel};
-use objc2_app_kit::{
-    NSApplication, NSApplicationActivationPolicy, NSCellImagePosition, NSControlStateValueOff,
-    NSControlStateValueOn, NSMenu, NSMenuDelegate, NSMenuItem, NSStatusBar, NSStatusItem,
-    NSVariableStatusItemLength,
+use objc2::runtime::{AnyObject, ProtocolObject};
+use objc2::{
+    AnyThread, DefinedClass, MainThreadMarker, MainThreadOnly, define_class, msg_send, sel,
 };
-use objc2_foundation::{NSObject, NSObjectProtocol, NSString, NSTimer};
+use objc2_app_kit::{
+    NSApplication, NSApplicationActivationPolicy, NSAttributedStringAttachmentConveniences,
+    NSCellImagePosition, NSControlStateValueOff, NSControlStateValueOn, NSFont,
+    NSFontAttributeName, NSImage, NSMenu, NSMenuDelegate, NSMenuItem, NSMutableParagraphStyle,
+    NSParagraphStyleAttributeName, NSStatusBar, NSStatusItem, NSStringDrawing, NSTextAlignment,
+    NSTextAttachment, NSTextTab, NSVariableStatusItemLength,
+};
+use objc2_foundation::{
+    NSArray, NSAttributedString, NSMutableAttributedString, NSMutableDictionary, NSObject,
+    NSObjectProtocol, NSPoint, NSRange, NSRect, NSString, NSTimer,
+};
 
 use bar::Gauge;
 
 const UPDATE_INTERVAL_SECONDS: f64 = 2.0;
+
+/// Gap between the longest process name and the meter column, in ems of the
+/// menu font — the same breathing room the battery widget's style rows use.
+const PROCESS_ROW_GAP_RATIO: f64 = 1.5;
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum LayoutStyle {
@@ -330,10 +341,7 @@ impl Widget {
                 Ok(cores) => ui.reading.cores = cores,
                 Err(err) => eprintln!("error reading cpu usage: {err}"),
             }
-            // Same interval as the core counters, so the remainder the
-            // process list cannot see is the difference between the two.
-            let busy_cores = ui.reading.cores.iter().sum();
-            ui.reading.processes = ui.processes.sample(busy_cores);
+            ui.reading.processes = ui.processes.sample();
             // Only walk the IO registry when something is actually asking for
             // the GPU.
             ui.reading.gpu = ui.settings.sources.shows_gpu().then(gpu::read).flatten();
@@ -402,7 +410,7 @@ impl Widget {
                 ui.reading
                     .processes
                     .iter()
-                    .map(|p| format!("{:>4}  {}", bar::cores_percent(p.share), p.name))
+                    .map(|p| (p.name.clone(), p.share))
                     .collect::<Vec<_>>(),
             )
         };
@@ -444,8 +452,14 @@ impl Widget {
         if !processes.is_empty() {
             menu.addItem(&NSMenuItem::separatorItem(mtm));
             info("Top processes".to_string());
-            for row in processes {
-                info(row);
+            let paragraph = process_row_paragraph(&processes);
+            for (name, share) in &processes {
+                let item = NSMenuItem::new(mtm);
+                let title = process_row_title(name, &bar::meter_image(*share));
+                apply_row_paragraph(&title, &paragraph);
+                item.setAttributedTitle(Some(&title));
+                item.setEnabled(false);
+                menu.addItem(&item);
             }
         }
 
@@ -511,6 +525,98 @@ impl Widget {
         root.setEnabled(true);
         root.setSubmenu(Some(&submenu));
         menu.addItem(&root);
+    }
+}
+
+/// The menu font — the one macOS sets menu item titles in, a size apart from
+/// the menu *bar* font the status item is drawn at.
+fn menu_font() -> Retained<NSFont> {
+    NSFont::menuFontOfSize(0.0)
+}
+
+/// How wide `text` sets as a menu item title.
+fn menu_label_width(text: &str) -> f64 {
+    let attrs = NSMutableDictionary::<NSString, AnyObject>::new();
+    unsafe {
+        attrs.setObject_forKey(&menu_font(), ProtocolObject::from_ref(NSFontAttributeName));
+        NSString::from_str(text)
+            .sizeWithAttributes(Some(&attrs))
+            .width
+    }
+}
+
+/// A process row: the name flush left, its meter flush right against a column
+/// edge shared by every row.
+///
+/// A right-aligned tab stop is what does it — the name, a tab, then the meter
+/// as an attachment, so every meter finishes on the same line however short
+/// its name. The alternative, a custom `NSView` per row, would cost the rows
+/// their native look. Same construction as the battery widget's style rows.
+fn process_row_title(name: &str, meter: &NSImage) -> Retained<NSMutableAttributedString> {
+    let font = menu_font();
+
+    let attachment = NSTextAttachment::new();
+    attachment.setImage(Some(meter));
+
+    // An attachment sits on the baseline, which hangs the meter below the
+    // name it shares a row with. Drop it by half the difference so the two
+    // centre on each other.
+    let size = meter.size();
+    attachment.setBounds(NSRect {
+        origin: NSPoint {
+            x: 0.0,
+            y: font.capHeight() / 2.0 - size.height / 2.0,
+        },
+        size,
+    });
+
+    let title = NSMutableAttributedString::initWithString(
+        NSMutableAttributedString::alloc(),
+        &NSString::from_str(&format!("{name}\t")),
+    );
+    title.appendAttributedString(&NSAttributedString::attributedStringWithAttachment(
+        &attachment,
+    ));
+    title
+}
+
+/// The paragraph style the process rows share: one right-aligned tab stop
+/// past the longest name, with room for the meter. One figure for the whole
+/// list is what puts the meters in a column rather than leaving each to sit
+/// where its own name ends.
+fn process_row_paragraph(processes: &[(String, f64)]) -> Retained<NSMutableParagraphStyle> {
+    let widest_name = processes
+        .iter()
+        .map(|(name, _)| menu_label_width(name))
+        .fold(0.0, f64::max);
+    let right_edge = widest_name
+        + menu_font().pointSize() * PROCESS_ROW_GAP_RATIO
+        + bar::meter_image(0.0).size().width;
+
+    let paragraph = NSMutableParagraphStyle::new();
+    let tab = unsafe {
+        NSTextTab::initWithTextAlignment_location_options(
+            NSTextTab::alloc(),
+            NSTextAlignment::Right,
+            right_edge,
+            &NSMutableDictionary::new(),
+        )
+    };
+    paragraph.setTabStops(Some(&NSArray::from_retained_slice(&[tab])));
+    paragraph
+}
+
+/// Stamp the shared paragraph style over a whole row title.
+fn apply_row_paragraph(title: &NSMutableAttributedString, paragraph: &NSMutableParagraphStyle) {
+    unsafe {
+        title.addAttribute_value_range(
+            NSParagraphStyleAttributeName,
+            paragraph,
+            NSRange {
+                location: 0,
+                length: title.length(),
+            },
+        );
     }
 }
 

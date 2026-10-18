@@ -9,12 +9,10 @@
 //! Without root only this user's processes are readable — `top` and `ps` can
 //! see everyone's because they are setuid root, and the `p_pctcpu` field the
 //! sysctl interface exposes is never filled in. So `kernel_task`, `WindowServer`,
-//! `coreaudiod` and the rest are invisible here. Their share is not lost, though:
-//! the difference between the kernel's whole-machine busy time and the sum of
-//! the visible processes is reported as one row of its own. That remainder is
-//! not only other users' processes — it also holds kernel time no process is
-//! charged for and anything that exited during the interval — so it is labelled
-//! as the remainder it is.
+//! `coreaudiod` and the rest are invisible here, and the list is of this
+//! user's processes only. Rolling the unreadable remainder into a row of its
+//! own was tried and dropped: it was the top entry nearly always, which told
+//! the user nothing they could act on.
 
 use std::collections::HashMap;
 use std::ffi::{CStr, c_char, c_int, c_void};
@@ -22,11 +20,6 @@ use std::time::Instant;
 
 /// How many processes the dropdown names.
 pub const TOP: usize = 3;
-
-/// The hidden remainder has to be at least this much of one core before it is
-/// worth a row. Below that it is as likely to be tick-granularity noise between
-/// the two samplers as real load.
-const HIDDEN_FLOOR: f64 = 0.03;
 
 const PROC_ALL_PIDS: u32 = 1;
 const PROC_PIDTASKINFO: c_int = 4;
@@ -192,11 +185,8 @@ impl Default for Sampler {
 
 impl Sampler {
     /// The [`TOP`] busiest processes since the previous call, busiest first.
-    /// `busy_cores` is the machine's whole busy time over the same interval,
-    /// in cores (the sum of the per-core ratios), and whatever part of it the
-    /// visible processes do not account for competes for a row as "everything
-    /// else". Empty on the first call, which only primes the baseline.
-    pub fn sample(&mut self, busy_cores: f64) -> Vec<Process> {
+    /// Empty on the first call, which only primes the baseline.
+    pub fn sample(&mut self) -> Vec<Process> {
         let now = Instant::now();
         let current = read_cpu_times();
 
@@ -214,26 +204,12 @@ impl Sampler {
                         Some((pid, delta as f64 * self.ns_per_unit / 1e9 / seconds))
                     })
                     .collect();
-                let visible: f64 = shares.iter().map(|(_, share)| share).sum();
                 shares.sort_by(|a, b| b.1.total_cmp(&a.1));
                 shares.truncate(TOP);
                 top.extend(shares.into_iter().map(|(pid, share)| Process {
                     name: name(pid),
                     share,
                 }));
-
-                let hidden = busy_cores - visible;
-                if hidden >= HIDDEN_FLOOR {
-                    let at = top.partition_point(|p| p.share >= hidden);
-                    top.insert(
-                        at,
-                        Process {
-                            name: "everything else (root, kernel, exited)".to_string(),
-                            share: hidden,
-                        },
-                    );
-                    top.truncate(TOP);
-                }
             }
         }
 
@@ -250,12 +226,11 @@ mod tests {
     use std::sync::atomic::{AtomicBool, Ordering};
     use std::time::Duration;
 
-    /// Our own process, spinning one core, has to rank near the top; the row
-    /// for everyone else's processes is the only thing allowed above it.
+    /// Our own process, spinning one core, has to rank near the top.
     #[test]
     fn ranks_a_busy_process() {
         let mut sampler = Sampler::default();
-        assert!(sampler.sample(0.0).is_empty(), "first sample only primes");
+        assert!(sampler.sample().is_empty(), "first sample only primes");
 
         let stop = Arc::new(AtomicBool::new(false));
         let spinner = {
@@ -263,7 +238,7 @@ mod tests {
             std::thread::spawn(move || while !stop.load(Ordering::Relaxed) {})
         };
         std::thread::sleep(Duration::from_millis(600));
-        let top = sampler.sample(1.0);
+        let top = sampler.sample();
         stop.store(true, Ordering::Relaxed);
         spinner.join().unwrap();
 

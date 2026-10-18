@@ -21,19 +21,19 @@ GPU History graph plots. It needs no elevated privileges, unlike `powermetrics`.
 On a machine with more than one accelerator the busiest one wins. Already a
 rate, so a single read is a complete answer.
 
-**Top processes** — the dropdown names the three processes that used the most
-CPU over the last interval, in Activity Monitor's convention (100% is one
-core, so a multithreaded process can read above it). Each tick reads every
-process's cumulative user+system time with `proc_pidinfo` and differences it
-against the previous tick, the way `top` does; that is a millisecond or two
-for a few hundred processes, and only the winners have their names resolved.
-Without root only your own processes are readable — `top` and `ps` are setuid
-root, which is how they see `kernel_task`, `WindowServer` and `coreaudiod`. So
-the share of the machine's busy time that the visible processes do not account
-for appears as one row, **everything else**, when it is big enough to rank.
-That remainder is root-owned processes, plus kernel time charged to no process
-and anything that exited during the interval, so it runs a little above what
-`top` shows for the root-owned processes alone.
+**Top processes** — the dropdown names the three of your processes that used
+the most CPU over the last interval, each with the aggregate bar and its share
+in a right-aligned column, the way the battery widget lays out its style rows.
+Shares use Activity Monitor's convention: 100% is one core, the bar stops
+there, and the number keeps counting for a multithreaded process. Each tick
+reads every process's cumulative user+system time with `proc_pidinfo` and
+differences it against the previous tick, the way `top` does; that is a
+millisecond or two for a few hundred processes, and only the winners have
+their names resolved. Without root only your own processes are readable —
+`top` and `ps` are setuid root, which is how they see `kernel_task`,
+`WindowServer` and `coreaudiod` — so those never appear here. Rolling what
+they use into a row of its own was tried and dropped: it topped the list
+nearly always and said nothing you could act on.
 
 ## Layout styles
 
