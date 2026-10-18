@@ -31,7 +31,7 @@ use objc2_app_kit::{
 };
 use objc2_foundation::{
     NSArray, NSMutableAttributedString, NSMutableDictionary, NSObject, NSObjectProtocol, NSRange,
-    NSString, NSTimer,
+    NSRunLoop, NSRunLoopCommonModes, NSString, NSTimer,
 };
 
 use bar::Gauge;
@@ -247,6 +247,11 @@ struct Ui {
     sampler: cpu::Sampler,
     processes: procs::Sampler,
     reading: Reading,
+    /// Looked up once; it does not change while the widget runs.
+    machine: String,
+    /// The two dashboard views while the menu is open, so each tick can hand
+    /// them a fresh snapshot. `None` while it is closed.
+    dashboard: Option<[Retained<DashboardView>; 2]>,
 }
 
 define_class!(
@@ -294,6 +299,14 @@ define_class!(
         fn menu_needs_update(&self, menu: &NSMenu) {
             self.rebuild_menu(menu);
         }
+
+        // Once the menu is gone, the ticks stop redrawing into it.
+        #[unsafe(method(menuDidClose:))]
+        fn menu_did_close(&self, _menu: &NSMenu) {
+            if let Some(ui) = self.ivars().borrow_mut().as_mut() {
+                ui.dashboard = None;
+            }
+        }
     }
 );
 
@@ -315,6 +328,8 @@ impl Widget {
             sampler: cpu::Sampler::default(),
             processes: procs::Sampler::default(),
             reading: Reading::default(),
+            machine: dashboard::machine_name(),
+            dashboard: None,
         });
         this
     }
@@ -344,9 +359,18 @@ impl Widget {
                 Err(err) => eprintln!("error reading cpu usage: {err}"),
             }
             ui.reading.processes = ui.processes.sample();
-            // Only walk the IO registry when something is actually asking for
-            // the GPU.
-            ui.reading.gpu = ui.settings.sources.shows_gpu().then(gpu::read).flatten();
+            // Only walk the IO registry when something is actually showing
+            // the GPU: the status item, or the open dashboard.
+            let wants_gpu = ui.settings.sources.shows_gpu() || ui.dashboard.is_some();
+            ui.reading.gpu = wants_gpu.then(gpu::read).flatten();
+
+            // The menu does not rebuild while it is open, so an open
+            // dashboard is redrawn from each new reading instead.
+            if let Some([header, processes]) = &ui.dashboard {
+                let (fresh_header, fresh_processes) = snapshots(ui);
+                header.set_snapshot(fresh_header);
+                processes.set_snapshot(fresh_processes);
+            }
         }
         self.render();
     }
@@ -401,48 +425,32 @@ impl Widget {
         let mtm = MainThreadMarker::new().unwrap();
         menu.removeAllItems();
 
-        let (settings, snapshot) = {
-            let ivars = self.ivars().borrow();
-            let Some(ui) = ivars.as_ref() else { return };
-            let reading = &ui.reading;
-            (
-                ui.settings,
-                Snapshot {
-                    machine: dashboard::machine_name(),
-                    cores: reading.cores.clone(),
-                    cpu: reading.cpu(),
-                    gpu: reading.gpu,
-                    wants_gpu: ui.settings.sources.shows_gpu(),
-                    rows: reading
-                        .processes
-                        .iter()
-                        .map(|p| dashboard::Row {
-                            name: p.name.clone(),
-                            share: p.share,
-                            icon: p.path.as_deref().and_then(dashboard::icon_for),
-                        })
-                        .collect(),
-                },
-            )
+        let (settings, header, processes) = {
+            let mut ivars = self.ivars().borrow_mut();
+            let Some(ui) = ivars.as_mut() else { return };
+            // The dashboard shows the GPU whenever the machine reports one,
+            // whatever the status item is set to show; so make sure there is
+            // a reading for it to draw.
+            if ui.reading.gpu.is_none() {
+                ui.reading.gpu = gpu::read();
+            }
+            let (header, processes) = snapshots(ui);
+            (ui.settings, header, processes)
         };
 
-        // The two drawn blocks: the header gets a copy without the rows.
-        let header = Snapshot {
-            machine: snapshot.machine.clone(),
-            cores: snapshot.cores.clone(),
-            cpu: snapshot.cpu,
-            gpu: snapshot.gpu,
-            wants_gpu: snapshot.wants_gpu,
-            rows: Vec::new(),
-        };
-        for (part, snapshot) in [(Part::Header, header), (Part::Processes, snapshot)] {
+        let header = DashboardView::new(mtm, header, Part::Header);
+        let processes = DashboardView::new(mtm, processes, Part::Processes);
+        for (view, rule_after) in [(&header, true), (&processes, false)] {
             let item = NSMenuItem::new(mtm);
             item.setEnabled(false);
-            item.setView(Some(&DashboardView::new(mtm, snapshot, part)));
+            item.setView(Some(view));
             menu.addItem(&item);
-            if part == Part::Header {
+            if rule_after {
                 menu.addItem(&NSMenuItem::separatorItem(mtm));
             }
+        }
+        if let Some(ui) = self.ivars().borrow_mut().as_mut() {
+            ui.dashboard = Some([header, processes]);
         }
 
         let action = |title: &str, selector| -> Retained<NSMenuItem> {
@@ -525,6 +533,38 @@ impl Widget {
     }
 }
 
+/// What the two dashboard views draw, from the current reading: the header's
+/// snapshot carries no rows, the process table's carries them with icons.
+fn snapshots(ui: &Ui) -> (Snapshot, Snapshot) {
+    let reading = &ui.reading;
+    let wants_gpu = reading.gpu.is_some() || ui.settings.sources.shows_gpu();
+    let header = Snapshot {
+        machine: ui.machine.clone(),
+        cores: reading.cores.clone(),
+        cpu: reading.cpu(),
+        gpu: reading.gpu,
+        wants_gpu,
+        rows: Vec::new(),
+    };
+    let processes = Snapshot {
+        machine: String::new(),
+        cores: Vec::new(),
+        cpu: 0.0,
+        gpu: None,
+        wants_gpu,
+        rows: reading
+            .processes
+            .iter()
+            .map(|p| dashboard::Row {
+                name: p.name.clone(),
+                share: p.share,
+                icon: p.path.as_deref().and_then(dashboard::icon_for),
+            })
+            .collect(),
+    };
+    (header, processes)
+}
+
 /// The menu font — the one macOS sets menu item titles in, a size apart from
 /// the menu *bar* font the status item is drawn at.
 fn menu_font() -> Retained<NSFont> {
@@ -601,14 +641,19 @@ fn main() {
     let widget = Widget::new(mtm);
     widget.update();
 
+    // Added for the common modes rather than scheduled in the default one, so
+    // the ticks keep coming while the menu is open — menu tracking runs the
+    // run loop in its own mode, and a default-mode timer would pause for as
+    // long as the dropdown is up, which is exactly when the numbers matter.
     unsafe {
-        NSTimer::scheduledTimerWithTimeInterval_target_selector_userInfo_repeats(
+        let timer = NSTimer::timerWithTimeInterval_target_selector_userInfo_repeats(
             UPDATE_INTERVAL_SECONDS,
             &widget,
             sel!(tick:),
             None,
             true,
         );
+        NSRunLoop::mainRunLoop().addTimer_forMode(&timer, NSRunLoopCommonModes);
     }
 
     app.run();

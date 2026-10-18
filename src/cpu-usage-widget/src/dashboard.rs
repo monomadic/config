@@ -86,7 +86,11 @@ define_class!(
         #[unsafe(method(drawRect:))]
         fn draw_rect(&self, _dirty: NSRect) {
             let ivars = self.ivars().borrow();
-            let m = Metrics::new();
+            // AppKit stretches the view to the item's width, which is wider
+            // than the frame it was created with whenever the menu has
+            // native rows wider than it; drawing against the bounds is what
+            // keeps the right inset equal to the left one.
+            let m = Metrics::new(self.bounds().size.width);
             match ivars.part {
                 Part::Header => draw_header(&ivars.snapshot, &m),
                 Part::Processes => draw_processes(&ivars.snapshot, &m),
@@ -96,8 +100,15 @@ define_class!(
 );
 
 impl DashboardView {
+    /// Replace what the view draws and have it redraw. The frame is left
+    /// alone: the row count is the same from one tick to the next.
+    pub fn set_snapshot(&self, snapshot: Snapshot) {
+        self.ivars().borrow_mut().snapshot = snapshot;
+        self.setNeedsDisplay(true);
+    }
+
     pub fn new(mtm: MainThreadMarker, snapshot: Snapshot, part: Part) -> Retained<Self> {
-        let m = Metrics::new();
+        let m = Metrics::new(0.0);
         let height = match part {
             Part::Header => m.header_height(&snapshot),
             Part::Processes => m.processes_height(&snapshot),
@@ -118,16 +129,26 @@ impl DashboardView {
 struct Metrics {
     em: f64,
     width: f64,
-    /// Horizontal inset, chosen to line the content up with native item titles.
+    /// Left inset, chosen to line the content up with native item titles.
+    /// There is no right inset: AppKit stretches the view to the item width
+    /// less the menu's own trailing margin, and the submenu chevron on the
+    /// native rows ends exactly at the view's right edge, so running the
+    /// content to that edge is what lines the two up.
     inset: f64,
 }
 
+/// The width the views are created with, in ems. AppKit widens them to the
+/// menu, whose width the native rows set.
+const WIDTH_RATIO: f64 = 24.6;
+
 impl Metrics {
-    fn new() -> Self {
+    /// `width` is the view's current width; zero asks for the minimum the
+    /// view is created with.
+    fn new(width: f64) -> Self {
         let em = NSFont::menuFontOfSize(0.0).pointSize();
         Metrics {
             em,
-            width: (em * 24.6).round(),
+            width: width.max((em * WIDTH_RATIO).round()),
             inset: (em * 1.08).round(),
         }
     }
@@ -187,7 +208,7 @@ impl Metrics {
 // ---- drawing ---------------------------------------------------------------
 
 fn draw_header(s: &Snapshot, m: &Metrics) {
-    let right = m.width - m.inset;
+    let right = m.width;
 
     // Machine name, centred.
     let title = attrs(
@@ -323,7 +344,7 @@ fn draw_header(s: &Snapshot, m: &Metrics) {
 }
 
 fn draw_processes(s: &Snapshot, m: &Metrics) {
-    let right = m.width - m.inset;
+    let right = m.width;
     let label = NSColor::labelColor();
     let tertiary = NSColor::tertiaryLabelColor();
 
@@ -565,10 +586,11 @@ fn rect(x: f64, y: f64, width: f64, height: f64) -> NSRect {
 
 // ---- lookups -----------------------------------------------------------------
 
-/// Where the blocks' content ends on the right, measured from the view's
-/// left edge, so native rows can line their values up with it.
+/// Where a native row's value should end, measured from its text origin,
+/// which sits where the views' content starts: the created width less the
+/// inset, which AppKit then follows with its submenu-chevron column.
 pub fn content_right_edge() -> f64 {
-    let m = Metrics::new();
+    let m = Metrics::new(0.0);
     m.width - m.inset * 2.0
 }
 
