@@ -161,12 +161,14 @@ pub struct Scan {
     updated: Option<std::time::Instant>,
     cached: bool,
 }
+/// Results older than this are never shown and never block cached updates.
+const STALE: std::time::Duration = std::time::Duration::from_secs(180);
 impl Scan {
+    fn fresh(&self) -> bool {
+        self.updated.is_some_and(|t| t.elapsed() <= STALE)
+    }
     pub fn start_if_stale(&mut self) {
-        if self
-            .updated
-            .is_none_or(|t| t.elapsed() > std::time::Duration::from_secs(180))
-        {
+        if !self.fresh() {
             self.start();
         }
     }
@@ -217,7 +219,9 @@ impl Scan {
         if let Some(rx) = &self.pending {
             match rx.try_recv() {
                 Ok((results, finished)) => {
-                    if finished || self.results.is_empty() {
+                    // The cached batch must not lose to expired leftovers, or a
+                    // reopened menu sits empty until the fresh scan completes.
+                    if finished || !self.fresh() {
                         self.results = results;
                         self.updated = Some(std::time::Instant::now());
                         self.cached = !finished;
@@ -261,7 +265,7 @@ impl Scan {
             .map(|r| r.3)
     }
     pub fn reading(&self, name: &str) -> Option<(Band, i32)> {
-        if self.updated?.elapsed() > std::time::Duration::from_secs(180) {
+        if !self.fresh() {
             return None;
         }
         self.results
@@ -294,6 +298,22 @@ mod tests {
         assert!(!scan.busy());
         assert!(!scan.is_cached());
         assert_eq!(scan.visible_names(), vec!["Fresh"]);
+    }
+    #[test]
+    fn cached_results_replace_expired_leftovers_immediately() {
+        let (tx, rx) = std::sync::mpsc::channel();
+        let mut scan = Scan {
+            pending: Some(rx),
+            cached: false,
+            results: vec![("Old".into(), Band::Ghz5, -60, "WPA2")],
+            updated: Some(std::time::Instant::now() - STALE - std::time::Duration::from_secs(1)),
+        };
+        assert!(scan.visible_names().is_empty());
+        tx.send((vec![("Cached".into(), Band::Ghz5, -62, "WPA2")], false))
+            .unwrap();
+        scan.tick();
+        assert!(scan.is_cached());
+        assert_eq!(scan.visible_names(), vec!["Cached"]);
     }
     #[test]
     fn scan_uses_strongest_matching_access_point_and_expires() {
