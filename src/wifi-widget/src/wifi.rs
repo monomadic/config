@@ -168,7 +168,10 @@ impl Scan {
         self.updated.is_some_and(|t| t.elapsed() <= STALE)
     }
     pub fn start_if_stale(&mut self) {
-        if !self.fresh() {
+        // Zero usable rows never blocks a rescan: a scan taken before
+        // Location was granted stores nothing (hidden SSIDs) yet still
+        // counts as fresh, and an empty area is worth re-checking anyway.
+        if !self.fresh() || self.visible_names().is_empty() {
             self.start();
         }
     }

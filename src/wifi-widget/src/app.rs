@@ -80,7 +80,11 @@ define_class!(
     }
     unsafe impl CLLocationManagerDelegate for Widget {
         #[unsafe(method(locationManagerDidChangeAuthorization:))]
-        unsafe fn authorization(&self, _manager: &CLLocationManager) { events::changed(); }
+        unsafe fn authorization(&self, _manager: &CLLocationManager) {
+            // A grant makes SSIDs visible; pre-grant results are worthless.
+            if let Some(ui) = self.ivars().borrow_mut().as_mut() { ui.scan.start(); }
+            events::changed();
+        }
     }
     unsafe impl NSMenuDelegate for Widget {
         #[unsafe(method(menuWillOpen:))]
