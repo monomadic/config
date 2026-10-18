@@ -129,7 +129,7 @@ impl Content {
     }
     fn height(&self) -> f64 {
         if !self.associated {
-            76.0
+            52.0
         } else if self.node.is_some() {
             350.0
         } else {
@@ -249,7 +249,7 @@ impl Card {
             (209., 132., 88., 15., 9.),
             (37., 159., 60., 18., 10.),
             (101., 159., 216., 18., 10.),
-            (15., 38., 290., 25., 12.),
+            (31., 26., 274., 16., 12.),
             (37., 231., 60., 18., 10.),
             (37., 253., 60., 18., 10.),
             (153., 159., 164., 18., 10.),
@@ -419,7 +419,7 @@ impl Card {
             internet_status,
             match c.state {
                 State::WifiOff => "Wi-Fi is turned off.",
-                State::Disconnected => "Choose a network in Wi-Fi Settings.",
+                State::Disconnected => "Choose a network below or in Wi-Fi Settings.",
                 _ => "Waiting for the Wi-Fi interface…",
             },
             "MAC",
@@ -623,6 +623,6 @@ mod tests {
         store.update_link(Some(LinkReading::default()), now);
         let c = Content::from_snapshot(&store.snapshot(now), now);
         assert!(!c.associated);
-        assert_eq!(c.height(), 76.);
+        assert_eq!(c.height(), 52.);
     }
 }

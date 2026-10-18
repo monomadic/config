@@ -208,7 +208,7 @@ impl Widget {
             item.setHidden(true);
             known.push((item, row));
         }
-        let known_empty = this.item(&menu, "Scanning for nearby networks…", None);
+        let known_empty = this.item(&menu, "No other visible networks found", None);
         menu.addItem(&NSMenuItem::separatorItem(mtm));
         let portal_item = this.item(&menu, "Open Login Page", Some(sel!(portalAction:)));
         portal_item.setHidden(true);
@@ -433,12 +433,8 @@ impl Widget {
                 ui.known.push((item, row));
             }
         }
-        ui.known_empty
-            .setTitle(&NSString::from_str(if ui.scan.busy() {
-                "Scanning for nearby networks…"
-            } else {
-                "No other visible networks found"
-            }));
+        // While a scan is running the section spinner already says so; the
+        // placeholder only speaks for a finished, empty scan.
         for (index, (item, row)) in ui.known.iter().enumerate() {
             item.setHidden(index >= names.len());
             if let Some(name) = names.get(index) {
@@ -449,7 +445,7 @@ impl Widget {
                 row.set_saved(ui.saved_names.contains(name));
             }
         }
-        ui.known_empty.setHidden(!names.is_empty());
+        ui.known_empty.setHidden(!names.is_empty() || ui.scan.busy());
         let mut content = crate::card::Content::from_snapshot(&snapshot, now);
         if content.associated {
             let reading = snapshot.reading.as_ref().map(|r| &r.value);

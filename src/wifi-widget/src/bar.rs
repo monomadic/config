@@ -208,8 +208,10 @@ fn stacked_image(chip: Chip) -> Retained<NSImage> {
         .unwrap_or(0.0);
     let stack_height = text_height + row_gap + bar_height;
 
+    // States that draw neither text nor meter (off, disconnected, no
+    // internet) collapse to the glyph alone instead of an empty column.
     let mut width = symbol_size.width.ceil();
-    if column > 0.0 {
+    if text.is_some() || chip.bar.is_some() {
         width += gap + column;
     }
 
