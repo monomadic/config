@@ -213,6 +213,10 @@ impl Widget {
             known.push((item, row));
         }
         let known_empty = this.item(&menu, "No other visible networks found", None);
+        known_empty.setView(Some(&crate::row::placeholder_row(
+            "No other visible networks found",
+            mtm,
+        )));
         menu.addItem(&NSMenuItem::separatorItem(mtm));
         let portal_item = this.item(&menu, "Open Login Page", Some(sel!(portalAction:)));
         portal_item.setHidden(true);

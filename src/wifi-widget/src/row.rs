@@ -258,6 +258,19 @@ pub fn section(
     (view, button, spinner)
 }
 
+/// Quiet placeholder under a section header, sized so it never outweighs the
+/// 11pt heading above it the way a plain 13pt menu item does.
+pub fn placeholder_row(text: &str, mtm: MainThreadMarker) -> Retained<NSView> {
+    let view = NSView::new(mtm);
+    view.setFrame(frame(0., 0., 320., 20.));
+    let label = NSTextField::labelWithString(&NSString::from_str(text), mtm);
+    label.setFrame(frame(21., 2., 284., 15.));
+    label.setFont(Some(&NSFont::systemFontOfSize(11.)));
+    label.setTextColor(Some(&NSColor::tertiaryLabelColor()));
+    view.addSubview(&label);
+    view
+}
+
 /// The Style item: a plain menu row with the current choice dimmed on the
 /// right, then a chevron. Attributed titles with a tab stop can't do this:
 /// the tab lands in the text column, which then grows past the 320pt views
@@ -287,7 +300,7 @@ pub fn style_row(mtm: MainThreadMarker) -> (Retained<NSView>, Retained<NSTextFie
         )
         .as_deref(),
     );
-    chevron.setContentTintColor(Some(&NSColor::labelColor()));
+    chevron.setContentTintColor(Some(&NSColor::secondaryLabelColor()));
     chevron.setAccessibilityElement(false);
     view.addSubview(&chevron);
     (view, detail)

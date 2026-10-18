@@ -77,7 +77,7 @@ impl Content {
             .map(|p| &p.value)
         {
             Some(ProbeStatus::Reachable { latency }) => {
-                format!("ONLINE · {} ms", latency.as_millis())
+                format!("Online · {} ms", latency.as_millis())
             }
             Some(ProbeStatus::Captive { .. }) => "Login required".into(),
             Some(p) if p.is_failure() && s.failures >= 2 => "Endpoint unreachable".into(),
@@ -180,7 +180,7 @@ define_class!(
             if !c.band.is_empty() && let Some(parts)=self.ivars().parts.borrow().as_ref() {
                 let frame=parts.labels[2].frame();
                 let pill=NSBezierPath::bezierPathWithRoundedRect_xRadius_yRadius(rect(frame.origin.x,46.0,frame.size.width,14.0),7.0,7.0);
-                rgb(if c.state==State::BandFallback { 0xffb340 } else { 0x55565b }).set();pill.setLineWidth(0.75);pill.stroke();
+                rgb(if c.state==State::BandFallback { 0xffb340 } else { 0x7a7b80 }).set();pill.setLineWidth(0.75);pill.stroke();
             }
             let track = rect(66.0,95.0,220.0,10.0);
             fill(track,&rgb(0x3c3d40),3.0);
@@ -188,8 +188,10 @@ define_class!(
                 if c.snr {
                     let context = NSGraphicsContext::currentContext().unwrap(); context.saveGraphicsState();
                     NSBezierPath::bezierPathWithRoundedRect_xRadius_yRadius(track,3.0,3.0).addClip();
+                    // Zones are a scale, not a value: dimmed so the needle and
+                    // the readout carry the saturation.
                     for (start,width,color) in [(0.0,0.3,0xcb4b43),(0.3,0.2,0xb98930),(0.5,0.3,0x617da4),(0.8,0.2,0x359d50)] {
-                        fill(rect(66.0+220.0*start,95.0,220.0*width,10.0),&rgb(color),0.0);
+                        fill(rect(66.0+220.0*start,95.0,220.0*width,10.0),&rgb(color).colorWithAlphaComponent(0.4),0.0);
                     }
                     context.restoreGraphicsState();
                 } else { fill(rect(66.0,95.0,220.0*level,10.0),&ink,3.0); }
@@ -422,8 +424,8 @@ impl Card {
                 State::Disconnected => "Choose a network below or in Wi-Fi Settings.",
                 _ => "Waiting for the Wi-Fi interface…",
             },
-            "MAC",
-            "Node",
+            "My MAC",
+            "AP",
             internet_detail,
             "IP",
             "Gateway",
@@ -477,7 +479,7 @@ impl Card {
             10.0,
             unsafe { NSFontWeightMedium },
         )));
-        p.labels[12].setTextColor(Some(&rgb(if c.internet.starts_with("ONLINE") {
+        p.labels[12].setTextColor(Some(&rgb(if c.internet.starts_with("Online") {
             0x48d76b
         } else if c.state == State::NoInternet {
             0xff5b52
@@ -509,7 +511,8 @@ impl Card {
             )
             .as_deref(),
         );
-        p.glyph.setContentTintColor(Some(&accent(c.state)));
+        // The dot owns state color; a tinted glyph would say it a third time.
+        p.glyph.setContentTintColor(Some(&rgb(0xa8a9ae)));
         for (index, button) in p.buttons.iter().enumerate() {
             let value = [&c.ip, &c.gateway, &c.mac, &c.node][index];
             button.setHidden(!c.associated || (index >= 2 && value.is_none()));
@@ -521,7 +524,7 @@ impl Card {
                 !c.associated || value.is_none() || self.ivars().hover.get() != Some(index),
             );
             if let Some(value) = value {
-                let key = ["IP", "Gateway", "MAC", "Node"][index];
+                let key = ["IP", "Gateway", "my MAC", "AP"][index];
                 let private = index == 2
                     && value
                         .split(':')
