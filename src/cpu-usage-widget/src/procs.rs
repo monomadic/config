@@ -75,6 +75,9 @@ unsafe extern "C" {
 /// One row of the dropdown's process list.
 pub struct Process {
     pub name: String,
+    /// The executable's full path, when libproc will say — what the app icon
+    /// is looked up from.
+    pub path: Option<String>,
     /// CPU time per wall-clock time, in cores: `1.0` is one core fully busy,
     /// the same convention as Activity Monitor and `top`, so a multithreaded
     /// process can exceed it.
@@ -130,15 +133,22 @@ fn read_cpu_times() -> HashMap<i32, u64> {
     times
 }
 
-/// The executable's file name — `proc_name` truncates, and the path is what
-/// `top` shows too. Falls back to the short name, then to the pid.
-fn name(pid: i32) -> String {
+/// The executable's full path, when the process is ours to inspect.
+fn path(pid: i32) -> Option<String> {
     let mut buffer = [0 as c_char; PROC_PIDPATHINFO_MAXSIZE];
     // SAFETY: the buffer is valid for the size passed; libproc NUL-terminates.
     let length = unsafe { proc_pidpath(pid, buffer.as_mut_ptr().cast(), buffer.len() as u32) };
-    if length > 0
-        && let Ok(path) = unsafe { CStr::from_ptr(buffer.as_ptr()) }.to_str()
-        && let Some(base) = path.rsplit('/').next()
+    if length <= 0 {
+        return None;
+    }
+    let path = unsafe { CStr::from_ptr(buffer.as_ptr()) }.to_str().ok()?;
+    (!path.is_empty()).then(|| path.to_string())
+}
+
+/// The executable's file name — `proc_name` truncates, and the path is what
+/// `top` shows too. Falls back to the short name, then to the pid.
+fn name(pid: i32, path: Option<&str>) -> String {
+    if let Some(base) = path.and_then(|p| p.rsplit('/').next())
         && !base.is_empty()
     {
         return base.to_string();
@@ -206,9 +216,13 @@ impl Sampler {
                     .collect();
                 shares.sort_by(|a, b| b.1.total_cmp(&a.1));
                 shares.truncate(TOP);
-                top.extend(shares.into_iter().map(|(pid, share)| Process {
-                    name: name(pid),
-                    share,
+                top.extend(shares.into_iter().map(|(pid, share)| {
+                    let path = path(pid);
+                    Process {
+                        name: name(pid, path.as_deref()),
+                        path,
+                        share,
+                    }
                 }));
             }
         }
@@ -242,7 +256,10 @@ mod tests {
         stop.store(true, Ordering::Relaxed);
         spinner.join().unwrap();
 
-        let me = name(std::process::id() as i32);
+        let me = name(
+            std::process::id() as i32,
+            path(std::process::id() as i32).as_deref(),
+        );
         let mine = top
             .iter()
             .find(|p| p.name == me)

@@ -8,6 +8,7 @@
 
 mod bar;
 mod cpu;
+mod dashboard;
 mod gpu;
 mod procs;
 
@@ -17,29 +18,30 @@ use std::path::PathBuf;
 use std::process::Command;
 
 use objc2::rc::Retained;
-use objc2::runtime::{AnyObject, ProtocolObject};
+use objc2::runtime::ProtocolObject;
 use objc2::{
     AnyThread, DefinedClass, MainThreadMarker, MainThreadOnly, define_class, msg_send, sel,
 };
 use objc2_app_kit::{
-    NSApplication, NSApplicationActivationPolicy, NSAttributedStringAttachmentConveniences,
-    NSCellImagePosition, NSControlStateValueOff, NSControlStateValueOn, NSFont,
-    NSFontAttributeName, NSImage, NSMenu, NSMenuDelegate, NSMenuItem, NSMutableParagraphStyle,
-    NSParagraphStyleAttributeName, NSStatusBar, NSStatusItem, NSStringDrawing, NSTextAlignment,
-    NSTextAttachment, NSTextTab, NSVariableStatusItemLength,
+    NSApplication, NSApplicationActivationPolicy, NSCellImagePosition, NSColor,
+    NSControlStateValueOff, NSControlStateValueOn, NSFont, NSFontAttributeName,
+    NSForegroundColorAttributeName, NSMenu, NSMenuDelegate, NSMenuItem, NSMutableParagraphStyle,
+    NSParagraphStyleAttributeName, NSStatusBar, NSStatusItem, NSTextAlignment, NSTextTab,
+    NSVariableStatusItemLength,
 };
 use objc2_foundation::{
-    NSArray, NSAttributedString, NSMutableAttributedString, NSMutableDictionary, NSObject,
-    NSObjectProtocol, NSPoint, NSRange, NSRect, NSString, NSTimer,
+    NSArray, NSMutableAttributedString, NSMutableDictionary, NSObject, NSObjectProtocol, NSRange,
+    NSString, NSTimer,
 };
 
 use bar::Gauge;
+use dashboard::{DashboardView, Part, Snapshot};
 
-const UPDATE_INTERVAL_SECONDS: f64 = 2.0;
+pub const UPDATE_INTERVAL_SECONDS: f64 = 2.0;
 
-/// Gap between the longest process name and the meter column, in ems of the
-/// menu font — the same breathing room the battery widget's style rows use.
-const PROCESS_ROW_GAP_RATIO: f64 = 1.5;
+/// Room left at the right of a value-bearing row for the submenu chevron
+/// AppKit draws there, in ems of the menu font.
+const CHEVRON_ROOM_RATIO: f64 = 1.0;
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum LayoutStyle {
@@ -399,28 +401,50 @@ impl Widget {
         let mtm = MainThreadMarker::new().unwrap();
         menu.removeAllItems();
 
-        let (settings, cpu, cores, gpu, processes) = {
+        let (settings, snapshot) = {
             let ivars = self.ivars().borrow();
             let Some(ui) = ivars.as_ref() else { return };
+            let reading = &ui.reading;
             (
                 ui.settings,
-                ui.reading.cpu(),
-                ui.reading.cores.len(),
-                ui.reading.gpu,
-                ui.reading
-                    .processes
-                    .iter()
-                    .map(|p| (p.name.clone(), p.share))
-                    .collect::<Vec<_>>(),
+                Snapshot {
+                    machine: dashboard::machine_name(),
+                    cores: reading.cores.clone(),
+                    cpu: reading.cpu(),
+                    gpu: reading.gpu,
+                    wants_gpu: ui.settings.sources.shows_gpu(),
+                    rows: reading
+                        .processes
+                        .iter()
+                        .map(|p| dashboard::Row {
+                            name: p.name.clone(),
+                            share: p.share,
+                            icon: p.path.as_deref().and_then(dashboard::icon_for),
+                        })
+                        .collect(),
+                },
             )
         };
 
-        let info = |title: String| {
-            let item = NSMenuItem::new(mtm);
-            item.setTitle(&NSString::from_str(&title));
-            item.setEnabled(false);
-            menu.addItem(&item);
+        // The two drawn blocks: the header gets a copy without the rows.
+        let header = Snapshot {
+            machine: snapshot.machine.clone(),
+            cores: snapshot.cores.clone(),
+            cpu: snapshot.cpu,
+            gpu: snapshot.gpu,
+            wants_gpu: snapshot.wants_gpu,
+            rows: Vec::new(),
         };
+        for (part, snapshot) in [(Part::Header, header), (Part::Processes, snapshot)] {
+            let item = NSMenuItem::new(mtm);
+            item.setEnabled(false);
+            item.setView(Some(&DashboardView::new(mtm, snapshot, part)));
+            menu.addItem(&item);
+            if part == Part::Header {
+                menu.addItem(&NSMenuItem::separatorItem(mtm));
+            }
+        }
+
         let action = |title: &str, selector| -> Retained<NSMenuItem> {
             let item = NSMenuItem::new(mtm);
             item.setTitle(&NSString::from_str(title));
@@ -433,41 +457,11 @@ impl Widget {
             item
         };
 
-        info(format!("CPU: {} across {cores} cores", bar::percent(cpu)));
-        match gpu {
-            Some(gpu) => {
-                info(format!("GPU: {}", bar::percent(gpu.device)));
-                info(format!(
-                    "    renderer {} · tiler {}",
-                    bar::percent(gpu.renderer),
-                    bar::percent(gpu.tiler)
-                ));
-            }
-            // Only worth saying when the GPU was asked for and did not answer.
-            None if settings.sources.shows_gpu() => info("GPU: not reporting".to_string()),
-            None => {}
-        }
-
-        // Empty only on the first tick, before there is an interval to rank.
-        if !processes.is_empty() {
-            menu.addItem(&NSMenuItem::separatorItem(mtm));
-            info("Top processes".to_string());
-            let paragraph = process_row_paragraph(&processes);
-            for (name, share) in &processes {
-                let item = NSMenuItem::new(mtm);
-                let title = process_row_title(name, &bar::meter_image(*share));
-                apply_row_paragraph(&title, &paragraph);
-                item.setAttributedTitle(Some(&title));
-                item.setEnabled(false);
-                menu.addItem(&item);
-            }
-        }
-
         menu.addItem(&NSMenuItem::separatorItem(mtm));
         self.add_submenu(
             menu,
             "Style",
-            ALL_STYLES.iter().map(|style| style.label()),
+            &ALL_STYLES.map(|style| style.label()),
             ALL_STYLES.iter().position(|s| *s == settings.style),
             sel!(styleAction:),
             mtm,
@@ -475,7 +469,7 @@ impl Widget {
         self.add_submenu(
             menu,
             "Show",
-            ALL_SOURCES.iter().map(|sources| sources.label()),
+            &ALL_SOURCES.map(|sources| sources.label()),
             ALL_SOURCES.iter().position(|s| *s == settings.sources),
             sel!(sourcesAction:),
             mtm,
@@ -492,18 +486,20 @@ impl Widget {
         quit.setImage(None);
     }
 
-    fn add_submenu<'a>(
+    /// A submenu whose root row also shows the current choice, dimmed, flush
+    /// right where the chevron sits.
+    fn add_submenu(
         &self,
         menu: &NSMenu,
         title: &str,
-        labels: impl Iterator<Item = &'a str>,
+        labels: &[&str],
         selected: Option<usize>,
         selector: objc2::runtime::Sel,
         mtm: MainThreadMarker,
     ) {
         let submenu = NSMenu::new(mtm);
         submenu.setAutoenablesItems(false);
-        for (index, label) in labels.enumerate() {
+        for (index, label) in labels.iter().enumerate() {
             let item = NSMenuItem::new(mtm);
             item.setTitle(&NSString::from_str(label));
             item.setTag(index as isize);
@@ -521,7 +517,8 @@ impl Widget {
         }
 
         let root = NSMenuItem::new(mtm);
-        root.setTitle(&NSString::from_str(title));
+        let current = selected.map_or("", |index| labels[index]);
+        root.setAttributedTitle(Some(&value_row_title(title, current)));
         root.setEnabled(true);
         root.setSubmenu(Some(&submenu));
         menu.addItem(&root);
@@ -534,66 +531,29 @@ fn menu_font() -> Retained<NSFont> {
     NSFont::menuFontOfSize(0.0)
 }
 
-/// How wide `text` sets as a menu item title.
-fn menu_label_width(text: &str) -> f64 {
-    let attrs = NSMutableDictionary::<NSString, AnyObject>::new();
-    unsafe {
-        attrs.setObject_forKey(&menu_font(), ProtocolObject::from_ref(NSFontAttributeName));
-        NSString::from_str(text)
-            .sizeWithAttributes(Some(&attrs))
-            .width
-    }
-}
-
-/// A process row: the name flush left, its meter flush right against a column
-/// edge shared by every row.
-///
-/// A right-aligned tab stop is what does it — the name, a tab, then the meter
-/// as an attachment, so every meter finishes on the same line however short
-/// its name. The alternative, a custom `NSView` per row, would cost the rows
-/// their native look. Same construction as the battery widget's style rows.
-fn process_row_title(name: &str, meter: &NSImage) -> Retained<NSMutableAttributedString> {
+/// A setting row: the label flush left, its current value dimmed and flush
+/// right against the same edge the dashboard blocks end at, leaving room for
+/// the submenu chevron. A right-aligned tab stop is what lines the values up
+/// across rows, the construction the battery widget's style rows use.
+fn value_row_title(label: &str, value: &str) -> Retained<NSMutableAttributedString> {
     let font = menu_font();
-
-    let attachment = NSTextAttachment::new();
-    attachment.setImage(Some(meter));
-
-    // An attachment sits on the baseline, which hangs the meter below the
-    // name it shares a row with. Drop it by half the difference so the two
-    // centre on each other.
-    let size = meter.size();
-    attachment.setBounds(NSRect {
-        origin: NSPoint {
-            x: 0.0,
-            y: font.capHeight() / 2.0 - size.height / 2.0,
-        },
-        size,
-    });
-
+    let em = font.pointSize();
     let title = NSMutableAttributedString::initWithString(
         NSMutableAttributedString::alloc(),
-        &NSString::from_str(&format!("{name}\t")),
+        &NSString::from_str(&format!("{label}\t{value}")),
     );
-    title.appendAttributedString(&NSAttributedString::attributedStringWithAttachment(
-        &attachment,
-    ));
-    title
-}
-
-/// The paragraph style the process rows share: one right-aligned tab stop
-/// past the longest name, with room for the meter. One figure for the whole
-/// list is what puts the meters in a column rather than leaving each to sit
-/// where its own name ends.
-fn process_row_paragraph(processes: &[(String, f64)]) -> Retained<NSMutableParagraphStyle> {
-    let widest_name = processes
-        .iter()
-        .map(|(name, _)| menu_label_width(name))
-        .fold(0.0, f64::max);
-    let right_edge = widest_name
-        + menu_font().pointSize() * PROCESS_ROW_GAP_RATIO
-        + bar::meter_image(0.0).size().width;
+    let whole = NSRange {
+        location: 0,
+        length: title.length(),
+    };
+    let value_length = value.encode_utf16().count();
+    let value_range = NSRange {
+        location: whole.length - value_length,
+        length: value_length,
+    };
 
     let paragraph = NSMutableParagraphStyle::new();
+    let right_edge = dashboard::content_right_edge() - (em * CHEVRON_ROOM_RATIO).round();
     let tab = unsafe {
         NSTextTab::initWithTextAlignment_location_options(
             NSTextTab::alloc(),
@@ -603,21 +563,16 @@ fn process_row_paragraph(processes: &[(String, f64)]) -> Retained<NSMutableParag
         )
     };
     paragraph.setTabStops(Some(&NSArray::from_retained_slice(&[tab])));
-    paragraph
-}
-
-/// Stamp the shared paragraph style over a whole row title.
-fn apply_row_paragraph(title: &NSMutableAttributedString, paragraph: &NSMutableParagraphStyle) {
     unsafe {
+        title.addAttribute_value_range(NSFontAttributeName, &font, whole);
+        title.addAttribute_value_range(NSParagraphStyleAttributeName, &paragraph, whole);
         title.addAttribute_value_range(
-            NSParagraphStyleAttributeName,
-            paragraph,
-            NSRange {
-                location: 0,
-                length: title.length(),
-            },
+            NSForegroundColorAttributeName,
+            &NSColor::secondaryLabelColor(),
+            value_range,
         );
     }
+    title
 }
 
 fn tooltip(reading: &Reading) -> String {

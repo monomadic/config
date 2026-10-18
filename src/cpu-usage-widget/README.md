@@ -22,18 +22,32 @@ On a machine with more than one accelerator the busiest one wins. Already a
 rate, so a single read is a complete answer.
 
 **Top processes** — the dropdown names the three of your processes that used
-the most CPU over the last interval, each with the aggregate bar and its share
-in a right-aligned column, the way the battery widget lays out its style rows.
-Shares use Activity Monitor's convention: 100% is one core, the bar stops
-there, and the number keeps counting for a multithreaded process. Each tick
-reads every process's cumulative user+system time with `proc_pidinfo` and
-differences it against the previous tick, the way `top` does; that is a
-millisecond or two for a few hundred processes, and only the winners have
-their names resolved. Without root only your own processes are readable —
-`top` and `ps` are setuid root, which is how they see `kernel_task`,
-`WindowServer` and `coreaudiod` — so those never appear here. Rolling what
-they use into a row of its own was tried and dropped: it topped the list
-nearly always and said nothing you could act on.
+the most CPU over the last interval. Each tick reads every process's cumulative
+user+system time with `proc_pidinfo` and differences it against the previous
+tick, the way `top` does; that is a millisecond or two for a few hundred
+processes, and only the winners have their names and icons resolved. Without
+root only your own processes are readable — `top` and `ps` are setuid root,
+which is how they see `kernel_task`, `WindowServer` and `coreaudiod` — so those
+never appear here. Rolling what they use into a row of its own was tried and
+dropped: it topped the list nearly always and said nothing you could act on.
+
+## The dropdown
+
+The top of the menu is a dashboard drawn by two custom views (`dashboard.rs`),
+designed in Figma first: the Mac's name, a **CPU** badge over its load as a big
+number, one pill per core (red when a core is at 80% or more), and, when the
+GPU is shown, a **GPU** badge and number on the right over three pills for
+device, renderer and tiler. Below a rule, **Top processes** lists each process
+with its app icon (from the `.app` bundle around its executable, via
+`NSWorkspace`), a meter and its share in Activity Monitor's convention — 100%
+is one core, the meter stops there, and the number keeps counting; a process
+holding a whole core or more gets the hot colour. Under that, **Style** and
+**Show** are native submenus whose rows also show the current choice, then
+**Open Activity Monitor** and **Quit**.
+
+Nothing in the dashboard is a fixed point size: every dimension is a ratio of
+the menu font's size, and every colour is a system semantic or accent colour,
+so it follows the system text size and light/dark appearance.
 
 ## Layout styles
 
