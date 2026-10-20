@@ -188,10 +188,11 @@ define_class!(
                 if c.snr {
                     let context = NSGraphicsContext::currentContext().unwrap(); context.saveGraphicsState();
                     NSBezierPath::bezierPathWithRoundedRect_xRadius_yRadius(track,3.0,3.0).addClip();
-                    // Zones are a scale, not a value: dimmed so the needle and
-                    // the readout carry the saturation.
+                    // The zone holding the needle keeps its full color; the
+                    // rest recede so the bar reads as a scale with a value.
                     for (start,width,color) in [(0.0,0.3,0xcb4b43),(0.3,0.2,0xb98930),(0.5,0.3,0x617da4),(0.8,0.2,0x359d50)] {
-                        fill(rect(66.0+220.0*start,95.0,220.0*width,10.0),&rgb(color).colorWithAlphaComponent(0.4),0.0);
+                        let active = (start..start+width).contains(&level) || (level >= 1.0 && start + width >= 1.0);
+                        fill(rect(66.0+220.0*start,95.0,220.0*width,10.0),&rgb(color).colorWithAlphaComponent(if active { 1.0 } else { 0.4 }),0.0);
                     }
                     context.restoreGraphicsState();
                 } else { fill(rect(66.0,95.0,220.0*level,10.0),&ink,3.0); }
