@@ -18,12 +18,15 @@ use std::ffi::c_char;
 
 use objc2::rc::Retained;
 use objc2::runtime::{AnyObject, ProtocolObject};
-use objc2::{DefinedClass, MainThreadMarker, MainThreadOnly, Message, define_class, msg_send};
+use objc2::{
+    AnyThread, DefinedClass, MainThreadMarker, MainThreadOnly, Message, define_class, msg_send,
+};
 use objc2_app_kit::{
-    NSBezierPath, NSColor, NSCompositingOperation, NSFont, NSFontAttributeName,
+    NSBezierPath, NSColor, NSCompositingOperation, NSEvent, NSFont, NSFontAttributeName,
     NSFontDescriptorSymbolicTraits, NSFontWeight, NSFontWeightBold, NSFontWeightMedium,
     NSFontWeightRegular, NSFontWeightSemibold, NSForegroundColorAttributeName, NSImage,
-    NSKernAttributeName, NSStringDrawing, NSView, NSWorkspace,
+    NSKernAttributeName, NSRunningApplication, NSStringDrawing, NSTrackingArea,
+    NSTrackingAreaOptions, NSView, NSWorkspace,
 };
 use objc2_core_foundation::{CFData, CFString};
 use objc2_foundation::{NSMutableDictionary, NSNumber, NSPoint, NSRect, NSSize, NSString};
@@ -38,6 +41,7 @@ const HOT_PROCESS: f64 = 1.0;
 
 /// One line of the process table.
 pub struct Row {
+    pub pid: i32,
     pub name: String,
     pub share: f64,
     pub icon: Option<Retained<NSImage>>,
@@ -66,6 +70,27 @@ pub enum Part {
 pub struct Ivars {
     snapshot: Snapshot,
     part: Part,
+    /// The process row under the pointer, which swaps its meter for Quit
+    /// and Kill buttons.
+    hovered: Option<usize>,
+    tracking: Option<Retained<NSTrackingArea>>,
+}
+
+/// What a row's buttons do to its process.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Action {
+    /// Ask nicely: the app's own quit, or SIGTERM for anything that is not
+    /// an app.
+    Quit,
+    /// SIGKILL, or AppKit's force-terminate for an app.
+    Kill,
+}
+
+const SIGTERM: i32 = 15;
+const SIGKILL: i32 = 9;
+
+unsafe extern "C" {
+    fn kill(pid: i32, signal: i32) -> i32;
 }
 
 define_class!(
@@ -93,11 +118,149 @@ define_class!(
             let m = Metrics::new(self.bounds().size.width);
             match ivars.part {
                 Part::Header => draw_header(&ivars.snapshot, &m),
-                Part::Processes => draw_processes(&ivars.snapshot, &m),
+                Part::Processes => draw_processes(&ivars.snapshot, &m, ivars.hovered),
+            }
+        }
+
+        // One tracking area over the whole view, remade whenever AppKit says
+        // the geometry moved. Menus are not key, so it has to be active
+        // always, not merely in the key window.
+        #[unsafe(method(updateTrackingAreas))]
+        fn update_tracking_areas(&self) {
+            let _: () = unsafe { msg_send![super(self), updateTrackingAreas] };
+            if self.ivars().borrow().part != Part::Processes {
+                return;
+            }
+            if let Some(old) = self.ivars().borrow_mut().tracking.take() {
+                self.removeTrackingArea(&old);
+            }
+            let area = unsafe {
+                NSTrackingArea::initWithRect_options_owner_userInfo(
+                    NSTrackingArea::alloc(),
+                    self.bounds(),
+                    NSTrackingAreaOptions::MouseEnteredAndExited
+                        | NSTrackingAreaOptions::MouseMoved
+                        | NSTrackingAreaOptions::ActiveAlways
+                        | NSTrackingAreaOptions::InVisibleRect,
+                    Some(self),
+                    None,
+                )
+            };
+            self.addTrackingArea(&area);
+            self.ivars().borrow_mut().tracking = Some(area);
+        }
+
+        #[unsafe(method(mouseEntered:))]
+        fn mouse_entered(&self, event: &NSEvent) {
+            self.hover(Some(event));
+        }
+
+        #[unsafe(method(mouseMoved:))]
+        fn mouse_moved(&self, event: &NSEvent) {
+            self.hover(Some(event));
+        }
+
+        #[unsafe(method(mouseExited:))]
+        fn mouse_exited(&self, _event: &NSEvent) {
+            self.hover(None);
+        }
+
+        #[unsafe(method(mouseUp:))]
+        fn mouse_up(&self, event: &NSEvent) {
+            let point = self.point_of(event);
+            let m = Metrics::new(self.bounds().size.width);
+            let hit = {
+                let ivars = self.ivars().borrow();
+                row_at(&m, &ivars.snapshot, point).and_then(|index| {
+                    let top = m.rows_top() + index as f64 * m.row_height();
+                    buttons(&m, top)
+                        .into_iter()
+                        .find(|(rect, _)| contains(rect, point))
+                        .map(|(_, action)| (ivars.snapshot.rows[index].pid, action))
+                })
+            };
+            if let Some((pid, action)) = hit {
+                perform(pid, action);
             }
         }
     }
 );
+
+impl DashboardView {
+    fn point_of(&self, event: &NSEvent) -> NSPoint {
+        self.convertPoint_fromView(event.locationInWindow(), None)
+    }
+
+    /// Track which row the pointer is over; redraw only when that changes.
+    fn hover(&self, event: Option<&NSEvent>) {
+        let hovered = event.and_then(|event| {
+            let m = Metrics::new(self.bounds().size.width);
+            let ivars = self.ivars().borrow();
+            row_at(&m, &ivars.snapshot, self.point_of(event))
+        });
+        let changed = {
+            let mut ivars = self.ivars().borrow_mut();
+            let changed = ivars.hovered != hovered;
+            ivars.hovered = hovered;
+            changed
+        };
+        if changed {
+            self.setNeedsDisplay(true);
+        }
+    }
+}
+
+/// Quit or kill a process. Apps get AppKit's version, which goes through the
+/// app's own quit (or its forced equivalent); anything else gets the signal.
+fn perform(pid: i32, action: Action) {
+    let done = match (
+        NSRunningApplication::runningApplicationWithProcessIdentifier(pid),
+        action,
+    ) {
+        (Some(app), Action::Quit) => app.terminate(),
+        (Some(app), Action::Kill) => app.forceTerminate(),
+        (None, _) => false,
+    };
+    if !done {
+        let signal = match action {
+            Action::Quit => SIGTERM,
+            Action::Kill => SIGKILL,
+        };
+        // SAFETY: plain syscall; a pid that has gone away just fails.
+        if unsafe { kill(pid, signal) } != 0 {
+            eprintln!("could not signal pid {pid}");
+        }
+    }
+}
+
+/// The process row under `point`, if any.
+fn row_at(m: &Metrics, snapshot: &Snapshot, point: NSPoint) -> Option<usize> {
+    if point.y < m.rows_top() || point.x < 0.0 || point.x > m.width {
+        return None;
+    }
+    let index = ((point.y - m.rows_top()) / m.row_height()) as usize;
+    (index < snapshot.rows.len()).then_some(index)
+}
+
+fn contains(rect: &NSRect, point: NSPoint) -> bool {
+    point.x >= rect.origin.x
+        && point.x <= rect.origin.x + rect.size.width
+        && point.y >= rect.origin.y
+        && point.y <= rect.origin.y + rect.size.height
+}
+
+/// The Quit and Kill buttons of the row starting at `top`, Kill outermost.
+fn buttons(m: &Metrics, top: f64) -> [(NSRect, Action); 2] {
+    let h = (m.em * 1.5).round();
+    let w = (m.em * 3.1).round();
+    let gap = (m.em * 0.4).round();
+    let y = top + ((m.row_height() - h) / 2.0).round();
+    let kill_x = m.width - w;
+    [
+        (rect(kill_x - gap - w, y, w, h), Action::Quit),
+        (rect(kill_x, y, w, h), Action::Kill),
+    ]
+}
 
 impl DashboardView {
     /// Replace what the view draws and have it redraw. The frame is left
@@ -120,7 +283,12 @@ impl DashboardView {
                 height,
             },
         };
-        let this = Self::alloc(mtm).set_ivars(RefCell::new(Ivars { snapshot, part }));
+        let this = Self::alloc(mtm).set_ivars(RefCell::new(Ivars {
+            snapshot,
+            part,
+            hovered: None,
+            tracking: None,
+        }));
         unsafe { msg_send![super(this), initWithFrame: frame] }
     }
 }
@@ -343,7 +511,7 @@ fn draw_header(s: &Snapshot, m: &Metrics) {
     }
 }
 
-fn draw_processes(s: &Snapshot, m: &Metrics) {
+fn draw_processes(s: &Snapshot, m: &Metrics, hovered: Option<usize>) {
     let right = m.width;
     let label = NSColor::labelColor();
     let tertiary = NSColor::tertiaryLabelColor();
@@ -368,8 +536,8 @@ fn draw_processes(s: &Snapshot, m: &Metrics) {
     let row_h = m.row_height();
     let icon = (m.em * 1.55).round();
     let gap = (m.em * 0.77).round();
-    let meter_w = (m.em * 5.5).round();
-    let meter_h = (m.em * 0.46).round().max(4.0);
+    let meter_w = (m.em * 3.4).round();
+    let meter_h = (m.em * 0.38).round().max(3.0);
     let share_w = (m.em * 3.1).round();
     let name_font = system(m.em, unsafe { NSFontWeightRegular });
     let name_attrs = attrs(&name_font, &label, 0.0);
@@ -389,6 +557,15 @@ fn draw_processes(s: &Snapshot, m: &Metrics) {
 
     for (i, row) in s.rows.iter().enumerate() {
         let top = m.rows_top() + i as f64 * row_h;
+        let is_hovered = hovered == Some(i);
+        if is_hovered {
+            let pad = (m.em * 0.5).round();
+            label.colorWithAlphaComponent(0.07).set();
+            pill(
+                rect(m.inset - pad, top, right - m.inset + pad * 2.0, row_h),
+                (m.em * 0.45).round(),
+            );
+        }
         let icon_rect = rect(m.inset, top + ((row_h - icon) / 2.0).round(), icon, icon);
         match &row.icon {
             Some(image) => unsafe {
@@ -423,8 +600,38 @@ fn draw_processes(s: &Snapshot, m: &Metrics) {
         let share_x = right - share_w;
         let meter_x = share_x - gap - meter_w;
         let name_x = m.inset + icon + gap;
-        let name = truncate(&row.name, &name_attrs, meter_x - gap - name_x);
         let text_y = top + ((row_h - measure("X", &name_attrs).height) / 2.0).round();
+
+        // A hovered row trades its meter and share for the two buttons.
+        if is_hovered {
+            let controls = buttons(m, top);
+            let name = truncate(
+                &row.name,
+                &name_attrs,
+                controls[0].0.origin.x - gap - name_x,
+            );
+            draw(&name, name_x, text_y, &name_attrs);
+            let font = system(m.em * 0.85, unsafe { NSFontWeightSemibold });
+            for (button, action) in controls {
+                let (color, text) = match action {
+                    Action::Quit => (label.clone(), "Quit"),
+                    Action::Kill => (NSColor::systemRedColor(), "Kill"),
+                };
+                color.colorWithAlphaComponent(0.16).set();
+                pill(button, button.size.height / 2.0);
+                let attrs = attrs(&font, &color, 0.0);
+                let size = measure(text, &attrs);
+                draw(
+                    text,
+                    button.origin.x + ((button.size.width - size.width) / 2.0).round(),
+                    button.origin.y + ((button.size.height - size.height) / 2.0).round(),
+                    &attrs,
+                );
+            }
+            continue;
+        }
+
+        let name = truncate(&row.name, &name_attrs, meter_x - gap - name_x);
         draw(&name, name_x, text_y, &name_attrs);
 
         let meter_y = top + ((row_h - meter_h) / 2.0).round();

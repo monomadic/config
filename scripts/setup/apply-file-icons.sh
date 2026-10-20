@@ -44,7 +44,7 @@ ICON_MAPPINGS=(
   "Firefox.app|firefox1.icns"
   "ForkLift.app|folder-full-blue.icns"
   "Logic Pro.app|logic-pro-01.icns"
-  "Helium.app|browser-02.png"
+  "Helium.app|Applications/Helium.png"
   "kitty.app|Kitty.png"
   "Numi.app|numi.icns"
   "Spotify.app|spotify-02.icns"

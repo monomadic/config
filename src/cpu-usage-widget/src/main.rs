@@ -556,6 +556,7 @@ fn snapshots(ui: &Ui) -> (Snapshot, Snapshot) {
             .processes
             .iter()
             .map(|p| dashboard::Row {
+                pid: p.pid,
                 name: p.name.clone(),
                 share: p.share,
                 icon: p.path.as_deref().and_then(dashboard::icon_for),

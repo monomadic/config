@@ -74,6 +74,7 @@ unsafe extern "C" {
 
 /// One row of the dropdown's process list.
 pub struct Process {
+    pub pid: i32,
     pub name: String,
     /// The executable's full path, when libproc will say — what the app icon
     /// is looked up from.
@@ -219,6 +220,7 @@ impl Sampler {
                 top.extend(shares.into_iter().map(|(pid, share)| {
                     let path = path(pid);
                     Process {
+                        pid,
                         name: name(pid, path.as_deref()),
                         path,
                         share,
