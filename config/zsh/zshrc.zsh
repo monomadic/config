@@ -338,5 +338,11 @@ if [[ -o interactive && -r "$_fsh_dir/fast-syntax-highlighting.plugin.zsh" ]]; t
   FAST_HIGHLIGHT_STYLES[alias]='fg=cyan'
   FAST_HIGHLIGHT_STYLES[suffix-alias]='fg=cyan,underline'
   FAST_HIGHLIGHT_STYLES[global-alias]='fg=cyan,bold'
+  # Paths: green when they exist, red when they don't (path-missing is a
+  # local patch to the vendored plugin, see vendor/.../VENDORED). The stock
+  # magenta reads as red in this terminal palette, which was misleading.
+  FAST_HIGHLIGHT_STYLES[path]='fg=green'
+  FAST_HIGHLIGHT_STYLES[path-to-dir]='fg=green,underline'
+  FAST_HIGHLIGHT_STYLES[path-missing]='fg=red'
 fi
 unset _fsh_dir

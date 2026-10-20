@@ -70,6 +70,7 @@ zstyle :plugin:fast-syntax-highlighting theme default
 : ${FAST_HIGHLIGHT_STYLES[path]:=fg=magenta}
 : ${FAST_HIGHLIGHT_STYLES[path-to-dir]:=fg=magenta,underline}
 : ${FAST_HIGHLIGHT_STYLES[path_pathseparator]:=}
+: ${FAST_HIGHLIGHT_STYLES[path-missing]:=fg=red}
 : ${FAST_HIGHLIGHT_STYLES[globbing]:=fg=blue,bold}
 : ${FAST_HIGHLIGHT_STYLES[globbing-ext]:=fg=13}
 : ${FAST_HIGHLIGHT_STYLES[history-expansion]:=fg=blue,bold}
@@ -1284,6 +1285,10 @@ typeset -ga ZLAST_COMMANDS
     [[ -d $cdpath_dir/$expanded_path ]] && { [[ $1 != "noasync" ]] && print -r -- "$_start_pos ${_end_pos}D" || __style=${FAST_THEME_NAME}path-to-dir; return 0; }
     [[ -e $cdpath_dir/$expanded_path ]] && { [[ $1 != "noasync" ]] && print -r -- "$_start_pos $_end_pos" || __style=${FAST_THEME_NAME}path; return 0; }
   done
+
+  # Local patch: an argument that is shaped like a path but names nothing
+  # (sync mode only). URLs and option-like words are left alone.
+  [[ $1 == "noasync" && $expanded_path != *://* && $expanded_path != [-+]* && $expanded_path == (/*|~*|./*|../*|*/*) ]] && { __style=${FAST_THEME_NAME}path-missing; return 0; }
 
   # It's not a path.
   [[ $1 != "noasync" ]] && print -r -- "- $_start_pos $_end_pos"
