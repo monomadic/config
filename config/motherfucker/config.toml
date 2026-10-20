@@ -175,7 +175,7 @@ engine = "􀢾"  # [search_engines] entries that set no icon of their own
 "Build" = "kitty-launch --float --hold-on-fail --interactive -- update motherfucker"
 
 [commands.Abner]
-"Build" = "kitty-launch --float --hold-on-fail --interactive -- /Users/nom/src/abner/packaging/build-app.sh --install --open"
+"Build" = "kitty-launch --float --hold-on-fail --interactive -- /Users/nom/src/abner/packaging/build-app.sh --with-plugins --install --open"
 
 [commands.M4]
 "Mount Tower" = "open -j smb://m4.local/Tower"
