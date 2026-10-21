@@ -211,10 +211,13 @@ no second machine can watch the queue.
 
 **`cleanup`** (`bin/cleanup`, zsh + fzf, vim keys) is the disk-space menu: sizes,
 a risk colour and advice per row, submenus (`▸`) for Topaz models, large files and
-`~/src`. Its rules: the Downloads → Tower sync only ever *adds* — nothing on the
-Tower is overwritten or deleted, same-path files with a different size are listed
-and left alone — and anything "moved" locally goes to the Trash after a size check on
-the Tower, never `rm`. Repos with unpushed, uncommitted or remote-less work refuse
+`~/src`. Its rules: the Downloads → Tower sync only ever *adds* to the Tower —
+nothing there is overwritten or deleted, same-path files with a different size are
+listed and left alone. Locally it works file by file: copy if missing, compare byte
+sizes (`zstat` — the script loads `zsh/stat`, so a bare `stat` is the zsh builtin),
+and only on a match delete, trash or keep the local copy, as chosen once up front;
+files already on the Tower are handled the same way. Elsewhere, anything "moved"
+goes to the Trash after a size check on the Tower, never `rm`. Repos with unpushed, uncommitted or remote-less work refuse
 removal. Topaz rows come from `bin/lib/cleanup-topaz-models.py`, which follows
 composite models (Starlight Mini) so their parts aren't reported as unused. The
 yt-dlp submenu lists each dead download from `bin/lib/cleanup-ytdlp-partials.py`,

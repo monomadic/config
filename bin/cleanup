@@ -6,8 +6,10 @@
 # Rows marked ▸ open a submenu of their own:
 #
 #   Downloads → Tower   copy new files from ~/Movies/Porn/Downloads to the m4's
-#                       Tower, merging into folders that already exist there.
-#                       Nothing on the Tower is overwritten or deleted.
+#                       Tower, merging into folders that already exist there,
+#                       then delete (or trash, or keep) each local file once its
+#                       byte size matches there — including ones already backed
+#                       up. Nothing on the Tower is overwritten or deleted.
 #   Topaz models ▸      every model one by one (weights + compiled cache),
 #                       with how many of your presets use it. Archive to the
 #                       Tower, delete, or restore an archived one.
@@ -116,7 +118,7 @@ bytes_of() {  # apparent bytes of a file or a tree -> REPLY
   if [[ -d $1 ]]; then
     REPLY=$(find $1 -type f -print0 | xargs -0 stat -f%z 2>/dev/null | awk '{s += $1} END {print s + 0}')
   else
-    REPLY=$(stat -f%z $1 2>/dev/null)
+    local -a s; zstat -A s +size -- $1 2>/dev/null; REPLY=$s[1]
   fi
 }
 
@@ -196,7 +198,7 @@ scan_sync() {
   (( $#sync_new )) &&
     tip 30 "$#sync_new files ($new_h) in $nice aren't on the Tower yet  ${dim}→ enter on the sync row${o}"
   (( $#sync_same )) && { human $sync_same_kb
-    tip 31 "$#sync_same local files ($REPLY) are already on the Tower  ${dim}→ the sync row can trash them${o}" }
+    tip 31 "$#sync_same local files ($REPLY) are already on the Tower  ${dim}→ the sync row can delete them${o}" }
 }
 
 # --- scanners: Topaz -----------------------------------------------------------
@@ -616,6 +618,38 @@ offload() {  # path [dest] — dest defaults to <archive>/offloaded/<path under 
   print -- "verified on the Tower: $dest"
 }
 
+# One Downloads file: copy it to the Tower unless it is there already, compare
+# byte sizes, and only on a match delete (d) or trash (t) the local copy.
+# k copies and keeps. rsync writes to a temp name and renames, so an
+# interrupted copy never leaves a short file under the real name.
+sync_offload() {  # rel mode
+  local f=$sync_src/$1 t=$sync_dst/$1; local -a a b
+  if [[ ! -e $t ]]; then
+    mkdir -p ${t:h} || return 1
+    rsync -a --ignore-existing --progress $f $t || return 1
+  fi
+  zstat -A a +size -- $f; zstat -A b +size -- $t 2>/dev/null
+  if [[ -z $a || $a != $b ]]; then
+    print -r -- "  ${c_red}size mismatch${o}: $a bytes here, ${b:-nothing} on the Tower — local copy kept"
+    return 1
+  fi
+  case $2 in
+    d) rm -f $f ;;
+    t) trash $f ;;
+  esac
+}
+
+# Remove folders under the sync source that the offload emptied (Finder's
+# .DS_Store doesn't count). The source folder itself stays.
+sync_prune() {
+  local d; local -a kids
+  for d in $sync_src/**/*(/DNod); do
+    kids=($d/*(DN:t))
+    (( $#kids == 0 )) || [[ $kids == .DS_Store ]] || continue
+    rm -f $d/.DS_Store; rmdir $d
+  done
+}
+
 # A file or directory with no cleaner of its own: move it to the Tower, trash it, or look at it.
 # Sets `before` and `msg` in run() (dynamic scope).
 path_action() {
@@ -703,26 +737,28 @@ run() {
         print -rl -- "  "${^sync_diff[1,12]}
         (( $#sync_diff > 12 )) && print "  … and $(( $#sync_diff - 12 )) more"
       fi
-      if (( $#sync_new )); then
-        confirm_always "copy $#sync_new new files ($REPLY)? nothing on the Tower is overwritten or deleted" || return
-        mkdir -p $sync_dst || fail "can't create $sync_dst"
-        rsync -a --ignore-existing --progress $sync_excl $sync_src/ $sync_dst/ ||
-          fail 'rsync stopped — nothing was deleted, run it again to carry on'
-        sync_plan
+      if (( ! $#sync_new && ! $#sync_same )); then
+        msg='nothing to copy or free'; pause; return
       fi
-      if (( $#sync_same )); then
-        human $sync_same_kb
-        print -r -- "\n$#sync_same local files ($REPLY) are on the Tower with the same name and size."
-        if confirm_always 'move those local copies to the Trash?'; then
-          printf '%s\0' $sync_src/${^sync_same} | xargs -0 trash || fail 'trash failed'
-          msg="$#sync_same files ($REPLY) are in the Trash, safe on the Tower — empty it to reclaim"
-          before=0
-        else
-          msg="copied; kept the $#sync_same local copies"
-        fi
-      else
-        msg='nothing left to copy'
-      fi
+      human $(( sync_new_kb + sync_same_kb ))
+      print; print -r -- "once a file's byte size matches on the Tower, its local copy is:"
+      choose "  [d]eleted (frees $REPLY now) · [t]rashed · [k]ept · [c]ancel" d t k c
+      local mode=$REPLY rel i=0 n=$(( $#sync_new + $#sync_same )) ok=0 bad=0
+      [[ $mode == c ]] && return
+      [[ $mode == k ]] && (( ! $#sync_new )) && { msg='nothing new to copy'; pause; return }
+      for rel in $sync_new $sync_same; do
+        (( ++i ))
+        [[ $mode == k ]] && [[ -e $sync_dst/$rel ]] && continue
+        print -r -- "${dim}[$i/$n]${o} $rel"
+        if sync_offload $rel $mode; then (( ++ok )); else (( ++bad )); fi
+      done
+      [[ $mode == [dt] ]] && sync_prune
+      local kept=${${bad:#0}:+ · $bad kept (copy failed or sizes differ)}
+      case $mode in
+        d) what="$ok files verified on the Tower, deleted here$kept" ;;   # freed comes from df
+        t) msg="$ok files verified on the Tower, trashed here — empty the Trash to reclaim$kept"; before=0 ;;
+        k) msg="copied $ok files, local copies kept$kept"; before=0 ;;
+      esac
       pause
       ;;
 
