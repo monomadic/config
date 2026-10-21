@@ -41,7 +41,10 @@ device, renderer and tiler. Below a rule, **Top processes** lists each process
 with its app icon (from the `.app` bundle around its executable, via
 `NSWorkspace`), a meter and its share in Activity Monitor's convention — 100%
 is one core, the meter stops there, and the number keeps counting; a process
-holding a whole core or more gets the hot colour. Under that, **Style** and
+holding a whole core or more gets the hot colour. Hovering a row swaps its
+meter for two buttons: **Quit** asks the app to quit (its own quit for an
+app, `SIGTERM` for anything else) and **Kill** forces it (`SIGKILL`, or
+AppKit's force-terminate for an app). Under that, **Style** and
 **Show** are native submenus whose rows also show the current choice, then
 **Open Activity Monitor** and **Quit**.
 
