@@ -108,6 +108,7 @@ link_tree config/virtualdj/Mappers "$HOME/Library/Application Support/VirtualDJ/
 link_tree config/virtualdj/Pads "$HOME/Library/Application Support/VirtualDJ/Pads"
 link_file config/yt-dlp/config "$HOME/.config/yt-dlp/config"
 link_file config/yt-dlp/plugins/__init__.py "$HOME/.config/yt-dlp/plugins/__init__.py"
+link_file config/yt-dlp/plugins/faphouse/yt_dlp_plugins/extractor/bangbros.py "$HOME/.config/yt-dlp/plugins/faphouse/yt_dlp_plugins/extractor/bangbros.py"
 link_file config/yt-dlp/plugins/faphouse/yt_dlp_plugins/extractor/faphouse.py "$HOME/.config/yt-dlp/plugins/faphouse/yt_dlp_plugins/extractor/faphouse.py"
 link_file config/yt-dlp/plugins/faphouse/yt_dlp_plugins/extractor/hdsex.py "$HOME/.config/yt-dlp/plugins/faphouse/yt_dlp_plugins/extractor/hdsex.py"
 link_file config/yt-dlp/plugins/faphouse/yt_dlp_plugins/extractor/onlyfans.py "$HOME/.config/yt-dlp/plugins/faphouse/yt_dlp_plugins/extractor/onlyfans.py"
