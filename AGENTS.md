@@ -217,8 +217,16 @@ listed and left alone. Locally it works file by file: copy if missing, compare b
 sizes (`zstat` — the script loads `zsh/stat`, so a bare `stat` is the zsh builtin),
 and only on a match delete, trash or keep the local copy, as chosen once up front;
 files already on the Tower are handled the same way. Elsewhere, anything "moved"
-goes to the Trash after a size check on the Tower, never `rm`. Repos with unpushed, uncommitted or remote-less work refuse
-removal. Topaz rows come from `bin/lib/cleanup-topaz-models.py`, which follows
+goes to the Trash after a size check on the Tower, never `rm`. Repos with unpushed,
+uncommitted or remote-less work refuse removal. Repo removal also refuses ignored
+files, submodules and Git inspection failures, verifies HEAD and all local refs
+against a fresh origin clone, then moves the checkout to Trash. Worktrees move to
+Trash with a locked registration retained in the main repo; unknown worktrees are
+review-only. Source directories and emptying Trash never participate in bulk
+cleanup. Offloads compare file bytes, names and symlink targets before trashing the
+source. Safety regression fixtures run with
+`python3 scripts/tests/test_cleanup_safety.py` and never use live paths.
+Topaz rows come from `bin/lib/cleanup-topaz-models.py`, which follows
 composite models (Starlight Mini) so their parts aren't reported as unused. The
 yt-dlp submenu lists each dead download from `bin/lib/cleanup-ytdlp-partials.py`,
 which recovers the URL from the info.json the run left behind (or the id in the

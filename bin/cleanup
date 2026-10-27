@@ -601,10 +601,10 @@ wipe_contents() {  # empty a directory, keep the directory
   rm -rf -- $d/*(DN)
 }
 
-# Copy a file or tree to the Tower, check its size there, and only then say
-# yes. Never overwrites: a different file already at the destination fails the check.
+# Copy a file or tree to the Tower and compare its contents before trashing.
+# Never overwrites; existing destination content must match exactly.
 offload() {  # path [dest] — dest defaults to <archive>/offloaded/<path under ~>
-  local src=${1:A} dest=$2 rel a b
+  local src=$1 dest=$2 rel
   if [[ -z $dest ]]; then
     [[ $src == $HOME/* ]] && rel=${src#$HOME/} || rel=${src#/}
     dest=$archive/offloaded/$rel
@@ -613,8 +613,7 @@ offload() {  # path [dest] — dest defaults to <archive>/offloaded/<path under 
   mkdir -p ${dest:h} || return 1
   if [[ -d $src ]]; then rsync -a --ignore-existing --progress $src/ $dest/ || return 1
   else rsync -a --ignore-existing --progress $src $dest || return 1; fi
-  bytes_of $src; a=$REPLY; bytes_of $dest; b=$REPLY
-  [[ $a == $b ]] || { print -P "%F{red}size mismatch: $a bytes here, $b on the Tower — source kept%f"; return 1 }
+  python3 $dotfiles/bin/lib/cleanup-safety.py verify $src $dest || return 1
   print -- "verified on the Tower: $dest"
 }
 
@@ -889,56 +888,33 @@ run() {
       ;;
 
     repo)
-      [[ -e $a1/.git ]] || fail "$a1 is not a repo"
       what="checkout ${a1:t}"
-      local rem dirty ahead stash nwt
-      rem=$(git -C $a1 remote get-url origin 2>/dev/null)
-      dirty=$(git -C $a1 status --porcelain 2>/dev/null | wc -l | tr -d ' ')
-      ahead=$(git -C $a1 rev-list --branches --not --remotes 2>/dev/null | wc -l | tr -d ' ')
-      stash=$(git -C $a1 stash list 2>/dev/null | wc -l | tr -d ' ')
-      nwt=$(( $(git -C $a1 worktree list 2>/dev/null | wc -l) - 1 ))
-      local -a why
-      [[ -z $rem ]]  && why+=('it has no remote — the checkout is the only copy')
-      (( dirty ))    && why+=("$dirty uncommitted changes")
-      [[ -n $rem ]] && (( ahead )) && why+=("$ahead commits that are on no remote")
-      (( stash ))    && why+=("$stash stashes")
-      (( nwt > 0 ))  && why+=("$nwt other worktrees — remove those first")
-      if (( $#why )); then
-        print -r -- "${c_red}${a1:t} can't be removed safely:${o}"
-        print -rl -- "  · "${^why}
-        print -r -- "kept ${a1:t}: ${why[1]}" > $CLEANUP_TMP/last
+      local rem
+      rem=$(python3 $dotfiles/bin/lib/cleanup-safety.py check $a1) || {
+        print -r -- "kept ${a1:t}: safety verification failed" > $CLEANUP_TMP/last
         pause; return
-      fi
-      kb_of $a1; before=$REPLY; human $before
-      print -r -- "${a1:t} is clean and fully pushed. Re-clone with:  git clone $rem"
-      choose "remove the $REPLY checkout? [r]emove · [c]ancel" r c
-      [[ $REPLY == r ]] || return
-      rm -rf -- $a1
+      }
+      kb_of $a1; human $REPLY
+      print -r -- "Recovery verified from $rem. Ignored and untracked files are absent."
+      confirm_always "move ${a1:t} ($REPLY) to Trash?" || return
+      # Recheck after the prompt: the checkout may have changed while waiting.
+      python3 $dotfiles/bin/lib/cleanup-safety.py check $a1 || { pause; return }
+      trash $a1 || fail "could not trash $a1"
+      before=0
+      msg="${a1:t} is in Trash; empty it separately to reclaim space"
       ;;
 
     worktree)
-      what="worktree ${a2:t}"
-      if [[ -d $a2 ]]; then
-        kb_of $a2; before=$REPLY
-        if [[ -n $(git -C $a2 status --porcelain 2>/dev/null | head -1) ]]; then
-          git -C $a2 status -sb
-          confirm_always "${a2:t} has uncommitted changes — remove anyway?" || return
-        fi
-        git -C $a1 worktree remove --force $a2 || fail "could not remove $a2"
-      else
-        # Only this worktree's stale record — not a repo-wide `worktree prune`.
-        local admin
-        for admin in $(git -C $a1 rev-parse --path-format=absolute --git-common-dir)/worktrees/*(N/); do
-          [[ $(<$admin/gitdir) == $a2/.git ]] && rm -rf -- $admin
-        done
-      fi
+      [[ -d $a2 ]] || { print 'Stale record retained; inspect it manually.'; pause; return }
+      confirm_always "verify and move ${a2:t} to Trash, retaining its Git metadata?" || return
+      python3 $dotfiles/bin/lib/cleanup-safety.py worktree $a1 $a2 || { pause; return }
+      before=0
+      msg="${a2:t} is in Trash; its registered Git metadata is retained"
       ;;
     orphan)
-      [[ $a1 == */.claude/worktrees/* && -d $a1 ]] || fail "not a worktree dir: $a1"
-      what="orphan ${a1:t}"
-      kb_of $a1; before=$REPLY
-      confirm "delete $a1?" || return
-      rm -rf -- $a1
+      print 'Unrecognized worktree retained. Review its files and Git metadata manually.'
+      open -R $a1
+      pause; return
       ;;
     brew)
       what='brew cleanup'
@@ -952,8 +928,9 @@ run() {
       kb_of $targets; before=$REPLY
       local t
       for t in $targets; do
-        [[ ${t:t} == target ]] && grep -q 'created by cargo' $t/CACHEDIR.TAG 2>/dev/null ||
+        [[ ${t:t} == target && ! -L $t && ${t:A} == $t && -f $t/CACHEDIR.TAG && ! -L $t/CACHEDIR.TAG ]] && grep -q 'created by cargo' $t/CACHEDIR.TAG 2>/dev/null ||
           { print "skipping $t"; continue }
+        python3 $dotfiles/bin/lib/cleanup-safety.py cargo $t || { print "kept $t"; continue }
         print "removing $t"
         rm -rf -- $t
       done
@@ -1004,7 +981,7 @@ run() {
 # filtered list.
 run_all() {
   local kind a1 a2 rest total=0 n=0
-  local -a rows=(${(f)"$(grep -E $'^(worktree|orphan|brew|cargo|tool|dir|trash|tcache|ytdlp)\t' $1)"})
+  local -a rows=(${(f)"$(grep -E $'^(brew|cargo|tool|dir|tcache|ytdlp)\t' $1)"})
   (( $#rows )) || { print -r -- 'nothing here that cleans without questions' > $CLEANUP_TMP/last; return }
   print -l -- $rows | cut -f4-
   print
@@ -1066,19 +1043,19 @@ advice() {
       print -r -- 'Compiled CoreML versions of the weights. Always safe: each model/size rebuilds on its first run, which takes a little while. The weights are untouched.' ;;
     file)
       print c
-      print -r -- 'One large file. Move to Tower copies it to Backups/offloaded/ (same path as here), checks the size there, then trashes the local copy. Trashing alone is recoverable until you empty the Trash.' ;;
+      print -r -- 'One large file. Move to Tower copies it to Backups/offloaded/ (same path as here), compares file contents, names and symlink targets, then trashes the local copy. Trashing alone is recoverable until you empty the Trash.' ;;
     plain)
       print d
       print -r -- 'Not a git repository, so there is no remote to re-clone from — deleting is permanent unless you moved it first. Put it in git, or move it to the Tower.' ;;
     repo)
       print c
-      print -r -- 'A checkout. If everything is committed and pushed, removing it loses nothing: git clone brings it back. Anything unpushed, uncommitted, stashed or remote-less blocks the removal. Build dirs inside it (target/, node_modules) are listed separately and are the cheaper win.' ;;
+      print -r -- 'A checkout. Removal verifies all local refs and HEAD against a fresh origin clone, refuses ignored content and submodules, and moves the checkout to Trash. Anything unpushed, uncommitted, stashed or remote-less blocks the removal. Build dirs inside it (target/, node_modules) are listed separately and are the cheaper win.' ;;
     worktree)
       print c
-      print -r -- 'A git worktree, usually left behind by an agent session. Removing it deletes its working directory and build output; the branch stays in the repo. A dirty worktree asks first.' ;;
+      print -r -- 'A git worktree, usually left behind by an agent session. Removing it moves its working directory to Trash and locks its registration against pruning; the main repo must remain. Removal verifies origin recovery and refuses dirty or ignored files; the worktree moves to Trash with its Git metadata retained.' ;;
     orphan)
       print c
-      print -r -- 'A worktree directory that no repo knows about any more (the repo was probably moved). Nothing can reach it, so deleting is only a question of whether you want its files.' ;;
+      print -r -- 'A worktree directory that no repo knows about any more (the repo was probably moved). Cleanup refuses automatic removal; review its files and Git metadata manually.' ;;
     cargo|cargo-all)
       print s
       print -r -- 'Cargo build output. The next cargo build recompiles everything, which for the larger crates takes minutes. Tools installed to ~/.local/bin are separate binaries and keep working; update rebuilds them when needed.' ;;
