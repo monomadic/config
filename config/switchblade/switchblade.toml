@@ -49,6 +49,7 @@ thumb_quality = 8
 atlas_memory_mb = 860
 video_max_width = 3840
 video_max_height = 2160
+max_videos = 9
 
 [pad]
 haptics = false

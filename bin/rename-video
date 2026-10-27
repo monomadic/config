@@ -48,7 +48,7 @@ emulate -L zsh
 # value is not rendered, and the dash appears only when there is a title to
 # separate the left-hand side from.
 #
-#   Alice, Bob (Studio) - Title #tag #tag ★★★☆☆ [1080p 30fps h264 22min 8mbps H].mp4
+#   Alice, Bob (Studio) - Title #tag #tag ★★★☆☆ [1080p 30fps h264 22min 8mbps H q4].mp4
 #   Studio - Title #tag ★★★☆☆ [...].mp4        (no actors)
 #   Alice, Bob (Studio) #tag ★★★☆☆ [...].mp4   (no title)
 #   Alice, Bob - Title #tag ★★★☆☆ [...].mp4    (channel "Alice": already an actor)
@@ -73,6 +73,7 @@ emulate -L zsh
 #   TITLE     XMP-dc:Title, else title
 #   TAGS      XMP-dc:Subject, else keywords
 #   RATING    XMP-xmp:Rating, else rating
+#   QUALITY   quality atom (tagform's Quality, 1-5)     -> `qN` in METADATA
 #   VARIANT   variant / type atom                         (Clip)
 #   TRACK     track atom                                (Clip)
 #   ORIENTATION  orientation atom                         (Adult, see below)
@@ -309,7 +310,7 @@ split_list() {
 
 # The resolved fields for the file being processed.
 CATEGORY="" TITLE="" CHANNEL="" LOCATION="" RATING="" VARIANT="" CLIP_NUMBER=""
-ORIENTATION=""
+ORIENTATION="" QUALITY=""
 SOURCE_URL=""
 typeset -ga ACTORS=() TAGS=()
 
@@ -363,6 +364,7 @@ resolve_fields() {
   local raw
 
   CATEGORY="" TITLE="" CHANNEL="" LOCATION="" RATING="" VARIANT="" CLIP_NUMBER=""
+  QUALITY=""
   ORIENTATION=""
   SOURCE_URL=""
   ACTORS=() TAGS=()
@@ -375,6 +377,11 @@ resolve_fields() {
   # The city names the clip; a venue stands in only when no city was written.
   LOCATION="$(first_present "$XMP_CITY" "$XMP_PLACE")"
   RATING="$(first_present "$XMP_RATING" "$(first_atom rating)")"
+  # tagform's Quality: how good the file is as a file, 1-5. Rendered in the
+  # metadata block as `qN`, beside the facts it judges; nothing else reads it,
+  # and 0 or unset renders nothing, like an unrated file's stars.
+  QUALITY="$(first_atom quality)"
+  [[ "$QUALITY" == [1-5] ]] || QUALITY=""
 
   raw="$(first_present "$XMP_ACTORS" "$(first_atom actors cast artist)")"
   [[ -n "$raw" ]] && ACTORS=("${(@f)$(split_list "$raw")}")
@@ -388,7 +395,7 @@ resolve_fields() {
   ORIENTATION="$(first_atom orientation)"
   SOURCE_URL="$(resolve_source_url)"
 
-  log_verbose "resolved: category='${CATEGORY}' title='${TITLE}' channel='${CHANNEL}' location='${LOCATION}' rating='${RATING}' variant='${VARIANT}' clip='${CLIP_NUMBER}' orientation='${ORIENTATION}' url='${SOURCE_URL}' actors=(${(j:, :)ACTORS}) tags=(${(j:, :)TAGS})"
+  log_verbose "resolved: category='${CATEGORY}' title='${TITLE}' channel='${CHANNEL}' location='${LOCATION}' rating='${RATING}' quality='${QUALITY}' variant='${VARIANT}' clip='${CLIP_NUMBER}' orientation='${ORIENTATION}' url='${SOURCE_URL}' actors=(${(j:, :)ACTORS}) tags=(${(j:, :)TAGS})"
 }
 
 # A rating may be stored as a number (tagform, XMP-xmp:Rating) or already as
@@ -652,6 +659,9 @@ metadata_block() {
   fi
 
   block+=("$P_ORIENT")
+  # Last, after the probed facts: the one judged value in the block, and the
+  # only one not read off the file. tagform's filename import reads it back.
+  [[ -n "$QUALITY" ]] && block+=("q${QUALITY}")
 
   print -r -- "[${(j: :)block}]"
 }
