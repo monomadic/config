@@ -26,11 +26,21 @@
 #   o   open in mpv — stream the growing .part file (keep downloading)
 #   d   delete — stop yt-dlp, remove its partial/temp files AND the line in the
 #       download archive, then exit (asks first)
+#   a   queue the URL on the clipboard (shown only when there is one to add)
 #   q   cancel — stop yt-dlp, keep the partials (--continue picks them up), exit
+#       (and drop the queue; its URLs are printed so nothing is lost)
 #
 # When the download finishes, a final prompt offers `r` (reveal in Finder via
 # `open --reveal`), `o` (open with the default app) and `d` (delete the file and
 # its archive line); any other key exits.
+#
+# Queue: while ytui runs it watches the clipboard (pbpaste, every ~1.5s). An
+# http(s) URL there that this session hasn't loaded or queued yet is offered as
+# `a`, both in the TUI and on the final prompt. When a run ends (finished,
+# failed or deleted with `d`) and the queue isn't empty, ytui re-runs itself on
+# the next URL with the SAME yt-dlp args — the final prompt counts down 10s
+# first (any key: go now, `q`: stop the queue). The queue lives in a temp dir
+# passed down the chain as $YTUI_QUEUE_DIR and is gone when the chain ends.
 #
 # Layout: with a window of at least 72×26 the full view is drawn; anything
 # smaller gets the compact view — a small thumbnail, the title, the bar and the
@@ -55,9 +65,10 @@
 # ============================================================================
 emulate -L zsh
 setopt pipefail extended_glob
-zmodload zsh/zselect
+zmodload zsh/zselect zsh/datetime
 
 SELF="${0:t}"
+SELF_PATH="${0:A}"                        # for re-running on the next queued URL
 
 # ── colors ──────────────────────────────────────────────────────────────────
 # C_BORDER/C_DESC use an explicit 256-color gray, NOT \e[90m ("bright black") —
@@ -83,7 +94,8 @@ Usage: $SELF [yt-dlp args...] <url>
 Download <url> with yt-dlp behind an interactive TUI. Everything before the URL
 is forwarded to yt-dlp, so config aliases work: e.g. \`$SELF --porn <url>\`.
 
-Keys:  p pause/resume · o open in mpv · d delete (partials + archive line) · q cancel
+Keys:  p pause/resume · o open in mpv · d delete (partials + archive line)
+       a queue the clipboard URL (runs next, same yt-dlp args) · q cancel
 EOF
 }
 
@@ -218,6 +230,100 @@ passthru=( "${(@)argv[1,-2]}" )   # (@) keeps them separate words, not one joine
 
 have yt-dlp || die "yt-dlp not found"
 
+# ── queue: more URLs to run after this one ───────────────────────────────────
+# One temp dir per chain of runs, handed to the next run through the
+# environment: `pending` is the queue (one URL per line, next first), `seen` is
+# every URL this chain has loaded, so a clipboard URL is offered only once.
+typeset -g queue_dir="" queue_file="" seen_file=""
+typeset -ga queue=()
+typeset -gA queue_seen=()
+typeset -g clip_url=""                    # clipboard URL on offer, "" when none
+typeset -gF clip_checked=0
+typeset -gi have_pbpaste=0
+
+queue_init() {
+  if [[ -n "${YTUI_QUEUE_DIR:-}" && -d "$YTUI_QUEUE_DIR" ]]; then
+    queue_dir="$YTUI_QUEUE_DIR"
+  else
+    queue_dir="$(mktemp -d -t ytui-queue)" || { queue_dir=""; return 0; }
+  fi
+  export YTUI_QUEUE_DIR="$queue_dir"
+  queue_file="$queue_dir/pending"; seen_file="$queue_dir/seen"
+  touch -- "$queue_file" "$seen_file"
+  print -r -- "$url" >> "$seen_file"
+  local l
+  while IFS= read -r l; do [[ -n "$l" ]] && queue_seen[$l]=1; done < "$seen_file"
+  queue=( ${(f)"$(<$queue_file)"} )
+  have pbpaste && have_pbpaste=1
+}
+
+queue_has() {
+  local u="$1"
+  [[ "$u" == "$url" || -n "${queue_seen[$u]:-}" ]] || (( ${queue[(Ie)$u]} ))
+}
+
+queue_add() {
+  local u="$1"
+  [[ -n "$queue_file" && -n "$u" ]] || return 1
+  queue_has "$u" && return 1
+  print -r -- "$u" >> "$queue_file" || return 1
+  queue+=("$u")
+  clip_url=""
+  msg="queued — ${#queue} pending"
+}
+
+# Take the next URL off the queue into REPLY.
+queue_pop() {
+  (( ${#queue} )) || return 1
+  REPLY="${queue[1]}"
+  shift queue
+  if (( ${#queue} )); then print -rl -- "${queue[@]}" > "$queue_file"
+  else : > "$queue_file"
+  fi
+}
+
+# Is there an http(s) URL on the clipboard we haven't loaded or queued? Sets
+# clip_url. Rate-limited: the main loop can spin many times a second.
+check_clipboard() {
+  (( have_pbpaste )) && [[ -n "$queue_file" ]] || return 0
+  (( EPOCHREALTIME - clip_checked < 1.5 )) && return 0
+  clip_checked=$EPOCHREALTIME
+  local c; c="$(pbpaste 2>/dev/null)"
+  (( ${#c} > 4096 )) && { clip_url=""; return 0; }
+  c="$(trim "$c")"
+  if [[ "$c" == http(s|)://[^[:space:]]## ]] && ! queue_has "$c"; then clip_url="$c"
+  else clip_url=""
+  fi
+}
+
+# End of this run: hand over to the next queued URL (never returns), or do
+# nothing when the queue is empty.
+run_next() {
+  queue_pop || return 0
+  local next="$REPLY"
+  print -r -- ""
+  local more=""; (( ${#queue} )) && more=" ${C_DIM}(${#queue} more after this)${C_RESET}"
+  print -r -- "${C_ACCENT}▶${C_RESET} ${C_BOLD}next in queue${C_RESET}${more}  ${next}"
+  trap - EXIT
+  release_run
+  exec "$SELF_PATH" "${passthru[@]}" "$next"
+}
+finish() { run_next; exit ${1:-0}; }
+
+# The chain is ending for good: say what was left in the queue, remove the dir.
+queue_teardown() {
+  [[ -n "$queue_dir" && -d "$queue_dir" ]] || return 0
+  if (( ${#queue} )); then
+    print -ru2 -- "${SELF}: queue stopped — ${#queue} URL(s) not downloaded:"
+    print -rlu2 -- "${(@)queue/#/  }"
+  fi
+  rm -f -- "$queue_file" "$seen_file"
+  rmdir -- "$queue_dir" 2>/dev/null
+  return 0
+}
+
+queue_init
+
 # ── metadata + download state (globals) ──────────────────────────────────────
 # What the page gave us and yt-dlp will embed (see --parse-metadata in the config)
 typeset -g title="" channel="" description="" upload_date="" duration_str=""
@@ -319,7 +425,7 @@ preflight() {
   if (( rc != 0 )) || [[ -z "${lines[1]:-}" ]]; then
     print -ru2 -- "${SELF}: could not resolve the video (yt-dlp exited $rc):"
     sed 's/^/  /' "$errf" >&2
-    rm -f "$errf"; exit 1
+    rm -f "$errf"; finish 1
   fi
   rm -f "$errf"
 
@@ -523,14 +629,20 @@ clear_thumb() {
   thumb_drawn=0; thumb_geom=""
 }
 
-cleanup() {
-  local ec=$?
+# Everything this one run holds; also called before handing over to the next.
+release_run() {
   # Resume first (a stopped process can't be signalled to die), then stop it.
   [[ -n "$ytdlp_pid" ]] && kill -CONT "$ytdlp_pid" 2>/dev/null
   [[ -n "$ytdlp_pid" ]] && kill "$ytdlp_pid" 2>/dev/null
   [[ -n "$thumb_pid" ]] && kill "$thumb_pid" 2>/dev/null
   leave_tui
   [[ -n "$fifo" && -e "$fifo" ]] && rm -f "$fifo"
+  return 0
+}
+cleanup() {
+  local ec=$?
+  release_run
+  queue_teardown
   return $ec
 }
 trap cleanup EXIT
@@ -622,6 +734,9 @@ render() {
   (( paused )) && { statecol="$C_WARN"; statetxt="paused"; }
   [[ "$dstatus" == finished ]] && statecol="$C_OK"
   local pausekey="pause"; (( paused )) && pausekey="resume"
+  local qkey="" qtail=""
+  [[ -n "$clip_url" ]] && qkey="${C_KEY}a${C_DESC} queue  "
+  (( ${#queue} )) && qtail="  ${C_DIM}· ${#queue} queued${C_RESET}"
 
   local name
   if (( gallery )); then name="${gal_name:-…}"; else name="${final_path:t}"; fi
@@ -642,9 +757,10 @@ render() {
     put $((r++)) $R "$(draw_bar $bw $pct) ${C_BOLD}${pct}%${C_RESET}"
     put $((r++)) $R "$(clip "${dl_str} / ${tot_str}  ${spd_str}  ETA ${eta_str}" $(( rw - 12 )))  ${statecol}${statetxt}${C_RESET}"
     if [[ -n "$msg" ]]; then put $((r++)) $R "${C_ACCENT}$(clip "$msg" $rw)${C_RESET}"
+    elif [[ -n "$clip_url" ]]; then put $((r++)) $R "${C_DESC}clipboard ${C_RESET}$(clip "$clip_url" $(( rw - 10 )))"
     else                     put $((r++)) $R "${C_DIM}$(clip "${phase_msg:-$name}" $rw)${C_RESET}"
     fi
-    put $((r++)) $R "${C_KEY}p${C_DESC} ${pausekey}  ${C_KEY}o${C_DESC} open  ${C_KEY}d${C_DESC} delete  ${C_KEY}q${C_DESC} cancel${C_RESET}"
+    put $((r++)) $R "${C_KEY}p${C_DESC} ${pausekey}  ${C_KEY}o${C_DESC} open  ${C_KEY}d${C_DESC} delete  ${qkey}${C_KEY}q${C_DESC} cancel${C_RESET}${qtail}"
     rbuf+=$'\e[J'
     printf '%s' "$rbuf" >&$tfd
     return
@@ -677,7 +793,9 @@ render() {
   local -i L=3 lw
   (( r <= tr + 1 )) && (( r = tr + 2 ))
   (( lw = TERM_COLS - L ))
-  local -i keys_row=$(( TERM_ROWS )) room
+  local -i keys_row=$(( TERM_ROWS )) room qlines=0
+  [[ -n "$clip_url" ]] && (( qlines++ ))
+  (( ${#queue} )) && (( qlines++ ))
 
   local curr_akey curr_inarch
   if (( gallery )); then curr_akey="$gal_archive_key"; curr_inarch=$gal_in_archive
@@ -708,7 +826,7 @@ render() {
   field $r $L $lw "tags"     "$tags_str"         "$C_DIM"  && (( r++ ))
   field $r $L $lw "category" "${category}${variant:+ · $variant}" "" && (( r++ ))
   if [[ -n "$description" ]]; then
-    (( room = keys_row - 2 - r )); (( room > 3 )) && room=3
+    (( room = keys_row - 2 - qlines - r )); (( room > 3 )) && room=3
     if (( room >= 1 )); then
       local -a dl; dl=( "${(@f)$(wrap_text "$description" $(( lw - LBL_W )) $room)}" )
       local -i i
@@ -721,8 +839,19 @@ render() {
   fi
   put $((r++)) $L ""
 
+  # queue / clipboard: pinned just above the keys
+  if (( qlines )); then
+    (( r < keys_row - qlines )) && (( r = keys_row - qlines ))
+    if (( ${#queue} )); then
+      field $r $L $lw "queue" "${#queue} pending · next ${queue[1]}" "$C_DIM" && (( r++ ))
+    fi
+    if [[ -n "$clip_url" ]]; then
+      field $r $L $lw "clipboard" "$clip_url" "$C_ACCENT" && (( r++ ))
+    fi
+  fi
+
   (( r > keys_row )) && r=$keys_row
-  put $r $L "${C_KEY}p${C_DESC} ${pausekey}   ${C_KEY}o${C_DESC} open   ${C_KEY}d${C_DESC} delete   ${C_KEY}q${C_DESC} cancel${C_RESET}"
+  put $r $L "${C_KEY}p${C_DESC} ${pausekey}   ${C_KEY}o${C_DESC} open   ${C_KEY}d${C_DESC} delete   ${qkey:+${qkey} }${C_KEY}q${C_DESC} cancel${C_RESET}${qtail}"
   rbuf+=$'\e[J'                        # clear anything below the block
   printf '%s' "$rbuf" >&$tfd
 }
@@ -956,7 +1085,7 @@ delete_download() {
   fi
   print -r -- "${SELF}: deleted — ${n} file(s) removed"
   ytdlp_pid=""                       # already reaped; cleanup() must not kill it again
-  exit 130
+  finish 130                         # this one is gone; carry on with the queue
 }
 
 # ── subtitles: fold .vtt sidecars into the .mp4 ──────────────────────────────
@@ -1070,11 +1199,13 @@ while true; do
       p|P) toggle_pause ;;
       o|O) open_mpv ;;
       d|D) delete_download ;;
+      a|A) [[ -n "$clip_url" ]] && queue_add "$clip_url" ;;
       q|Q) leave_tui; print -r -- "${SELF}: cancelled — partial files kept, rerun to resume"; exit 130 ;;
     esac
   done
 
   check_space_live
+  check_clipboard
   render
   kill -0 "$ytdlp_pid" 2>/dev/null || break
 done
@@ -1082,14 +1213,88 @@ done
 # ── drain any trailing output, then reap ─────────────────────────────────────
 while read -r -u $pfd -t 0.1 line 2>/dev/null; do handle_line "$line"; done
 wait "$ytdlp_pid"; typeset -gi rc=$?
+ytdlp_pid=""                          # reaped; release_run must not signal the pid again
 [[ -n "$thumb_pid" ]] && wait "$thumb_pid" 2>/dev/null
+
+# ── final prompt: reveal / open / delete, and the queue ──────────────────────
+# One keypress at a time, read straight from the tty (stdin may be a pipe). With
+# a file: `r` reveals in Finder, `o` opens with the default app, `d` deletes the
+# file and its archive line. `a` queues the clipboard URL — checked again every
+# second, so copying one while this is up works too. With a queue, the line
+# counts down 10s to the next URL and `q` stops the queue; without one, any
+# other key is done. Returns 1 when the queue was stopped.
+# Without a file, the prompt is only shown when there is a queue or a URL to add.
+final_prompt() {
+  local file="$1" key="" p plain urlpart
+  [[ -r /dev/tty ]] || return 0
+  [[ -n "$file" && ! -e "$file" ]] && file=""
+  clip_checked=0; check_clipboard
+  [[ -z "$file" && -z "$clip_url" ]] && (( ! ${#queue} )) && return 0
+  local -i left=10 shown=0 cols=80 room
+  local sz; sz="$(stty size </dev/tty 2>/dev/null)"
+  [[ "$sz" == <->" "<-> ]] && cols=${sz##* }
+  (( cols < 24 )) && cols=${COLUMNS:-80}     # a pty that reports 0 columns
+  (( cols < 24 )) && cols=80
+  while true; do
+    if (( ! shown )) && (( ${#queue} )); then
+      print -r -- "  ${C_DESC}queue:${C_RESET} ${#queue} pending — next ${queue[1]}"
+    fi
+    shown=1
+    p="  "
+    [[ -n "$file" ]] && p+="${C_KEY}r${C_DESC} reveal  ${C_KEY}o${C_DESC} open  ${C_KEY}d${C_DESC} delete  "
+    [[ -n "$clip_url" ]] && p+="${C_KEY}a${C_DESC} queue @URL@  "
+    if (( ${#queue} )); then p+="${C_KEY}q${C_DESC} stop queue  ${C_DIM}any key: next in ${left}s${C_RESET} "
+    else                     p+="${C_DIM}any other key: done${C_RESET} "
+    fi
+    # fit the clipboard URL into what's left of the line, so the in-place
+    # redraw below never wraps
+    plain="$(strip_ansi "$p")"
+    (( room = cols - ${#plain} + 5 - 1 ))
+    if (( room >= 12 )); then urlpart="${C_ACCENT}$(clip "$clip_url" $room)${C_DESC}"; else urlpart=""; fi
+    p="${p/@URL@/$urlpart}"
+    print -rn -- $'\r\e[K'"$p"
+
+    key=""
+    if ! read -k 1 -s -t 1 key </dev/tty 2>/dev/null; then
+      check_clipboard
+      if (( ${#queue} )) && (( --left <= 0 )); then print -r -- ""; return 0; fi
+      continue
+    fi
+    print -r -- ""
+    case "$key" in
+      a|A)
+        if [[ -n "$clip_url" ]]; then
+          print -r -- "  ${C_OK}queued${C_RESET} ${clip_url}"
+          queue_add "$clip_url"
+          left=10; shown=0
+          continue
+        fi ;;
+      r|R) [[ -n "$file" ]] && open --reveal -- "$file" ;;
+      o|O) [[ -n "$file" ]] && open -- "$file" ;;
+      d|D)
+        if [[ -n "$file" ]]; then
+          if read -q "key?  delete ${file:t} and its archive line? [y/N] " </dev/tty; then
+            print -r -- ""
+            rm -f -- "$file" && print -r -- "  ${C_ERR}deleted${C_RESET} ${file:t}"
+            unrecord_archive_key "$archive_key" && [[ -n "$archive_key" ]] \
+              && print -r -- "  ${C_ERR}removed from archive${C_RESET} ${archive_key}"
+          else
+            print -r -- ""
+          fi
+        fi ;;
+      q|Q) (( ${#queue} )) && return 1 ;;
+    esac
+    return 0
+  done
+}
 
 # ── report ───────────────────────────────────────────────────────────────────
 if (( rc != 0 )); then
   render_error "$rc"                 # show the failure IN the window, wait for a key
   leave_tui
   print -ru2 -- "${SELF}: yt-dlp failed (exit $rc)"   # one line for scrollback/logs
-  exit $rc
+  final_prompt "" || exit $rc
+  finish $rc
 fi
 
 leave_tui
@@ -1103,14 +1308,16 @@ if (( gallery )); then
   else
     print -r -- "${C_WARN}${SELF}: gallery finished, but no items were downloaded${C_RESET}"
   fi
-  exit 0
+  final_prompt "" || exit 0
+  finish 0
 fi
 
 src="${final_real:-$final_path}"
 if [[ ! -e "$src" ]]; then
   print -r -- "${C_WARN}${SELF}: finished, but couldn't locate the output file${C_RESET}"
   print -r -- "  expected: ${src}"
-  exit 0
+  final_prompt "" || exit 0
+  finish 0
 fi
 
 print -r -- "${C_OK}✓${C_RESET} downloaded  ${C_FILE}${src:t}${C_RESET}"
@@ -1121,28 +1328,5 @@ print -r -- "${C_OK}✓${C_RESET} downloaded  ${C_FILE}${src:t}${C_RESET}"
 
 embed_subs "$src"
 
-# ── final prompt: reveal / open / delete the finished file ───────────────────
-# One keypress, read straight from the tty (stdin may be a pipe). `r` reveals in
-# Finder, `o` opens with the default app, `d` deletes the file and its archive
-# line; anything else just exits.
-if [[ -e "$src" && -r /dev/tty ]]; then
-  print -rn -- "  ${C_KEY}r${C_DESC} reveal   ${C_KEY}o${C_DESC} open   ${C_KEY}d${C_DESC} delete   ${C_DIM}any other key: done${C_RESET} "
-  if read -k 1 -s key </dev/tty 2>/dev/null; then
-    print -r -- ""
-    case "$key" in
-      r|R) open --reveal -- "$src" ;;
-      o|O) open -- "$src" ;;
-      d|D)
-        if read -q "key?  delete ${src:t} and its archive line? [y/N] " </dev/tty; then
-          print -r -- ""
-          rm -f -- "$src" && print -r -- "  ${C_ERR}deleted${C_RESET} ${src:t}"
-          unrecord_archive_key "$archive_key" && [[ -n "$archive_key" ]] \
-            && print -r -- "  ${C_ERR}removed from archive${C_RESET} ${archive_key}"
-        else
-          print -r -- ""
-        fi ;;
-    esac
-  else
-    print -r -- ""
-  fi
-fi
+final_prompt "$src" || exit 0
+finish 0
