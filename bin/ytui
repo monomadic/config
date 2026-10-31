@@ -226,6 +226,8 @@ typeset -a argv passthru
 argv=( "$@" )
 url="${argv[-1]}"
 passthru=( "${(@)argv[1,-2]}" )   # (@) keeps them separate words, not one joined arg
+# The args as you'd type them, for display: every queued URL runs with these too.
+args_str="${(j: :)${(@q-)passthru}}"
 [[ -n "$url" && "$url" != -* ]] || die "last argument must be a URL (got: ${url:-<none>})"
 
 have yt-dlp || die "yt-dlp not found"
@@ -303,7 +305,8 @@ run_next() {
   local next="$REPLY"
   print -r -- ""
   local more=""; (( ${#queue} )) && more=" ${C_DIM}(${#queue} more after this)${C_RESET}"
-  print -r -- "${C_ACCENT}▶${C_RESET} ${C_BOLD}next in queue${C_RESET}${more}  ${next}"
+  print -r -- "${C_ACCENT}▶${C_RESET} ${C_BOLD}next in queue${C_RESET}${more}"
+  print -r -- "  ${C_DIM}\$${C_RESET} ${SELF}${args_str:+ ${C_BOLD}${args_str}${C_RESET}} ${next}"
   trap - EXIT
   release_run
   exec "$SELF_PATH" "${passthru[@]}" "$next"
@@ -736,7 +739,7 @@ render() {
   local pausekey="pause"; (( paused )) && pausekey="resume"
   local qkey="" qtail=""
   [[ -n "$clip_url" ]] && qkey="${C_KEY}a${C_DESC} queue  "
-  (( ${#queue} )) && qtail="  ${C_DIM}· ${#queue} queued${C_RESET}"
+  (( ${#queue} )) && qtail="  ${C_DIM}· ${#queue} queued${args_str:+ with $args_str}${C_RESET}"
 
   local name
   if (( gallery )); then name="${gal_name:-…}"; else name="${final_path:t}"; fi
@@ -771,7 +774,13 @@ render() {
   (( W = rw - 6 )); (( W > 56 )) && W=56; (( W < 8 )) && W=8
   local rule; rule="$(hrule $(( W + 2 )))"
 
-  put $((r++)) $R "${C_BOLD}${SELF}${C_RESET} ${C_DIM}$(clip "$url" $(( rw - ${#SELF} - 1 )))${C_RESET}"
+  if [[ -n "$args_str" ]]; then
+    local -i aw=$(( rw - ${#SELF} - 2 )); (( aw > 40 )) && aw=40
+    local a; a="$(clip "$args_str" $aw)"
+    put $((r++)) $R "${C_BOLD}${SELF}${C_RESET} ${C_ACCENT}${a}${C_RESET} ${C_DIM}$(clip "$url" $(( rw - ${#SELF} - ${#a} - 2 )))${C_RESET}"
+  else
+    put $((r++)) $R "${C_BOLD}${SELF}${C_RESET} ${C_DIM}$(clip "$url" $(( rw - ${#SELF} - 1 )))${C_RESET}"
+  fi
   if (( gallery )); then
     local total_txt="${gal_total:-0}"; (( gal_total > 0 )) || total_txt="?"
     local -i overall=0
@@ -843,7 +852,7 @@ render() {
   if (( qlines )); then
     (( r < keys_row - qlines )) && (( r = keys_row - qlines ))
     if (( ${#queue} )); then
-      field $r $L $lw "queue" "${#queue} pending · next ${queue[1]}" "$C_DIM" && (( r++ ))
+      field $r $L $lw "queue" "${#queue} pending${args_str:+ · with $args_str} · next ${queue[1]}" "$C_DIM" && (( r++ ))
     fi
     if [[ -n "$clip_url" ]]; then
       field $r $L $lw "clipboard" "$clip_url" "$C_ACCENT" && (( r++ ))
@@ -1237,7 +1246,7 @@ final_prompt() {
   (( cols < 24 )) && cols=80
   while true; do
     if (( ! shown )) && (( ${#queue} )); then
-      print -r -- "  ${C_DESC}queue:${C_RESET} ${#queue} pending — next ${queue[1]}"
+      print -r -- "  ${C_DESC}queue:${C_RESET} ${#queue} pending${args_str:+ — with ${C_BOLD}${args_str}${C_RESET}} — next ${queue[1]}"
     fi
     shown=1
     p="  "
