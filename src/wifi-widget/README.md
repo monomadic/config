@@ -65,9 +65,13 @@ reads passwords, or runs speed tests in this milestone.
 
 ## Live measurements
 
-- CoreWLAN events flag a main-thread read within 250 ms. Polling runs every second
-  with the menu open, every five seconds closed, and every second for 30 seconds
-  after association changes or wake. The timer uses common run-loop modes.
+- CoreWLAN events flag a main-thread read on the next tick: 250 ms with the menu
+  open, 1 s closed. Link-quality events only force a read while the menu is open.
+  Polling runs every second with the menu open, every five seconds closed, and
+  every second for 30 seconds after association changes or wake. The timer uses
+  common run-loop modes. With the menu closed only the bar and its tooltip update;
+  nearby rows, the card and its IP/router lookup refresh while the menu is open.
+- The menu lists at most six nearby networks, strongest first.
 - Snapshots keep signal fresh below 10 seconds, stale at 10–20 seconds, unknown
   after 20 seconds. A zero RSSI never refreshes an older measurement.
 - SNR uses measured noise. Without noise the meter uses separate RSSI tiers and

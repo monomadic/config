@@ -33,7 +33,22 @@ use wifi_widget::{
     wifi,
 };
 
+/// Nearby networks shown in the menu, strongest first.
+const MAX_NETWORKS: usize = 6;
+/// Tick fast only while the menu is open; closed, the bar needs at most 1 Hz.
+const TICK_OPEN: f64 = 0.25;
+const TICK_CLOSED: f64 = 1.0;
+type RowKey = (
+    String,
+    Option<(wifi::Band, i32)>,
+    Option<&'static str>,
+    bool,
+    bool,
+);
 struct Ui {
+    timer: Option<Retained<NSTimer>>,
+    rows: Vec<Option<RowKey>>,
+    tooltip: String,
     status: Retained<NSStatusItem>,
     card: Retained<crate::card::Card>,
     card_item: Retained<NSMenuItem>,
@@ -90,11 +105,13 @@ define_class!(
         #[unsafe(method(menuWillOpen:))]
         fn menu_open(&self, _menu: &NSMenu) {
             if let Some(ui) = self.ivars().borrow_mut().as_mut() { ui.open = true; ui.next_poll = Instant::now(); ui.saved_names = wifi::known_networks(); ui.scan.start_if_stale(); ui.login_enabled = ui.bundled && login::enabled(); }
+            self.set_timer(TICK_OPEN);
             self.refresh();
         }
         #[unsafe(method(menuDidClose:))]
         fn menu_close(&self, _menu: &NSMenu) {
             if let Some(ui) = self.ivars().borrow_mut().as_mut() { ui.open = false; }
+            self.set_timer(TICK_CLOSED);
         }
     }
     impl Widget {
@@ -205,7 +222,7 @@ impl Widget {
         heading.setView(Some(&section));
         heading.setEnabled(true);
         let mut known = Vec::new();
-        for _ in 0..8 {
+        for _ in 0..MAX_NETWORKS {
             let row = crate::row::KnownRow::new(mtm);
             let item = this.item(&menu, "Nearby network", Some(sel!(settingsAction:)));
             item.setView(Some(&row));
@@ -255,6 +272,9 @@ impl Widget {
             .ends_with(".app");
         let now = Instant::now();
         *this.ivars().borrow_mut() = Some(Ui {
+            timer: None,
+            rows: vec![None; MAX_NETWORKS],
+            tooltip: String::new(),
             status,
             card,
             card_item,
@@ -300,6 +320,28 @@ impl Widget {
         }
         this
     }
+    fn set_timer(&self, interval: f64) {
+        let timer = unsafe {
+            NSTimer::timerWithTimeInterval_target_selector_userInfo_repeats(
+                interval,
+                self,
+                sel!(tick:),
+                None,
+                true,
+            )
+        };
+        // Let macOS coalesce wakeups with other timers.
+        timer.setTolerance(interval * 0.2);
+        unsafe { NSRunLoop::mainRunLoop().addTimer_forMode(&timer, NSRunLoopCommonModes) };
+        let old = self
+            .ivars()
+            .borrow_mut()
+            .as_mut()
+            .and_then(|ui| ui.timer.replace(timer));
+        if let Some(old) = old {
+            old.invalidate();
+        }
+    }
     fn item(&self, menu: &NSMenu, title: &str, selector: Option<Sel>) -> Retained<NSMenuItem> {
         let item = NSMenuItem::new(self.mtm());
         item.setTitle(&NSString::from_str(title));
@@ -316,7 +358,7 @@ impl Widget {
     fn refresh(&self) {
         crate::join::tick(self.mtm());
         let now = Instant::now();
-        let (read, invalidate) = events::take();
+        let (read, invalidate, quality) = events::take();
         let mut state = self.ivars().borrow_mut();
         let Some(ui) = state.as_mut() else {
             return;
@@ -327,7 +369,7 @@ impl Widget {
             ui.rapid_until = now + Duration::from_secs(30);
             ui.probes.schedule(now, Duration::from_secs(2));
         }
-        if read || now >= ui.next_poll {
+        if read || (quality && ui.open) || now >= ui.next_poll {
             let generation = ui.store.generation();
             ui.store.update_link(wifi::read(), now);
             if generation != ui.store.generation() {
@@ -420,38 +462,57 @@ impl Widget {
             }
             ui.last_chip = chip_key;
         }
+        ui.scan.tick();
+        let lines = summary(&snapshot, now);
+        let label = format!("{}; {}; {}", lines[0], lines[1], lines[3]);
+        if label != ui.tooltip
+            && let Some(button) = ui.status.button(self.mtm())
+        {
+            let text = NSString::from_str(&label);
+            button.setToolTip(Some(&text));
+            button.setAccessibilityLabel(Some(&text));
+            ui.tooltip = label;
+        }
+        // Everything below only feeds the open menu; menuWillOpen refreshes
+        // before it is drawn. Skipping it keeps scutil and view redraws idle.
+        if !ui.open {
+            return;
+        }
         let connected = snapshot
             .reading
             .as_ref()
             .and_then(|r| r.value.ssid.as_deref());
-        ui.scan.tick();
-        let names: Vec<_> = ui
+        let mut names: Vec<_> = ui
             .scan
             .visible_names()
             .into_iter()
             .filter(|name| Some(name.as_str()) != connected)
             .collect();
-        if let Some(menu) = unsafe { ui.known_empty.menu() } {
-            while ui.known.len() < names.len() {
-                let row = crate::row::KnownRow::new(self.mtm());
-                let item = NSMenuItem::new(self.mtm());
-                item.setView(Some(&row));
-                item.setEnabled(true);
-                menu.insertItem_atIndex(&item, menu.indexOfItem(&ui.known_empty));
-                ui.known.push((item, row));
-            }
-        }
+        names.truncate(MAX_NETWORKS);
         // While a scan is running the section spinner already says so; the
         // placeholder only speaks for a finished, empty scan.
         for (index, (item, row)) in ui.known.iter().enumerate() {
             item.setHidden(index >= names.len());
-            if let Some(name) = names.get(index) {
-                row.set_name(name);
-                row.set_reading(ui.scan.reading(name));
-                row.set_security(ui.scan.security(name));
-                row.set_cached(ui.scan.is_cached());
-                row.set_saved(ui.saved_names.contains(name));
+            let key = names.get(index).map(|name| {
+                (
+                    name.clone(),
+                    ui.scan.reading(name),
+                    ui.scan.security(name),
+                    ui.scan.is_cached(),
+                    ui.saved_names.contains(name),
+                )
+            });
+            if key == ui.rows[index] {
+                continue;
             }
+            if let Some((name, reading, security, cached, saved)) = &key {
+                row.set_name(name);
+                row.set_reading(*reading);
+                row.set_security(*security);
+                row.set_cached(*cached);
+                row.set_saved(*saved);
+            }
+            ui.rows[index] = key;
         }
         ui.known_empty.setHidden(!names.is_empty() || ui.scan.busy());
         let mut content = crate::card::Content::from_snapshot(&snapshot, now);
@@ -466,16 +527,10 @@ impl Widget {
                 ),
             );
         }
-        let lines = summary(&snapshot, now);
         if ui.card.update(content, now)
             && let Some(menu) = ui.status.menu(self.mtm())
         {
             menu.itemChanged(&ui.card_item);
-        }
-        if let Some(button) = ui.status.button(self.mtm()) {
-            let label = NSString::from_str(&format!("{}; {}; {}", lines[0], lines[1], lines[3]));
-            button.setToolTip(Some(&label));
-            button.setAccessibilityLabel(Some(&label));
         }
         let auth = unsafe { ui.location.authorizationStatus() };
         ui.location_item.setHidden(matches!(
@@ -682,16 +737,6 @@ pub fn run(diagnostics: bool) {
     let widget = Widget::new(mtm, diagnostics);
     app.setDelegate(Some(ProtocolObject::from_ref(&*widget)));
     widget.refresh();
-    unsafe {
-        let timer = NSTimer::timerWithTimeInterval_target_selector_userInfo_repeats(
-            0.25,
-            &widget,
-            sel!(tick:),
-            None,
-            true,
-        );
-        NSRunLoop::mainRunLoop().addTimer_forMode(&timer, NSRunLoopCommonModes);
-        app.run();
-        timer.invalidate();
-    }
+    widget.set_timer(TICK_CLOSED);
+    app.run();
 }

@@ -1,18 +1,23 @@
 //! CoreWLAN calls these on arbitrary threads. Only atomic flags cross into the
-//! UI; the main run loop consumes them within 250 ms, including menu tracking.
+//! UI; the main run loop consumes them on its next tick (250 ms with the menu
+//! open, 1 s closed), including menu tracking.
 use objc2::{AnyThread, define_class, msg_send, rc::Retained};
 use objc2_core_wlan::{CWEventDelegate, CWEventType, CWWiFiClient};
 use objc2_foundation::{NSObject, NSObjectProtocol, NSString};
 use std::sync::atomic::{AtomicU8, Ordering};
 const READ: u8 = 1;
 const INVALIDATE: u8 = 2;
+/// Link-quality updates are frequent; they force a read only while the menu
+/// is open. Closed, the regular poll picks the new signal up.
+const QUALITY: u8 = 4;
 static PENDING: AtomicU8 = AtomicU8::new(0);
 pub fn changed() {
     PENDING.fetch_or(READ | INVALIDATE, Ordering::Release);
 }
-pub fn take() -> (bool, bool) {
+/// Returns (read, invalidate, quality).
+pub fn take() -> (bool, bool, bool) {
     let bits = PENDING.swap(0, Ordering::AcqRel);
-    (bits & READ != 0, bits & INVALIDATE != 0)
+    (bits & READ != 0, bits & INVALIDATE != 0, bits & QUALITY != 0)
 }
 define_class!(
     #[unsafe(super(NSObject))]
@@ -37,7 +42,7 @@ define_class!(
         }
         #[unsafe(method(linkQualityDidChangeForWiFiInterfaceWithName:rssi:transmitRate:))]
         unsafe fn quality(&self, _name: &NSString, _rssi: isize, _rate: f64) {
-            PENDING.fetch_or(READ, Ordering::Release);
+            PENDING.fetch_or(QUALITY, Ordering::Release);
         }
         #[unsafe(method(clientConnectionInterrupted))]
         unsafe fn interrupted(&self) {
