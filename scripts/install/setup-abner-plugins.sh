@@ -56,8 +56,12 @@ link_plugin() {
 
 checkout abner
 if [[ -L "$plugins" || -e "$plugins/.git" || -L "$plugins/.git" ]]; then
-  printf 'Move the old plugins checkout or link at %s aside and retry.\n' "$plugins" >&2
-  exit 1
+  backup=$(mktemp -d "$repo_home/abner-plugins-backup.XXXXXX")
+  mv -- "$plugins" "$backup/plugins"
+  printf 'Moved the old plugins checkout or link to %s.\n' "$backup/plugins"
+  # Recreate tracked defaults in the vacated path. checkout-index refuses overwrites.
+  git -C "$abner" ls-files -z -- plugins/defaults |
+    git -C "$abner" checkout-index -z --stdin
 fi
 if [[ ! -f "$plugins/defaults/rife-metal/Cargo.toml" ]]; then
   printf 'Update the Abner checkout at %s to a revision with built-in plugins and retry.\n' "$abner" >&2
