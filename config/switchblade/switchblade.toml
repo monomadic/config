@@ -28,18 +28,14 @@ min_s = 10.0
 [library]
 libraries = [
   { name = "Latest (Local)", exec = "fd-media --sort-created ~/Movies/Porn" },
-  { name = "External", path = "/Volumes/*/Movies/Porn" },
-  { name = "Tower", path = "/Volumes/Tower/Movies/Porn" },
   { name = "Visuals (External)", path = "/Volumes/*/Movies/Visuals" },
   { name = "Private (Local)", path = "~/Movies/Private" },
   { name = "fd", exec = "fd-media" },
   { name = "Private Sorted Safe", exec = "fd-media --sort-created --match-string Alice . ~/Movies/Private /Volumes/*/Movies/Private" },
-  "/Volumes/*/Movies/Porn",
   "~/Movies/Private",
-  "~/Movies/Porn",
-  "~/Movies/Porn/Downloads",
 ]
 ignore = [".*", "_*", "*_.*"]
+drive_path = "/Movies/Porn"
 
 [startup]
 thumb_width = 360

@@ -352,3 +352,6 @@ if [[ -o interactive && -r "$_fsh_dir/fast-syntax-highlighting.plugin.zsh" ]]; t
   FAST_HIGHLIGHT_STYLES[path-missing]='fg=red'
 fi
 unset _fsh_dir
+
+# trax: cue-fighter analyzers
+export TRAX_CUE_FIGHTER="/Users/nom/src/cue-fighter"

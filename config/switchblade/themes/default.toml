@@ -67,10 +67,11 @@ height = 96.0
 gap = 4.0
 
 [strip.focused]
-scale = 1.36
+scale = 1.1
 
 [strip.selected]
-scale = 1.36
+scale = 1.1
+border.width = 2
 
 [tags]
 fill = [
