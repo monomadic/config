@@ -356,7 +356,8 @@ impl Widget {
         item
     }
     fn refresh(&self) {
-        crate::join::tick(self.mtm());
+        let menu = self.ivars().borrow().as_ref().and_then(|ui| ui.status.menu(self.mtm()));
+        crate::join::tick(self.mtm(), menu.as_deref());
         let now = Instant::now();
         let (read, invalidate, quality) = events::take();
         let mut state = self.ivars().borrow_mut();
@@ -482,12 +483,19 @@ impl Widget {
             .reading
             .as_ref()
             .and_then(|r| r.value.ssid.as_deref());
+        // A join in progress keeps its row, pinned first, until its outcome
+        // has been shown, even once it is the connected network.
+        let joining = crate::join::progress();
         let mut names: Vec<_> = ui
             .scan
             .visible_names()
             .into_iter()
             .filter(|name| Some(name.as_str()) != connected)
+            .filter(|name| joining.as_ref().is_none_or(|j| &j.name != name))
             .collect();
+        if let Some(j) = &joining {
+            names.insert(0, j.name.clone());
+        }
         names.truncate(MAX_NETWORKS);
         // While a scan is running the section spinner already says so; the
         // placeholder only speaks for a finished, empty scan.
@@ -502,6 +510,15 @@ impl Widget {
                     ui.saved_names.contains(name),
                 )
             });
+            let progress = joining
+                .as_ref()
+                .filter(|j| names.get(index) == Some(&j.name))
+                .map(|j| (j.phase, j.detail.clone()));
+            if row.set_progress(progress)
+                && let Some(menu) = &menu
+            {
+                menu.itemChanged(item);
+            }
             if key == ui.rows[index] {
                 continue;
             }

@@ -17,7 +17,17 @@ pub struct RowIvars {
     detail: Retained<NSTextField>,
     security: Retained<NSTextField>,
     strength: Cell<Option<i32>>,
+    /// Everything on the network line; lifted when the status line shows.
+    content: Retained<NSView>,
+    spinner: Retained<NSProgressIndicator>,
+    status: Retained<NSTextField>,
+    symbol: Cell<&'static str>,
+    saved: Cell<bool>,
+    progress: RefCell<Option<(crate::join::Phase, String)>>,
 }
+/// Row height without and with the join status line beneath it.
+const LINE: f64 = 30.;
+const STATUS: f64 = 14.;
 define_class!(
     #[unsafe(super(NSView))]
     #[thread_kind=MainThreadOnly]
@@ -33,15 +43,16 @@ define_class!(
                 for i in 0..4 {
                     NSColor::secondaryLabelColor().colorWithAlphaComponent(if i < active {1.0} else {0.22}).set();
                     let h = 3.0 + i as f64 * 2.0;
-                    NSBezierPath::bezierPathWithRoundedRect_xRadius_yRadius(frame(278. + i as f64 * 5., 15., 3., h), 1., 1.).fill();
+                    let lift = self.ivars().content.frame().origin.y;
+                    NSBezierPath::bezierPathWithRoundedRect_xRadius_yRadius(frame(278. + i as f64 * 5., 15. + lift, 3., h), 1., 1.).fill();
                 }
             }
         }
 
         #[unsafe(method(openSettings:))]
         fn open_settings(&self,_sender:&NSButton) {
+            // The menu stays open: the row itself shows the join's progress.
             crate::join::start(self.ivars().name.borrow().clone(), None);
-            if let Some(item)=self.enclosingMenuItem() && let Some(menu)=unsafe { item.menu() } { menu.cancelTracking(); }
         }
     }
 );
@@ -55,11 +66,19 @@ impl KnownRow {
             detail: NSTextField::labelWithString(&NSString::from_str("—"), mtm),
             security: NSTextField::labelWithString(&NSString::from_str(""), mtm),
             strength: Cell::new(None),
+            content: NSView::initWithFrame(NSView::alloc(mtm), frame(0., 0., 320., LINE)),
+            spinner: NSProgressIndicator::new(mtm),
+            status: NSTextField::labelWithString(&NSString::from_str(""), mtm),
+            symbol: Cell::new("wifi"),
+            saved: Cell::new(false),
+            progress: RefCell::new(None),
         });
         let this: Retained<Self> =
-            unsafe { msg_send![super(this),initWithFrame:frame(0.,0.,320.,30.)] };
+            unsafe { msg_send![super(this),initWithFrame:frame(0.,0.,320.,LINE)] };
+        let content = this.ivars().content.clone();
+        this.addSubview(&content);
         let surface = HoverSurface::new(frame(14., 0., 292., 30.), false, mtm);
-        this.addSubview(&surface);
+        content.addSubview(&surface);
         let button = &this.ivars().button;
         button.setFrame(frame(45., 0., 198., 30.));
         button.setBordered(false);
@@ -69,7 +88,7 @@ impl KnownRow {
             button.setTarget(Some(this.as_ref()));
             button.setAction(Some(sel!(openSettings:)));
         }
-        this.addSubview(button);
+        content.addSubview(button);
         let image = &this.ivars().image;
         image.setFrame(frame(21., 6., 18., 18.));
         image.setImageScaling(NSImageScaling::ScaleProportionallyUpOrDown);
@@ -82,19 +101,34 @@ impl KnownRow {
         );
         image.setContentTintColor(Some(&NSColor::secondaryLabelColor()));
         image.setAccessibilityElement(false);
-        this.addSubview(image);
+        content.addSubview(image);
         let label = &this.ivars().detail;
         label.setFrame(frame(247., 13., 50., 15.));
         label.setFont(Some(&NSFont::systemFontOfSize(9.)));
         label.setAlignment(NSTextAlignment::Center);
         label.setTextColor(Some(&NSColor::secondaryLabelColor()));
-        this.addSubview(label);
+        content.addSubview(label);
         let security = &this.ivars().security;
         security.setFrame(frame(260., 1., 52., 12.));
         security.setAlignment(NSTextAlignment::Center);
         security.setFont(Some(&NSFont::systemFontOfSize(8.)));
         security.setTextColor(Some(&NSColor::secondaryLabelColor()));
-        this.addSubview(security);
+        content.addSubview(security);
+        let spinner = &this.ivars().spinner;
+        spinner.setFrame(frame(22., 7., 16., 16.));
+        spinner.setStyle(NSProgressIndicatorStyle::Spinning);
+        spinner.setControlSize(NSControlSize::Small);
+        spinner.setIndeterminate(true);
+        spinner.setDisplayedWhenStopped(false);
+        spinner.setHidden(true);
+        content.addSubview(spinner);
+        let status = &this.ivars().status;
+        status.setFrame(frame(45., 1., 260., 13.));
+        status.setFont(Some(&NSFont::systemFontOfSize(9.)));
+        status.setTextColor(Some(&NSColor::secondaryLabelColor()));
+        status.setLineBreakMode(NSLineBreakMode::ByTruncatingTail);
+        status.setHidden(true);
+        this.addSubview(status);
         this
     }
     pub fn set_reading(&self, reading: Option<(wifi_widget::wifi::Band, i32)>) {
@@ -138,12 +172,15 @@ impl KnownRow {
         } else { "Detected by the latest scan. Click to join." })));
     }
     pub fn set_saved(&self, saved: bool) {
+        self.ivars().saved.set(saved);
         let color = if saved && self.ivars().strength.get().is_some() {
             NSColor::whiteColor()
         } else {
             NSColor::secondaryLabelColor()
         };
-        self.ivars().image.setContentTintColor(Some(&color));
+        if !self.ivars().progress.borrow().as_ref().is_some_and(|p| p.0 != crate::join::Phase::Working) {
+            self.ivars().image.setContentTintColor(Some(&color));
+        }
         let attrs = NSMutableDictionary::<NSString, AnyObject>::new();
         unsafe {
             attrs.setObject_forKey(
@@ -177,13 +214,8 @@ impl KnownRow {
         }
         // Saved profiles do not expose device type; this is a presentation hint only.
         let hotspot = clean.to_lowercase().contains("iphone");
-        self.ivars().image.setImage(
-            NSImage::imageWithSystemSymbolName_accessibilityDescription(
-                &NSString::from_str(if hotspot { "personalhotspot" } else { "wifi" }),
-                None,
-            )
-            .as_deref(),
-        );
+        self.ivars().symbol.set(if hotspot { "personalhotspot" } else { "wifi" });
+        self.show_symbol();
         self.ivars().button.setTitle(&NSString::from_str(
             &name.chars().filter(|c| !c.is_control()).collect::<String>(),
         ));
@@ -195,6 +227,66 @@ impl KnownRow {
         self.ivars().button.setToolTip(Some(&NSString::from_str(
             if hotspot { "Likely iPhone hotspot based on its name. Detected by the latest scan. Click to join." } else { "Nearby network. Detected by the latest scan. Click to join." },
         )));
+    }
+}
+impl KnownRow {
+    /// Shows a join on this row: a spinner in place of the icon while it
+    /// runs, a check or warning when it ends, and the system's last word on a
+    /// line beneath. Returns true when the row changed height, so the caller
+    /// can tell the menu to re-lay it out.
+    pub fn set_progress(&self, progress: Option<(crate::join::Phase, String)>) -> bool {
+        use crate::join::Phase;
+        if *self.ivars().progress.borrow() == progress {
+            return false;
+        }
+        let was_tall = self.ivars().progress.borrow().is_some();
+        let tall = progress.is_some();
+        let ivars = self.ivars();
+        let working = matches!(progress, Some((Phase::Working, _)));
+        ivars.spinner.setHidden(!working);
+        if working { unsafe { ivars.spinner.startAnimation(None) }; } else { unsafe { ivars.spinner.stopAnimation(None) }; }
+        ivars.image.setHidden(working);
+        match &progress {
+            Some((phase, detail)) => {
+                set_label(&ivars.status, detail);
+                ivars.status.setToolTip(Some(&NSString::from_str(detail)));
+                ivars.status.setTextColor(Some(&*if *phase == Phase::Failed { NSColor::systemOrangeColor() } else { NSColor::secondaryLabelColor() }));
+            }
+            None => set_label(&ivars.status, ""),
+        }
+        ivars.status.setHidden(!tall);
+        *ivars.progress.borrow_mut() = progress;
+        self.show_symbol();
+        if was_tall != tall {
+            let height = if tall { LINE + STATUS } else { LINE };
+            let mut own = self.frame();
+            own.size.height = height;
+            self.setFrame(own);
+            ivars.content.setFrameOrigin(NSPoint { x: 0., y: if tall { STATUS } else { 0. } });
+        }
+        self.setNeedsDisplay(true);
+        was_tall != tall
+    }
+    fn show_symbol(&self) {
+        use crate::join::Phase;
+        let (name, tint) = match self.ivars().progress.borrow().as_ref().map(|p| p.0) {
+            Some(Phase::Connected) => ("checkmark.circle.fill", Some(NSColor::systemGreenColor())),
+            Some(Phase::Failed) => ("exclamationmark.triangle.fill", Some(NSColor::systemOrangeColor())),
+            _ => (self.ivars().symbol.get(), None),
+        };
+        let image = &self.ivars().image;
+        image.setImage(NSImage::imageWithSystemSymbolName_accessibilityDescription(&NSString::from_str(name), None).as_deref());
+        if let Some(tint) = tint {
+            image.setContentTintColor(Some(&tint));
+        } else {
+            // set_saved owns the resting tint; reapply it from the title colour.
+            self.set_saved(self.ivars().saved.get());
+        }
+    }
+}
+fn set_label(field: &NSTextField, text: &str) {
+    if field.stringValue().to_string() != text {
+        field.setStringValue(&NSString::from_str(text));
     }
 }
 fn frame(x: f64, y: f64, width: f64, height: f64) -> NSRect {
@@ -306,8 +398,10 @@ pub fn style_row(mtm: MainThreadMarker) -> (Retained<NSView>, Retained<NSTextFie
     (view, detail)
 }
 
+/// Hover is read from the pointer at draw time, never latched. Menu items hide
+/// and reshuffle while the menu is open, and a view hidden (or a menu closed)
+/// under the pointer gets no `mouseExited:` — a latched flag then stayed on.
 pub struct HoverIvars {
-    hovered: Cell<bool>,
     circle: bool,
     button: RefCell<Option<Retained<NSButton>>>,
 }
@@ -320,28 +414,30 @@ define_class!(
     unsafe impl NSObjectProtocol for HoverSurface {}
     impl HoverSurface {
         #[unsafe(method(mouseEntered:))]
-        fn entered(&self, _: &NSEvent) { self.ivars().hovered.set(true); if let Some(button) = self.ivars().button.borrow().as_ref() { button.setContentTintColor(Some(&NSColor::whiteColor())); } self.setNeedsDisplay(true); }
+        fn entered(&self, _: &NSEvent) { self.refresh(); }
         #[unsafe(method(mouseExited:))]
-        fn exited(&self, _: &NSEvent) { self.ivars().hovered.set(false); if let Some(button) = self.ivars().button.borrow().as_ref() { button.setContentTintColor(Some(&NSColor::secondaryLabelColor())); } self.setNeedsDisplay(true); }
+        fn exited(&self, _: &NSEvent) { self.refresh(); }
+        #[unsafe(method(viewDidMoveToWindow))]
+        fn moved_to_window(&self) { self.refresh(); }
+        #[unsafe(method(viewDidUnhide))]
+        fn unhidden(&self) { self.refresh(); }
         #[unsafe(method(drawRect:))]
         fn draw(&self, _: NSRect) {
             if self.ivars().button.borrow().as_ref().is_some_and(|button| !button.isEnabled()) { return; }
+            if !self.pointer_inside() { return; }
             let mut bounds = self.bounds();
             bounds.origin.x += 0.5; bounds.origin.y += 0.5;
             bounds.size.width -= 1.; bounds.size.height -= 1.;
             let radius = if self.ivars().circle { bounds.size.width / 2. } else { 5. };
             let path = NSBezierPath::bezierPathWithRoundedRect_xRadius_yRadius(bounds, radius, radius);
-            if self.ivars().hovered.get() { NSColor::labelColor().colorWithAlphaComponent(0.09).set(); path.fill();
-                if self.ivars().circle { NSColor::whiteColor().colorWithAlphaComponent(0.35).set(); path.setLineWidth(0.5); path.stroke(); }
-            }
-
+            NSColor::labelColor().colorWithAlphaComponent(0.09).set(); path.fill();
+            if self.ivars().circle { NSColor::whiteColor().colorWithAlphaComponent(0.35).set(); path.setLineWidth(0.5); path.stroke(); }
         }
     }
 );
 impl HoverSurface {
     fn new(bounds: NSRect, circle: bool, mtm: MainThreadMarker) -> Retained<Self> {
         let this = Self::alloc(mtm).set_ivars(HoverIvars {
-            hovered: Cell::new(false),
             circle,
             button: RefCell::new(None),
         });
@@ -359,5 +455,21 @@ impl HoverSurface {
         };
         this.addTrackingArea(&tracking);
         this
+    }
+
+    fn pointer_inside(&self) -> bool {
+        let Some(window) = self.window() else { return false };
+        if self.isHiddenOrHasHiddenAncestor() { return false; }
+        let local = self.convertPoint_fromView(window.convertPointFromScreen(NSEvent::mouseLocation()), None);
+        self.mouse_inRect(local, self.bounds())
+    }
+
+    fn refresh(&self) {
+        let inside = self.pointer_inside();
+        if let Some(button) = self.ivars().button.borrow().as_ref() {
+            let tint = if inside { NSColor::whiteColor() } else { NSColor::secondaryLabelColor() };
+            button.setContentTintColor(Some(&tint));
+        }
+        self.setNeedsDisplay(true);
     }
 }
