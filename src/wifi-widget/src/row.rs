@@ -377,6 +377,38 @@ pub fn style_row(mtm: MainThreadMarker) -> (Retained<NSView>, Retained<NSTextFie
     (view, detail)
 }
 
+/// Flat header control with the same quiet hover fill as the other controls.
+pub fn settings_button(
+    target: &objc2::runtime::AnyObject,
+    mtm: MainThreadMarker,
+) -> Retained<NSView> {
+    let surface = HoverSurface::new(frame(281., 1., 24., 24.), false, mtm);
+    let button = unsafe {
+        NSButton::buttonWithTitle_target_action(
+            &NSString::from_str(""),
+            Some(target),
+            Some(sel!(openSettings:)),
+            mtm,
+        )
+    };
+    button.setFrame(frame(0., 0., 24., 24.));
+    button.setBordered(false);
+    button.setImage(
+        NSImage::imageWithSystemSymbolName_accessibilityDescription(
+            &NSString::from_str("gearshape"),
+            None,
+        )
+        .as_deref(),
+    );
+    button.setImagePosition(NSCellImagePosition::ImageOnly);
+    button.setContentTintColor(Some(&NSColor::secondaryLabelColor()));
+    button.setToolTip(Some(&NSString::from_str("Open Wi-Fi Settings")));
+    button.setAccessibilityLabel(Some(&NSString::from_str("Open Wi-Fi Settings")));
+    surface.addSubview(&button);
+    *surface.ivars().button.borrow_mut() = Some(button);
+    surface.into_super()
+}
+
 /// Hover is read from the pointer at draw time, never latched. Menu items hide
 /// and reshuffle while the menu is open, and a view hidden (or a menu closed)
 /// under the pointer gets no `mouseExited:` — a latched flag then stayed on.

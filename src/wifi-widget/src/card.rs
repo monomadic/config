@@ -212,6 +212,11 @@ define_class!(
                 }
             }
         }
+        #[unsafe(method(openSettings:))]
+        fn open_settings(&self, _sender: &NSButton) {
+            if let Some(menu) = self.enclosingMenuItem().and_then(|item| unsafe { item.menu() }) { menu.cancelTracking(); }
+            crate::app::open_url("x-apple.systempreferences:com.apple.wifi-settings-extension");
+        }
         #[unsafe(method(mouseMoved:))]
         fn moved(&self, event: &NSEvent) {
             let p = self.convertPoint_fromView(event.locationInWindow(),None);
@@ -236,7 +241,7 @@ impl Card {
         this.setAccessibilityElement(false);
         let mut labels = Vec::new();
         for (x, y, w, h, size) in [
-            (31., 4., 274., 20., 13.),
+            (31., 4., 246., 20., 13.),
             (66., 39., 193., 18., 13.),
             (264., 42., 58., 15., 9.),
             (66., 58., 237., 15., 10.),
@@ -295,6 +300,8 @@ impl Card {
             labels.push(label);
         }
         let glyph = NSImageView::new(mtm);
+        let settings = crate::row::settings_button(this.as_ref(), mtm);
+        this.addSubview(&settings);
         glyph.setFrame(rect(20.0, 63.0, 34.0, 34.0));
         glyph.setImageScaling(NSImageScaling::ScaleProportionallyUpOrDown);
         this.addSubview(&glyph);

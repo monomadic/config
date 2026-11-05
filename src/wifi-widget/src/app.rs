@@ -173,7 +173,7 @@ fn set_text(field: &objc2_app_kit::NSTextField, text: &str) {
         field.setStringValue(&NSString::from_str(text));
     }
 }
-fn open_url(url: &str) {
+pub(crate) fn open_url(url: &str) {
     if let Some(url) = NSURL::URLWithString(&NSString::from_str(url)) {
         NSWorkspace::sharedWorkspace().openURL(&url);
     }
