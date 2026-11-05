@@ -136,17 +136,6 @@ impl KnownRow {
         self.ivars().detail.setStringValue(&NSString::from_str(
             reading.map(|r| r.0.label()).unwrap_or("—"),
         ));
-        self.ivars().detail.setToolTip(Some(&NSString::from_str(
-            &reading
-                .map(|r| {
-                    format!(
-                        "Strongest scanned access point: {}, {} dBm",
-                        r.0.label(),
-                        r.1
-                    )
-                })
-                .unwrap_or_else(|| "No recent scan reading available".into()),
-        )));
         let pill_width = self.ivars().detail.intrinsicContentSize().width + 4.;
         let name_width = (self.ivars().button.intrinsicContentSize().width + 2.)
             .min(250. - 45. - pill_width - 6.);
@@ -164,12 +153,6 @@ impl KnownRow {
         self.ivars()
             .security
             .setStringValue(&NSString::from_str(text));
-        self.ivars().security.setToolTip(Some(&NSString::from_str(&format!("Security advertised by the strongest scanned access point: {text}. Ent means enterprise authentication."))));
-    }
-    pub fn set_cached(&self, cached: bool) {
-        self.ivars().button.setToolTip(Some(&NSString::from_str(if cached {
-            "macOS cached scan result; confirming availability with a fresh scan. Click to join."
-        } else { "Detected by the latest scan. Click to join." })));
     }
     pub fn set_saved(&self, saved: bool) {
         self.ivars().saved.set(saved);
@@ -224,9 +207,6 @@ impl KnownRow {
             .setAccessibilityLabel(Some(&NSString::from_str(&format!(
                 "{name}, nearby network. Join network"
             ))));
-        self.ivars().button.setToolTip(Some(&NSString::from_str(
-            if hotspot { "Likely iPhone hotspot based on its name. Detected by the latest scan. Click to join." } else { "Nearby network. Detected by the latest scan. Click to join." },
-        )));
     }
 }
 impl KnownRow {
@@ -249,7 +229,6 @@ impl KnownRow {
         match &progress {
             Some((phase, detail)) => {
                 set_label(&ivars.status, detail);
-                ivars.status.setToolTip(Some(&NSString::from_str(detail)));
                 ivars.status.setTextColor(Some(&*if *phase == Phase::Failed { NSColor::systemOrangeColor() } else { NSColor::secondaryLabelColor() }));
             }
             None => set_label(&ivars.status, ""),

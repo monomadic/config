@@ -43,7 +43,6 @@ type RowKey = (
     Option<(wifi::Band, i32)>,
     Option<&'static str>,
     bool,
-    bool,
 );
 struct Ui {
     timer: Option<Retained<NSTimer>>,
@@ -104,7 +103,7 @@ define_class!(
     unsafe impl NSMenuDelegate for Widget {
         #[unsafe(method(menuWillOpen:))]
         fn menu_open(&self, _menu: &NSMenu) {
-            if let Some(ui) = self.ivars().borrow_mut().as_mut() { ui.open = true; ui.next_poll = Instant::now(); ui.saved_names = wifi::known_networks(); ui.scan.start_if_stale(); ui.login_enabled = ui.bundled && login::enabled(); }
+            if let Some(ui) = self.ivars().borrow_mut().as_mut() { ui.open = true; ui.next_poll = Instant::now(); wifi::refresh_known_networks(); ui.scan.start_if_stale(); ui.login_enabled = ui.bundled && login::enabled(); }
             self.set_timer(TICK_OPEN);
             self.refresh();
         }
@@ -122,7 +121,7 @@ define_class!(
         #[unsafe(method(refreshAction:))]
         fn refresh_action(&self, _sender: &NSMenuItem) {
             if let Some(ui) = self.ivars().borrow_mut().as_mut() {
-                if ui.scan.busy() { return; } ui.saved_names = wifi::known_networks(); ui.scan.start(); ui.next_poll = Instant::now(); ui.probes.schedule(Instant::now(),Duration::ZERO);
+                if ui.scan.busy() { return; } wifi::refresh_known_networks(); ui.scan.start(); ui.next_poll = Instant::now(); ui.probes.schedule(Instant::now(),Duration::ZERO);
             }
             self.refresh();
         }
@@ -282,6 +281,7 @@ impl Widget {
             scan: {
                 let mut scan = wifi::Scan::default();
                 scan.start();
+                wifi::refresh_known_networks();
                 scan
             },
             saved_names: Vec::new(),
@@ -464,6 +464,9 @@ impl Widget {
             ui.last_chip = chip_key;
         }
         ui.scan.tick();
+        if let Some(names) = wifi::take_known_networks() {
+            ui.saved_names = names;
+        }
         let lines = summary(&snapshot, now);
         let label = format!("{}; {}; {}", lines[0], lines[1], lines[3]);
         if label != ui.tooltip
@@ -506,7 +509,6 @@ impl Widget {
                     name.clone(),
                     ui.scan.reading(name),
                     ui.scan.security(name),
-                    ui.scan.is_cached(),
                     ui.saved_names.contains(name),
                 )
             });
@@ -522,11 +524,10 @@ impl Widget {
             if key == ui.rows[index] {
                 continue;
             }
-            if let Some((name, reading, security, cached, saved)) = &key {
+            if let Some((name, reading, security, saved)) = &key {
                 row.set_name(name);
                 row.set_reading(*reading);
                 row.set_security(*security);
-                row.set_cached(*cached);
                 row.set_saved(*saved);
             }
             ui.rows[index] = key;

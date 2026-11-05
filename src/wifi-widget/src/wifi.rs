@@ -102,9 +102,28 @@ pub fn read() -> Option<LinkReading> {
 }
 /// Saved names do not require Location access. This is not a scan and provides
 /// no evidence about availability, signal, band or whether a network is open.
+/// Saved profile names, read on a worker thread. The profile list takes
+/// 40–55 ms from airportd, which on the main thread delayed every menu open.
+/// `refresh_known_networks` starts a read; `take_known_networks` hands over
+/// a finished one, so the menu opens on the previous list and updates in place.
+static KNOWN: std::sync::Mutex<(bool, Option<Vec<String>>)> = std::sync::Mutex::new((false, None));
+pub fn refresh_known_networks() {
+    let mut known = KNOWN.lock().unwrap();
+    if known.0 {
+        return;
+    }
+    known.0 = true;
+    std::thread::spawn(|| {
+        let names = known_networks();
+        *KNOWN.lock().unwrap() = (false, Some(names));
+    });
+}
+pub fn take_known_networks() -> Option<Vec<String>> {
+    KNOWN.lock().unwrap().1.take()
+}
 pub fn known_networks() -> Vec<String> {
     objc2::rc::autoreleasepool(|_| unsafe {
-        let Some(interface) = CWWiFiClient::sharedWiFiClient().interface() else {
+        let Some(interface) = CWWiFiClient::new().interface() else {
             return Vec::new();
         };
         let Some(configuration) = interface.configuration() else {
