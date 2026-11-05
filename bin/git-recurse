@@ -3,14 +3,17 @@
 #
 # Lists repos with uncommitted work, unpushed commits, commits to pull, stashes,
 # conflicts or no upstream. The table appears at once from local state, then
-# refreshes when every remote has been fetched (in parallel). Enter runs git-sync
-# in the repo under the cursor, or in each selected one in turn.
+# refreshes when every remote has been fetched (in parallel). Rows with local
+# changes are red; rows with commits to push or pull are green.
 #
 # Usage:
 #   git-recurse [--all] [--no-fetch] [dir]   (dir defaults to $SRC_PATH, then ~/src)
 #
-# Keys: enter sync · tab mark · cmd-a mark all (kitty sends alt-a) ·
-#       ctrl-r refetch · ? preview · esc quit
+# Keys: enter  git-sync the repo under the cursor (or each marked one)
+#       ctrl-s sync: push and pull every listed repo that is ahead or behind
+#       ctrl-a sync all: git-sync every listed repo, one at a time
+#       tab mark · cmd-a mark all (kitty sends alt-a) · ctrl-r refetch ·
+#       ? preview · esc quit
 #
 # Environment:
 #   GIT_RECURSE_JOBS     parallel fetches (default 8)
@@ -36,8 +39,8 @@ I_CLEAN=$'' I_DIRTY=$'' I_SYNC=$'' I_ERR=$''
 # Column widths, shared by the rows and the header.
 W_PUSH=11 W_PULL=11 W_STAGE=9 W_MOD=11 W_NEW=12 W_STASH=8 W_CONF=10
 
-cell() {   # colour width icon count — blank when the count is 0
-  if (( $4 )); then c $1 $2 "$3 $4"; else c 0 $2 ''; fi
+cell() {   # width icon count — blank when the count is 0; colour is the row's $tint
+  if (( $3 )); then c $tint $1 "$2 $3"; else c 0 $1 ''; fi
 }
 
 # A hung remote must not hold up the table, so each fetch gets a watchdog.
@@ -78,37 +81,51 @@ row() {
     esac
   done
 
+  # One colour for the whole row: red for local changes (they block a plain
+  # push/pull), green for commits to push or pull, otherwise the normal colour.
+  local tint=0
+  if (( staged + mod + new + conf )); then tint=31
+  elif (( a + b )); then tint=32
+  fi
+
   local icon need=1
-  if (( conf )); then icon=$(c 31 2 $I_CONFLICT)
-  elif (( staged + mod + new )); then icon=$(c 33 2 $I_DIRTY)
-  elif (( a + b )); then icon=$(c 34 2 $I_SYNC)
-  elif (( stash )) || [[ -z $up ]]; then icon=$(c 36 2 $I_STASH)
-  else icon=$(c '2;32' 2 $I_CLEAN); need=0
+  if (( conf )); then icon=$I_CONFLICT
+  elif (( staged + mod + new )); then icon=$I_DIRTY
+  elif (( a + b )); then icon=$I_SYNC
+  elif (( stash )) || [[ -z $up ]]; then icon=$I_STASH
+  else icon=$I_CLEAN; need=0
   fi
 
   local -a cols=(
-    "$icon"
-    "$(c 1 32 ${name[1,31]})"
-    "$(c 35 22 "$I_BRANCH ${head[1,19]}")"
-    "$(cell 31 $W_PUSH  $I_UP       $a)"
-    "$(cell 34 $W_PULL  $I_DOWN     $b)"
-    "$(cell 32 $W_STAGE $I_STAGED   $staged)"
-    "$(cell 31 $W_MOD   $I_MOD      $mod)"
-    "$(cell 31 $W_NEW   $I_NEW      $new)"
-    "$(cell 36 $W_STASH $I_STASH    $stash)"
-    "$(cell '1;31' $W_CONF $I_CONFLICT $conf)"
-    "$( [[ -z $up ]] && c 90 0 "$I_LOCAL no upstream" || c 0 0 '')"
+    "$(c $tint 2 $icon)"
+    "$(c $tint 32 ${name[1,31]})"
+    "$(c $tint 22 "$I_BRANCH ${head[1,19]}")"
+    "$(cell $W_PUSH  $I_UP       $a)"
+    "$(cell $W_PULL  $I_DOWN     $b)"
+    "$(cell $W_STAGE $I_STAGED   $staged)"
+    "$(cell $W_MOD   $I_MOD      $mod)"
+    "$(cell $W_NEW   $I_NEW      $new)"
+    "$(cell $W_STASH $I_STASH    $stash)"
+    "$(cell $W_CONF  $I_CONFLICT $conf)"
+    "$( [[ -z $up ]] && c $tint 0 "$I_LOCAL no upstream" || c 0 0 '')"
   )
   print -r -- "$r"$'\t'"$need"$'\t'"$name"$'\t'"${(j::)cols}"
 }
 
-# The header doubles as the legend: each column's icon and colour, named.
+# The header doubles as the legend: each column's icon, named.
 header() {
-  print -r -- "$(c 90 2 '')$(c 90 32 repo)$(c 35 22 "$I_BRANCH branch")$(
-    )$(c 31 $W_PUSH "$I_UP unpushed")$(c 34 $W_PULL "$I_DOWN unpulled")$(
-    )$(c 32 $W_STAGE "$I_STAGED staged")$(c 31 $W_MOD "$I_MOD unstaged")$(
-    )$(c 31 $W_NEW "$I_NEW untracked")$(c 36 $W_STASH "$I_STASH stash")$(
-    )$(c '1;31' $W_CONF "$I_CONFLICT conflict")"
+  print -r -- "$(c 90 2 '')$(c 90 32 repo)$(c 90 22 "$I_BRANCH branch")$(
+    )$(c 90 $W_PUSH "$I_UP unpushed")$(c 90 $W_PULL "$I_DOWN unpulled")$(
+    )$(c 90 $W_STAGE "$I_STAGED staged")$(c 90 $W_MOD "$I_MOD unstaged")$(
+    )$(c 90 $W_NEW "$I_NEW untracked")$(c 90 $W_STASH "$I_STASH stash")$(
+    )$(c 90 $W_CONF "$I_CONFLICT conflict")"
+}
+
+# The help bar along the bottom.
+footer() {
+  local k=$'\e[1;37m' d=$'\e[0;90m'
+  print -rn -- "${k}enter${d} git-sync  ${k}ctrl-s${d} sync (push/pull)  ${k}ctrl-a${d} sync all (git-sync each)  "
+  print -r -- "${k}tab${d} mark  ${k}alt-a${d} mark all  ${k}ctrl-r${d} refetch  ${k}?${d} preview  ${k}esc${d} quit"
 }
 
 list() {   # root fetch all
@@ -165,7 +182,51 @@ sync_repos() {
   print -Pn '%F{245}press any key to return%f'; read -sk1
 }
 
+# ctrl-s, given {*f} (every listed row): plain push/pull, no commits made.
+# Ahead -> push; behind -> pull --ff-only; diverged -> pull --rebase + push,
+# but only on a clean tree. Repos with nothing to move are skipped silently.
+push_pull() {
+  local -a repos=(${(f)"$(cut -f1 $1)"}) failed=() skipped=()
+  local r st l
+  local -a ab
+  integer done_=0
+  for r in $repos; do
+    st=$(git -C $r status --porcelain=v2 --branch 2>/dev/null) || continue
+    local up= dirty=0; integer a=0 b=0
+    for l in ${(f)st}; do
+      case $l in
+        ('# branch.upstream '*) up=${l#\# branch.upstream } ;;
+        ('# branch.ab '*)       ab=(${=l}); a=${ab[3]#+}; b=${ab[4]#-} ;;
+        ([12u?]' '*)            dirty=1 ;;
+      esac
+    done
+    [[ -n $up ]] && (( a + b )) || continue
+    print -P "\n%F{63}%B󰊢 ${r/#$HOME/~}%b%f %F{245}↑$a ↓$b%f"
+    if (( a && b )) && (( dirty )); then
+      print -P "%F{214}diverged with local changes — use git-sync (enter)%f"
+      skipped+=($r); continue
+    fi
+    {
+      if (( a && b )); then git -C $r pull --rebase && git -C $r push
+      elif (( b )); then git -C $r pull --ff-only
+      else git -C $r push
+      fi
+    } && done_+=1 || failed+=($r)
+  done
+  print
+  if (( done_ + $#failed + $#skipped == 0 )); then
+    print -P "%F{245}nothing to push or pull%f"
+  else
+    (( done_ )) && print -P "%F{82}%B✓ synced $done_ repo$( (( done_ > 1 )) && print s)%b%f"
+    (( $#skipped )) && { print -P "%F{214}%B• skipped ${#skipped}:%b%f"; printf '  %s\n' ${skipped/#$HOME/~}; }
+    (( $#failed )) && { print -P "%F{196}%B✘ failed ${#failed}:%b%f"; printf '  %s\n' ${failed/#$HOME/~}; }
+  fi
+  print -Pn '%F{245}press any key to return%f'; read -sk1
+}
+
 case $1 in
+  --push-pull) shift; push_pull "$@"; exit ;;
+  --footer)  footer; exit ;;
   --row)     shift; row "$@"; exit ;;
   --list)    shift; list "$@"; exit ;;
   --preview) shift; preview "$@"; exit ;;
@@ -178,7 +239,7 @@ while (( $# )); do
   case $1 in
     --all)      all=1 ;;
     --no-fetch) fetch=0 ;;
-    -h|--help)  sed -n '2,15p' $self | sed 's/^# \{0,1\}//'; exit 0 ;;
+    -h|--help)  sed -n '2,19p' $self | sed 's/^# \{0,1\}//'; exit 0 ;;
     -*)         print -u2 "git-recurse: unknown option $1"; exit 2 ;;
     *)          root=$1 ;;
   esac
@@ -197,9 +258,12 @@ q=${(q)root}
 $self --list $root 0 $all | fzf --ansi --multi --no-sort --layout=reverse --delimiter=$'\t' --with-nth=2 \
   --prompt="󰊢 ${root/#$HOME/~} › " --pointer='▌' --marker='┃' --info=inline-right \
   --no-scrollbar --highlight-line --header='scanning…' --header-first \
-  --color='fg+:252,bg+:236,hl:215,hl+:215,pointer:215,marker:82,prompt:109,header:245,info:240,border:238,gutter:-1' \
+  --footer="$(footer)" \
+  --color='fg+:252,bg+:236,hl:215,hl+:215,pointer:215,marker:82,prompt:109,header:245,footer:245,info:240,border:238,gutter:-1' \
   --preview="$self --preview {1}" --preview-window='right,40%,wrap,border-left,hidden' \
   --bind="load:transform($self --on-load $state $q $fetch $all)" \
   --bind="enter:execute($self --sync {+f})+clear-selection+reload($self --list $q 0 $all)" \
+  --bind="ctrl-s:execute($self --push-pull {*f})+clear-selection+reload($self --list $q 0 $all)" \
+  --bind="ctrl-a:execute($self --sync {*f})+clear-selection+reload($self --list $q 0 $all)" \
   --bind="alt-a:select-all,ctrl-r:change-header(fetching remotes…)+reload($self --list $q 1 $all)" \
   --bind='?:toggle-preview,esc:abort'
