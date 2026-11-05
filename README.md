@@ -55,6 +55,12 @@ or changing mappings. Deploy does not install or upgrade applications.
 - `brew bundle --file Brewfile` installs shell/editor dependencies once Homebrew is installed.
 - `brew bundle --file Brewfile.optional` installs optional apps.
 - `scripts/install/install-<name>.sh` builds and installs individual tools.
+- `scripts/setup/setup-abner-plugins.sh [repo-home]` prepares Abner's optional
+  plugins. It defaults to `$SRC_PATH` or `~/src`, clones missing Abner,
+  topaz-rs, and inpaint-video checkouts, then links the provider crates into
+  `abner/plugins/`. It reuses existing checkouts and links. Move any old
+  nested `abner-plugins` checkout aside and update existing checkouts before
+  running it. To build, run `cargo build-with-plugins --release` from Abner.
 - `scripts/install/install-fileserver.sh` optionally serves `~/web` to the LAN on port 8000 via a LaunchAgent (`--uninstall` removes it).
 - `update` browses tool updates; `update --all` installs pending tool updates.
 - `scripts/setup/apply-file-icons.sh` applies the optional icon overrides.
