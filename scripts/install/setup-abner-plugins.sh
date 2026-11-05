@@ -72,6 +72,7 @@ failed=0
 if checkout topaz-rs; then
   link_plugin topaz-rs proteus || failed=1
   link_plugin topaz-rs proteus-natural || failed=1
+  link_plugin topaz-rs nyx || failed=1
   link_plugin topaz-rs topaz-generative || failed=1
 else
   failed=1
