@@ -216,7 +216,10 @@ nothing there is overwritten or deleted, same-path files with a different size a
 listed and left alone. Locally it works file by file: copy if missing, compare byte
 sizes (`zstat` — the script loads `zsh/stat`, so a bare `stat` is the zsh builtin),
 and only on a match delete, trash or keep the local copy, as chosen once up front;
-files already on the Tower are handled the same way. Elsewhere, anything "moved"
+files already on the Tower are handled the same way. Each mounted external drive
+(`diskutil`: not internal, writable, not a disk image) gets a sync row of its own
+with the same rules, into `<drive>/Movies/Porn/Downloads`; a file that doesn't fit
+in its free space is skipped and kept. Elsewhere, anything "moved"
 goes to the Trash after a size check on the Tower, never `rm`. Repos with unpushed,
 uncommitted or remote-less work refuse removal. Repo removal also refuses ignored
 files, submodules and Git inspection failures, verifies HEAD and all local refs
@@ -236,7 +239,7 @@ it renames the partial rather than download from zero. Paths and
 thresholds are `CLEANUP_*` env vars (listed in the script header). Test it against
 temp dirs with `CLEANUP_SYNC_SRC/DST`, `CLEANUP_ARCHIVE`, `TOPAZ_APP`,
 `YT_DLP_TEMP_DIR`, `CLEANUP_YTDLP_JSON` (and stub `yt-dlp`/`dl-porn` on `PATH`) and
-`CLEANUP_TOWER_UP=1` — never by answering its prompts with the live paths.
+`CLEANUP_TOWER_UP=1`, `CLEANUP_USB` (plain folders, or empty for none) — never by answering its prompts with the live paths.
 **Coding agents commit their own work.** `bin/agent-commit-guard` is the Stop
 hook for Claude Code (`config/claude/settings.json`) and Codex
 (`config/codex/hooks.json`): a turn can't end on a dirty tree, and the commit

@@ -10,6 +10,9 @@
 #                       then delete (or trash, or keep) each local file once its
 #                       byte size matches there — including ones already backed
 #                       up. Nothing on the Tower is overwritten or deleted.
+#   Downloads → <drive> the same, onto each external (USB/Thunderbolt) drive
+#                       that is mounted, into <drive>/Movies/Porn/Downloads.
+#                       Files that don't fit in its free space are skipped.
 #   Topaz models ▸      every model one by one (weights + compiled cache),
 #                       with how many of your presets use it. Archive to the
 #                       Tower, delete, or restore an archived one.
@@ -44,6 +47,9 @@
 # CLEANUP_TOWER_URL  how to mount it                 (default smb://m4.local/Tower)
 # CLEANUP_ARCHIVE    where archived things go        (default <Tower>/Backups)
 # CLEANUP_TOWER_UP   set to skip the mount check (for tests against a plain folder)
+# CLEANUP_USB        external drives offered as sync targets (default: every mounted
+#                    external disk; set it empty to offer none, or to plain folders for tests)
+# CLEANUP_USB_DIR    the sync folder on such a drive (default Movies/Porn/Downloads)
 
 setopt pipe_fail
 zmodload zsh/stat 2>/dev/null
@@ -62,7 +68,9 @@ tower_url=${CLEANUP_TOWER_URL:-smb://m4.local/Tower}
 archive=${CLEANUP_ARCHIVE:-$tower/Backups}
 arch_topaz=$archive/topaz-models
 sync_src=${CLEANUP_SYNC_SRC:-$HOME/Movies/Porn/Downloads}
-sync_dst=${CLEANUP_SYNC_DST:-$tower/Movies/Porn/Downloads}
+tower_dst=${CLEANUP_SYNC_DST:-$tower/Movies/Porn/Downloads}
+usb_dir=${CLEANUP_USB_DIR:-Movies/Porn/Downloads}
+sync_dst=$tower_dst sync_name=Tower sync_root=$tower   # see sync_target
 models_dir=$(topaz_resolve_models_dir 2>/dev/null)
 presets_dir=$dotfiles/bin/lib/topaz-presets
 ytdlp_tmp=${YT_DLP_TEMP_DIR:-$HOME/.cache/yt-dlp-tmp}
@@ -134,6 +142,33 @@ tower_mount() {
   return 1
 }
 
+# Writable external disks (USB, Thunderbolt) mounted now -> reply. Network
+# shares (the Tower) and disk images don't count.
+usb_drives() {
+  reply=()
+  (( ${+CLEANUP_USB} )) && { reply=(${=CLEANUP_USB}); return }
+  local v p
+  for v in /Volumes/*(N/); do
+    [[ $v == $tower ]] && continue
+    p=$(diskutil info -plist $v 2>/dev/null) || continue
+    [[ $(plutil -extract Internal raw - <<< $p 2>/dev/null) == false ]] || continue
+    [[ $(plutil -extract WritableVolume raw - <<< $p 2>/dev/null) == true ]] || continue
+    [[ $(plutil -extract BusProtocol raw - <<< $p 2>/dev/null) == 'Disk Image' ]] && continue
+    reply+=($v)
+  done
+}
+
+# Point the sync at a target: "tower", or an external drive's mount point.
+# Sets sync_dst, sync_name (for messages) and sync_root (the volume).
+sync_target() {
+  if [[ $1 == tower ]]; then sync_dst=$tower_dst sync_name=Tower sync_root=$tower
+  else sync_dst=$1/$usb_dir sync_name=${1:t} sync_root=$1; fi
+}
+
+sync_tmp() { REPLY=$CLEANUP_TMP/sync-${1//[^A-Za-z0-9]/_} }  # target -> preview file stem
+
+free_kb() { REPLY=$(df -k $1 2>/dev/null | awk 'NR==2 {print $4}') }
+
 # Raw row: kb, size label (- = derive from kb), kind, arg1, arg2, tag, risk, text.
 # Unused fields are "-": tab is IFS whitespace, so empty ones would collapse.
 row() { print -r -- "${(pj:\t:)@}" }
@@ -178,27 +213,41 @@ sync_plan() {
 
 scan_sync() {
   [[ -d $sync_src ]] || return
-  local total new_h same_h text
+  local total v
   kb_of $sync_src; total=$REPLY
   (( total > 4 )) || return
   tilde $sync_src; local nice=$REPLY
 
   if ! tower_up; then
-    row $total - sync - - sync c "$nice → Tower  ${c_amb}Tower not mounted${o} ${dim}(enter mounts it)${o}"
+    row $total - sync tower - sync c "$nice → Tower  ${c_amb}Tower not mounted${o} ${dim}(enter mounts it)${o}"
     tip 30 "$nice is $(human $total; print $REPLY) and the Tower isn't mounted  ${dim}→ enter on the sync row mounts it${o}"
-    return
+  else
+    sync_target tower; sync_row tower
   fi
+  usb_drives
+  for v in $reply; do sync_target $v; sync_row $v; done
+}
+
+sync_row() {  # target — after sync_target; uses total and nice from scan_sync
+  local new_h text free
   sync_plan
-  { print -rl -- $sync_new > $CLEANUP_TMP/sync.new
-    print -rl -- $sync_diff > $CLEANUP_TMP/sync.diff } 2>/dev/null
+  sync_tmp $1
+  { : > $REPLY.new; : > $REPLY.diff
+    (( $#sync_new )) && print -rl -- $sync_new > $REPLY.new
+    (( $#sync_diff )) && print -rl -- $sync_diff > $REPLY.diff } 2>/dev/null
   human $sync_new_kb; new_h=$REPLY
-  text="$nice → Tower  ${bold}$#sync_new new${o} ($new_h) ${dim}· $#sync_same already there${o}"
+  text="$nice → $sync_name  ${bold}$#sync_new new${o} ($new_h) ${dim}· $#sync_same already there${o}"
   (( $#sync_diff )) && text+="  ${c_red}$#sync_diff differ${o}"
-  row $total - sync - - sync c $text
+  if [[ $1 != tower ]]; then
+    free_kb $sync_root; free=$REPLY; human $free
+    if (( sync_new_kb > free )); then text+="  ${c_amb}only $REPLY free${o}"
+    else text+=" ${dim}· $REPLY free${o}"; fi
+  fi
+  row $total - sync $1 - sync c $text
   (( $#sync_new )) &&
-    tip 30 "$#sync_new files ($new_h) in $nice aren't on the Tower yet  ${dim}→ enter on the sync row${o}"
+    tip 30 "$#sync_new files ($new_h) in $nice aren't on $sync_name yet  ${dim}→ enter on its sync row${o}"
   (( $#sync_same )) && { human $sync_same_kb
-    tip 31 "$#sync_same local files ($REPLY) are already on the Tower  ${dim}→ the sync row can delete them${o}" }
+    tip 31 "$#sync_same local files ($REPLY) are already on $sync_name  ${dim}→ its sync row can delete them${o}" }
 }
 
 # --- scanners: Topaz -----------------------------------------------------------
@@ -617,19 +666,24 @@ offload() {  # path [dest] — dest defaults to <archive>/offloaded/<path under 
   print -- "verified on the Tower: $dest"
 }
 
-# One Downloads file: copy it to the Tower unless it is there already, compare
-# byte sizes, and only on a match delete (d) or trash (t) the local copy.
+# One Downloads file: copy it to the sync target unless it is there already,
+# compare byte sizes, and only on a match delete (d) or trash (t) the local copy.
 # k copies and keeps. rsync writes to a temp name and renames, so an
 # interrupted copy never leaves a short file under the real name.
 sync_offload() {  # rel mode
   local f=$sync_src/$1 t=$sync_dst/$1; local -a a b
   if [[ ! -e $t ]]; then
+    zstat -A a +size -- $f; free_kb $sync_root
+    if (( a[1] / 1024 + 1024 > REPLY )); then   # 1M slack for the filesystem
+      human $REPLY; print -r -- "  ${c_amb}no room${o}: $REPLY free on $sync_name — local copy kept"
+      return 1
+    fi
     mkdir -p ${t:h} || return 1
     rsync -a --ignore-existing --progress $f $t || return 1
   fi
   zstat -A a +size -- $f; zstat -A b +size -- $t 2>/dev/null
   if [[ -z $a || $a != $b ]]; then
-    print -r -- "  ${c_red}size mismatch${o}: $a bytes here, ${b:-nothing} on the Tower — local copy kept"
+    print -r -- "  ${c_red}size mismatch${o}: $a bytes here, ${b:-nothing} on $sync_name — local copy kept"
     return 1
   fi
   case $2 in
@@ -724,15 +778,22 @@ run() {
 
   case $kind in
     sync)
-      what='sync to Tower'
+      sync_target $a1
+      what="sync to $sync_name"
       [[ -d $sync_src ]] || fail "$sync_src doesn't exist"
-      tower_mount || fail "can't mount $tower_url"
+      if [[ $a1 == tower ]]; then tower_mount || fail "can't mount $tower_url"
+      else [[ -d $sync_root ]] || fail "$sync_name isn't mounted any more"; fi
       sync_plan
       tilde $sync_src; print -r -- "$bold$REPLY$o → $sync_dst"
       human $sync_new_kb
       print -r -- "  new: $#sync_new files ($REPLY) · already there with the same size: $#sync_same · different size: $#sync_diff"
+      free_kb $sync_root
+      if (( sync_new_kb > REPLY )); then
+        human $REPLY
+        print -r -- "  ${c_amb}only $REPLY free on $sync_name${o} — files that don't fit are skipped, their local copies kept"
+      fi
       if (( $#sync_diff )); then
-        print -r -- "${c_red}different size on the Tower — left alone, resolve by hand:${o}"
+        print -r -- "${c_red}different size on $sync_name — left alone, resolve by hand:${o}"
         print -rl -- "  "${^sync_diff[1,12]}
         (( $#sync_diff > 12 )) && print "  … and $(( $#sync_diff - 12 )) more"
       fi
@@ -740,7 +801,7 @@ run() {
         msg='nothing to copy or free'; pause; return
       fi
       human $(( sync_new_kb + sync_same_kb ))
-      print; print -r -- "once a file's byte size matches on the Tower, its local copy is:"
+      print; print -r -- "once a file's byte size matches on $sync_name, its local copy is:"
       choose "  [d]eleted (frees $REPLY now) · [t]rashed · [k]ept · [c]ancel" d t k c
       local mode=$REPLY rel i=0 n=$(( $#sync_new + $#sync_same )) ok=0 bad=0
       [[ $mode == c ]] && return
@@ -752,10 +813,10 @@ run() {
         if sync_offload $rel $mode; then (( ++ok )); else (( ++bad )); fi
       done
       [[ $mode == [dt] ]] && sync_prune
-      local kept=${${bad:#0}:+ · $bad kept (copy failed or sizes differ)}
+      local kept=${${bad:#0}:+ · $bad kept (copy failed, no room, or sizes differ)}
       case $mode in
-        d) what="$ok files verified on the Tower, deleted here$kept" ;;   # freed comes from df
-        t) msg="$ok files verified on the Tower, trashed here — empty the Trash to reclaim$kept"; before=0 ;;
+        d) what="$ok files verified on $sync_name, deleted here$kept" ;;   # freed comes from df
+        t) msg="$ok files verified on $sync_name, trashed here — empty the Trash to reclaim$kept"; before=0 ;;
         k) msg="copied $ok files, local copies kept$kept"; before=0 ;;
       esac
       pause
@@ -959,6 +1020,8 @@ run() {
 
   dropped $kind $a1 $a2 ''
   case $kind in
+    sync)      # local files changed, so every target's counts are stale
+               local t; usb_drives; for t in tower $reply; do dropped sync $t - ''; done ;;
     worktree)  dropped cargo $a2/ ;;   # build dirs that went with it
     orphan)    dropped cargo $a1/ ;;
     cargo-all) dropped cargo '' ;;
@@ -1013,10 +1076,13 @@ advice() {
         src)   print -r -- 'Opens your repos, worktrees and cargo target dirs. Repos with unpushed or uncommitted work are marked red and refuse to be removed.' ;;
       esac ;;
     sync)
+      sync_target $a1
       print c
-      print -r -- 'Copies new files from the folder to the Tower and merges into sub-folders that already exist there. Nothing on the Tower is overwritten or deleted: a file that exists on both sides is skipped, and if the two differ in size it is listed so you can sort it out by hand.'
+      print -r -- "Copies new files from the folder to $sync_name ($sync_dst) and merges into sub-folders that already exist there. Nothing on $sync_name is overwritten or deleted: a file that exists on both sides is skipped, and if the two differ in size it is listed so you can sort it out by hand."
       print
-      print -r -- 'Partial downloads (.part, .ytdl, .crdownload) and .DS_Store are skipped. After the copy you are asked whether to move the local copies that are verified on the Tower (same relative path and size) to the Trash. Files are matched by name and size, not content.' ;;
+      print -r -- "Partial downloads (.part, .ytdl, .crdownload) and .DS_Store are skipped. After the copy you choose whether the local copies verified on $sync_name (same relative path and size) are deleted, trashed or kept. Files are matched by name and size, not content."
+      [[ $a1 == tower ]] || { print
+        print -r -- "$sync_name is an external drive: a file that doesn't fit in its free space is skipped and its local copy kept. Deleting or trashing the local copy leaves the drive as the only copy, so sync to the Tower first if you want two." } ;;
     tmodel)
       print s
       print -r -- "Deleting is recoverable: weights are fetched on demand, so the next render with this model stalls while they download (topaz-fetch-models $a1 does it up front). Archiving keeps a copy on the Tower to restore without the download. Its compiled cache goes too and rebuilds on first use."
@@ -1235,9 +1301,10 @@ preview() {
         ytdlp) preview_ytdlp ;;
       esac ;;
     sync)
-      [[ -s $CLEANUP_TMP/sync.new ]] && { print -r -- "${bold}new on this side${o}"; head -25 $CLEANUP_TMP/sync.new | sed 's/^/  /'
-        (( $(wc -l < $CLEANUP_TMP/sync.new) > 25 )) && print "  …" }
-      [[ -s $CLEANUP_TMP/sync.diff ]] && { print; print -r -- "${c_red}different size on the Tower${o}"; sed 's/^/  /' $CLEANUP_TMP/sync.diff }
+      sync_target $a1; sync_tmp $a1; local st=$REPLY
+      [[ -s $st.new ]] && { print -r -- "${bold}new on this side${o}"; head -25 $st.new | sed 's/^/  /'
+        (( $(wc -l < $st.new) > 25 )) && print "  …" }
+      [[ -s $st.diff ]] && { print; print -r -- "${c_red}different size on $sync_name${o}"; sed 's/^/  /' $st.diff }
       ;;
     tmodel)
       local stem=${a1%-*} ver=${a1##*-}
