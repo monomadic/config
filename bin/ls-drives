@@ -1,0 +1,133 @@
+#!/usr/bin/env zsh
+# ls-drives — list mounted drives by category.
+#
+#   ls-drives [category] [--info]
+#
+# Categories:
+#   all       everything below (default)
+#   local     system + external
+#   system    internal drives (the boot volume and any internal partitions)
+#   external  locally attached drives that aren't internal (USB, Thunderbolt, SD)
+#   network   network shares (SMB, AFP, NFS, WebDAV)
+#   image     mounted disk images
+#
+# --info adds connection, link speed, filesystem, size and free space.
+
+emulate -L zsh
+setopt extended_glob
+
+self=${0:A}
+
+usage() { sed -n '2,15s/^# \{0,1\}//p' $self; }
+
+want=all info=0
+for a in $@; do
+  case $a in
+    -i|--info) info=1 ;;
+    -h|--help) usage; exit 0 ;;
+    all|local|system|external|network|image) want=$a ;;
+    *) print -u2 "ls-drives: unknown argument: $a"; usage >&2; exit 2 ;;
+  esac
+done
+
+# Human size from 1K blocks.
+hsize() {
+  local k=$1 u
+  for u in K M G T P; do
+    if (( k < 10 )); then printf '%.1f%s' $k $u; return
+    elif (( k < 1024 )); then printf '%.0f%s' $k $u; return; fi
+    (( k /= 1024.0 ))
+  done
+}
+
+# USB link speed (bits/s) for each whole disk: disk4 -> 10000000000.
+typeset -A usb_speed
+load_usb_speeds() {
+  local line speed
+  ioreg -r -c IOUSBHostDevice -l -w0 2>/dev/null | while IFS= read -r line; do
+    if [[ $line == '+-o '* ]]; then speed=
+    elif [[ $line =~ '"UsbLinkSpeed" = ([0-9]+)' && -z $speed ]]; then speed=$match[1]
+    elif [[ $line =~ '"BSD Name" = "(disk[0-9]+)"$' && -n $speed ]]; then usb_speed[$match[1]]=$speed
+    fi
+  done
+}
+
+usb_label() {
+  case $1 in
+    1500000|12000000) print 'USB 1.1' ;;
+    480000000)        print 'USB 2.0' ;;
+    5000000000)       print 'USB 3.2 Gen 1' ;;
+    10000000000)      print 'USB 3.2 Gen 2' ;;
+    20000000000)      print 'USB 3.2 Gen 2x2' ;;
+    40000000000|80000000000) print 'USB4' ;;
+    *)                print 'USB' ;;
+  esac
+}
+
+speed_label() {
+  local b=$1
+  (( b >= 1000000000 )) && { print "$(( b / 1000000000 )) Gb/s"; return; }
+  print "$(( b / 1000000 )) Mb/s"
+}
+
+plist_get() { plutil -extract $1 raw - <<< $2 2>/dev/null; }
+
+# Collect rows: path, category, connection, speed, fs.
+rows=()
+(( info )) && load_usb_speeds
+
+mount | while IFS= read -r line; do
+  [[ $line =~ '^(.*) on (.*) \(([^,]+)(.*)\)$' ]] || continue
+  src=$match[1] mp=$match[2] fs=$match[3] opts=$match[4]
+  # Hidden system volumes (Preboot, VM, Data, ...) are noise; keep the root.
+  [[ $mp != / && $opts == *nobrowse* ]] && continue
+
+  case $fs in
+    smbfs|afpfs|nfs|webdav|cifs)
+      cat=network
+      case $fs in smbfs|cifs) conn=SMB ;; afpfs) conn=AFP ;; nfs) conn=NFS ;; webdav) conn=WebDAV ;; esac
+      host=${${src#//}#*@}; host=${${host%%/*}%%._*}
+      conn="$conn ($host)" speed=- ;;
+    autofs|devfs) continue ;;
+    *)
+      [[ $src == /dev/disk* ]] || continue
+      p=$(diskutil info -plist $mp 2>/dev/null) || continue
+      bus=$(plist_get BusProtocol $p)
+      if [[ $bus == 'Disk Image' ]]; then cat=image
+      elif [[ $(plist_get Internal $p) == true ]]; then cat=system
+      else cat=external
+      fi
+      fs=$(plist_get FilesystemName $p) || fs=$fs
+      conn=$bus speed=-
+      if [[ $cat == system ]]; then conn=Internal
+      elif [[ $bus == USB ]]; then
+        whole=$(plist_get ParentWholeDisk $p)
+        if [[ -n ${usb_speed[$whole]} ]]; then
+          conn=$(usb_label $usb_speed[$whole]) speed=$(speed_label $usb_speed[$whole])
+        fi
+      fi ;;
+  esac
+
+  case $want in
+    all) ;;
+    local) [[ $cat == (system|external) ]] || continue ;;
+    *) [[ $cat == $want ]] || continue ;;
+  esac
+  rows+=("$mp"$'\t'"$cat"$'\t'"$conn"$'\t'"$speed"$'\t'"$fs")
+done
+
+(( $#rows )) || exit 1
+
+if (( ! info )); then
+  for r in $rows; do print -r -- ${r%%$'\t'*}; done
+  exit 0
+fi
+
+{
+  print -r -- $'PATH\tTYPE\tCONNECTION\tLINK\tFS\tSIZE\tFREE'
+  for r in $rows; do
+    mp=${r%%$'\t'*}
+    df=(${(s: :)$(df -k $mp 2>/dev/null | awk 'NR==2 {print $2, $4}')})
+    print -r -- "$r"$'\t'"$(hsize ${df[1]:-0})"$'\t'"$(hsize ${df[2]:-0})"
+  done
+} | column -t -s $'\t'
