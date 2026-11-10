@@ -46,9 +46,9 @@
 # smaller gets the compact view — a small thumbnail, the title, the bar and the
 # stats, nothing else. Both re-lay out on resize. Thumbnails need kitty.
 #
-# Subtitles: if yt-dlp wrote any .vtt sidecars next to an .mp4 (--write-subs /
-# --write-auto-subs in the config or on the command line), each is embedded as a
-# mov_text track with mp4-embed-vtt and the .vtt is deleted once that succeeds.
+# Subtitles: .vtt sidecars next to MP4 or MKV downloads are embedded with
+# mp4-embed-vtt (mov_text) or mkvmerge (WebVTT), respectively. Sidecars are
+# deleted only once embedding succeeds.
 # A failed embed leaves both files as they were.
 #
 # How it works: yt-dlp runs in the background writing a machine-readable
@@ -60,7 +60,7 @@
 #
 # Debugging: YTUI_DEBUG_LOG=<file> appends every line read from yt-dlp.
 #
-# Dependencies: yt-dlp, mpv (for `o`), mp4-embed-vtt (subtitle embedding).
+# Dependencies: yt-dlp, mpv (for `o`), mp4-embed-vtt / mkvmerge (subtitles).
 # See also: yt-dlp-stream, mp4-embed-vtt, ytq
 # ============================================================================
 emulate -L zsh
@@ -226,6 +226,23 @@ typeset -a argv passthru
 argv=( "$@" )
 url="${argv[-1]}"
 passthru=( "${(@)argv[1,-2]}" )   # (@) keeps them separate words, not one joined arg
+# Keep --porn in the forwarded args so yt-dlp still expands its alias. Append
+# the home override after it, since the alias itself sets a home path.
+# Recompute this for each queued URL: a drive may have been detached meanwhile.
+select_porn_destination() {
+  local drive
+  (( ${passthru[(Ie)--porn]} )) || return 0
+  have ls-drives || return 0
+  while IFS= read -r drive; do
+    [[ -n "$drive" && -d "$drive/Movies/Porn/Downloads" ]] || continue
+    passthru+=( --paths "home:$drive/Movies/Porn/Downloads" )
+    break
+  done < <(ls-drives external 2>/dev/null)
+}
+# Queue only the original arguments, not a previously selected drive.
+typeset -a queue_args=( "${passthru[@]}" )
+select_porn_destination
+
 # The args as you'd type them, for display: every queued URL runs with these too.
 args_str="${(j: :)${(@q-)passthru}}"
 [[ -n "$url" && "$url" != -* ]] || die "last argument must be a URL (got: ${url:-<none>})"
@@ -309,7 +326,7 @@ run_next() {
   print -r -- "  ${C_DIM}\$${C_RESET} ${SELF}${args_str:+ ${C_BOLD}${args_str}${C_RESET}} ${next}"
   trap - EXIT
   release_run
-  exec "$SELF_PATH" "${passthru[@]}" "$next"
+  exec "$SELF_PATH" "${queue_args[@]}" "$next"
 }
 finish() { run_next; exit ${1:-0}; }
 
@@ -1097,24 +1114,37 @@ delete_download() {
   finish 130                         # this one is gone; carry on with the queue
 }
 
-# ── subtitles: fold .vtt sidecars into the .mp4 ──────────────────────────────
-# yt-dlp drops subtitles beside the video as <stem>.<lang>.vtt (or <stem>.vtt).
-# mp4-embed-vtt reads the language from that suffix, verifies the remux, and only
-# then replaces the video — so the .vtt is removed only when it returns 0. Only
-# .mp4 is handled: mov_text is an MP4-family track, and that is all the embedder
-# writes.
+# ── subtitles: fold .vtt sidecars into MP4 / MKV downloads ──────────────────
+# mkvmerge preserves the existing tracks, chapters, tags and attachments. Its
+# exit status 1 means a completed mux with warnings; 2 means failure. Work in
+# a private directory beside the video so replacement is an atomic rename.
+embed_mkv_vtt() (
+  local vtt="$1" video="$2" work rc
+  work="$(mktemp -d "${video:h}/.ytui-subs.XXXXXX")" || return 1
+  trap 'rm -rf -- "$work"' EXIT
+  mkvmerge -o "$work/output.mkv" "$video" "$vtt" >/dev/null 2>&1
+  rc=$?
+  (( rc <= 1 )) && [[ -s "$work/output.mkv" ]] || return 1
+  mv -f -- "$work/output.mkv" "$video"
+)
+
 embed_subs() {
   local video="$1" base="${1:r}" vtt
   local -a vtts
   vtts=( "$base".vtt(N) "$base".*.vtt(N) )
   (( ${#vtts} )) || return 0
-  if [[ "${(L)video:e}" != mp4 ]]; then
-    print -r -- "  ${C_WARN}subtitles left as .vtt — embedding needs an .mp4, got .${video:e}${C_RESET}"
-    return 0
-  fi
-  have mp4-embed-vtt || { print -r -- "  ${C_WARN}subtitles left as .vtt — mp4-embed-vtt not found${C_RESET}"; return 0; }
+  local embedder
+  case "${(L)video:e}" in
+    mp4) embedder=mp4-embed-vtt ;;
+    mkv) embedder=mkvmerge ;;
+    *)
+      print -r -- "  ${C_WARN}subtitles left as .vtt — embedding needs MP4 or MKV, got .${video:e}${C_RESET}"
+      return 0 ;;
+  esac
+  have "$embedder" || { print -r -- "  ${C_WARN}subtitles left as .vtt — $embedder not found${C_RESET}"; return 0; }
   for vtt in "${vtts[@]}"; do
-    if mp4-embed-vtt "$vtt" "$video" 2>/dev/null; then
+    if { [[ "$embedder" == mkvmerge ]] && embed_mkv_vtt "$vtt" "$video"; } ||
+       { [[ "$embedder" == mp4-embed-vtt ]] && mp4-embed-vtt "$vtt" "$video" 2>/dev/null; }; then
       rm -f -- "$vtt"
       print -r -- "  ${C_OK}embedded subs${C_RESET} ${vtt:t} ${C_DIM}(sidecar removed)${C_RESET}"
     else
