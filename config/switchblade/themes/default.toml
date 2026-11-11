@@ -30,6 +30,9 @@ backdrop = [0.0, 0.0, 0.0, 0.9]
 fade_ms = 0.0
 title_size = 22.0
 
+[chapter_bar]
+peek_s = 0.15
+
 [quickview.padding]
 x = 0.03
 
