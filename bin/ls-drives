@@ -1,7 +1,7 @@
 #!/usr/bin/env zsh
 # ls-drives — list mounted drives by category.
 #
-#   ls-drives [category] [--info]
+#   ls-drives [category] [--info] [--subpath=PATH]
 #
 # Categories:
 #   all       everything below (default)
@@ -12,18 +12,25 @@
 #   image     mounted disk images
 #
 # --info adds connection, link speed, filesystem, size and free space.
+# --subpath=PATH prints <drive>/PATH for each matched drive where that folder
+#   exists; drives without it are left out.
 
 emulate -L zsh
 setopt extended_glob
 
 self=${0:A}
 
-usage() { sed -n '2,15s/^# \{0,1\}//p' $self; }
+usage() { sed -n '2,17s/^# \{0,1\}//p' $self; }
 
-want=all info=0
-for a in $@; do
+want=all info=0 subpath=
+while (( $# )); do
+  a=$1; shift
   case $a in
     -i|--info) info=1 ;;
+    --subpath=*) subpath=${a#--subpath=} ;;
+    --subpath)
+      (( $# )) || { print -u2 "ls-drives: --subpath needs a path"; exit 2; }
+      subpath=$1; shift ;;
     -h|--help) usage; exit 0 ;;
     all|local|system|external|network|image) want=$a ;;
     *) print -u2 "ls-drives: unknown argument: $a"; usage >&2; exit 2 ;;
@@ -113,6 +120,10 @@ mount | while IFS= read -r line; do
     local) [[ $cat == (system|external) ]] || continue ;;
     *) [[ $cat == $want ]] || continue ;;
   esac
+  if [[ -n $subpath ]]; then
+    mp=${mp%/}/${subpath#/}; mp=${mp%/}
+    [[ -d $mp ]] || continue
+  fi
   rows+=("$mp"$'\t'"$cat"$'\t'"$conn"$'\t'"$speed"$'\t'"$fs")
 done
 
