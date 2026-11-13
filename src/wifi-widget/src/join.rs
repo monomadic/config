@@ -1,12 +1,21 @@
 use objc2::{MainThreadMarker, rc::autoreleasepool};
 use objc2_app_kit::*;
+use objc2_core_wlan::CWSecurity;
 use objc2_foundation::{NSPoint, NSRect, NSSize, NSString};
 use std::sync::{
     Mutex,
     mpsc::{self, Receiver},
 };
 use std::time::{Duration, Instant};
-type JoinResult = (String, Result<(), String>);
+/// Why a join ended, and whether a password could plausibly fix it.
+struct Failure {
+    message: String,
+    ask_password: bool,
+}
+fn failed(message: impl Into<String>) -> Failure {
+    Failure { message: message.into(), ask_password: false }
+}
+type JoinResult = (String, Result<(), Failure>);
 static PENDING: Mutex<Option<Receiver<JoinResult>>> = Mutex::new(None);
 static PROGRESS: Mutex<Option<Progress>> = Mutex::new(None);
 /// How long the outcome stays on the row before it settles into the card.
@@ -61,15 +70,15 @@ pub fn start(name: String, password: Option<String>) {
         let result = autoreleasepool(|_| unsafe {
             let interface = objc2_core_wlan::CWWiFiClient::new()
                 .interface()
-                .ok_or("Wi-Fi interface unavailable")?;
+                .ok_or_else(|| failed("Wi-Fi interface unavailable"))?;
             let networks = interface
                 .scanForNetworksWithName_error(Some(&NSString::from_str(&name)))
-                .map_err(|e| e.localizedDescription().to_string())?;
+                .map_err(|e| failed(e.localizedDescription().to_string()))?;
             let network = networks
                 .iter()
                 .filter(|n| n.ssid().is_some_and(|s| s.to_string() == name))
                 .max_by_key(|n| n.rssiValue())
-                .ok_or("Network is no longer visible")?;
+                .ok_or_else(|| failed("Network is no longer visible"))?;
             let mut facts = Vec::new();
             if let Some(channel) = network.wlanChannel() {
                 if let Some(band) = wifi_widget::wifi::band(channel.channelBand()) { facts.push(band.label().to_owned()); }
@@ -78,9 +87,21 @@ pub fn start(name: String, password: Option<String>) {
             facts.push(format!("{} dBm", network.rssiValue()));
             report(&name, Phase::Working, format!("Joining · {}", facts.join(" · ")));
             let password = password.as_deref().map(NSString::from_str);
+            // Only a network with a shared passphrase can be retried with one.
+            // Open, OWE and enterprise networks report their error on the row.
+            let personal = [
+                CWSecurity::WEP,
+                CWSecurity::WPAPersonal,
+                CWSecurity::WPAPersonalMixed,
+                CWSecurity::WPA2Personal,
+                CWSecurity::WPA3Personal,
+                CWSecurity::WPA3Transition,
+            ]
+            .into_iter()
+            .any(|kind| network.supportsSecurity(kind));
             interface
                 .associateToNetwork_password_error(&network, password.as_deref())
-                .map_err(|e| e.localizedDescription().to_string())?;
+                .map_err(|e| Failure { message: e.localizedDescription().to_string(), ask_password: personal })?;
             let ifname = interface.interfaceName().map(|n| n.to_string()).unwrap_or_else(|| "en0".into());
             report(&name, Phase::Working, "Associated · waiting for an IP address…");
             let deadline = Instant::now() + DHCP_WAIT;
@@ -95,16 +116,17 @@ pub fn start(name: String, password: Option<String>) {
                 Some(address) => report(&name, Phase::Connected, format!("Connected · {address}")),
                 None => report(&name, Phase::Connected, "Associated, but no IP address yet (DHCP)"),
             }
-            Ok::<(), String>(())
+            Ok::<(), Failure>(())
         });
-        if let Err(error) = &result {
-            report(&name, Phase::Failed, error.clone());
+        if let Err(failure) = &result {
+            report(&name, Phase::Failed, failure.message.clone());
         }
         let _ = tx.send((name, result));
     });
 }
-/// Delivers a finished join. A failure closes the open menu before asking for
-/// a password, since a modal alert can't sit on top of menu tracking.
+/// Delivers a finished join. A failure a password could fix closes the open
+/// menu before asking for one, since a modal alert can't sit on top of menu
+/// tracking. Any other failure stays on its row, where `report` put it.
 pub fn tick(mtm: MainThreadMarker, menu: Option<&NSMenu>) {
     let result = {
         let mut pending = PENDING.lock().unwrap();
@@ -120,11 +142,16 @@ pub fn tick(mtm: MainThreadMarker, menu: Option<&NSMenu>) {
             _ => None,
         }
     };
-    if let Some((name, Err(error))) = result {
+    if let Some((name, Err(failure))) = result
+        && failure.ask_password
+    {
+        let error = failure.message;
         if let Some(menu) = menu { menu.cancelTracking(); }
         let alert = NSAlert::new(mtm);
         alert.setMessageText(&NSString::from_str(&format!("Could not join {name}")));
-        alert.setInformativeText(&NSString::from_str("Enter the network password to retry."));
+        alert.setInformativeText(&NSString::from_str(&format!(
+            "{error}\n\nEnter the network password to retry."
+        )));
         // The bundle ships no app icon, so the alert would otherwise show a blank tile.
         if let Some(icon) = NSImage::imageWithSystemSymbolName_accessibilityDescription(
             &NSString::from_str("wifi.exclamationmark"),
@@ -145,6 +172,10 @@ pub fn tick(mtm: MainThreadMarker, menu: Option<&NSMenu>) {
         alert.setAccessoryView(Some(&field));
         alert.addButtonWithTitle(&NSString::from_str("Join"));
         alert.addButtonWithTitle(&NSString::from_str("Cancel"));
+        // An accessory app is never frontmost on its own: without this the
+        // alert opens behind other windows and the typing goes elsewhere.
+        NSApplication::sharedApplication(mtm).activate();
+        alert.window().setInitialFirstResponder(Some(&field));
         if alert.runModal() == NSAlertFirstButtonReturn {
             let password = field.stringValue().to_string();
             if !password.is_empty() {

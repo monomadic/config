@@ -198,7 +198,7 @@ define_class!(
                 fill(rect(x-1.0,91.0,2.0,18.0),&NSColor::whiteColor(),1.0);
             }
             for y in [205.0,233.0] { fill(rect(23.0,y,274.0,0.5),&rgb(0x424347),0.0); }
-            if let Some(index) = self.ivars().hover.get() { fill(rect(22.0,237.0+index as f64*22.0,276.0,22.0),&rgb(0x36373b),4.0); }
+            if let Some(index) = self.hover_index(&c) { fill(rect(22.0,237.0+index as f64*22.0,276.0,22.0),&rgb(0x36373b),4.0); }
         }
         #[unsafe(method(copyFact:))]
         fn copy_fact(&self, sender: &NSButton) {
@@ -218,16 +218,44 @@ define_class!(
             crate::app::open_url("x-apple.systempreferences:com.apple.wifi-settings-extension");
         }
         #[unsafe(method(mouseMoved:))]
-        fn moved(&self, event: &NSEvent) {
-            let p = self.convertPoint_fromView(event.locationInWindow(),None);
-            let index = if (22.0..298.0).contains(&p.x) && (237.0..325.0).contains(&p.y) { Some(((p.y-237.0)/22.0) as usize) } else { None };
-            if self.ivars().hover.replace(index) != index { self.sync(Instant::now()); self.setNeedsDisplay(true); }
-        }
+        fn moved(&self, _event: &NSEvent) { self.rehover(); }
+        #[unsafe(method(mouseEntered:))]
+        fn entered(&self, _event: &NSEvent) { self.rehover(); }
         #[unsafe(method(mouseExited:))]
-        fn exited(&self, _event: &NSEvent) { self.ivars().hover.set(None); self.sync(Instant::now()); self.setNeedsDisplay(true); }
+        fn exited(&self, _event: &NSEvent) { self.rehover(); }
+        #[unsafe(method(viewDidMoveToWindow))]
+        fn moved_to_window(&self) { self.rehover(); }
     }
 );
 impl Card {
+    /// The fact row under the pointer, read at the moment it is needed and
+    /// never latched: a menu closed under the pointer sends no `mouseExited:`,
+    /// and a latched row then stayed highlighted when the menu came back.
+    /// Rows with nothing in them (no MAC, no access point) never highlight.
+    fn hover_index(&self, c: &Content) -> Option<usize> {
+        let window = self.window()?;
+        if !c.associated || !window.isVisible() {
+            return None;
+        }
+        let p = self.convertPoint_fromView(
+            window.convertPointFromScreen(NSEvent::mouseLocation()),
+            None,
+        );
+        if !(22.0..298.0).contains(&p.x) || !(237.0..325.0).contains(&p.y) {
+            return None;
+        }
+        let index = ((p.y - 237.0) / 22.0) as usize;
+        (index < 2 || [&c.mac, &c.node].get(index - 2).is_some_and(|v| v.is_some()))
+            .then_some(index)
+    }
+    /// Redraws only when the hovered row actually changed.
+    fn rehover(&self) {
+        let index = self.hover_index(&self.ivars().content.borrow());
+        if self.ivars().hover.replace(index) != index {
+            self.sync(Instant::now());
+            self.setNeedsDisplay(true);
+        }
+    }
     pub fn new(content: Content, mtm: MainThreadMarker) -> Retained<Self> {
         let height = content.height();
         let this = Self::alloc(mtm).set_ivars(CardIvars {
@@ -328,6 +356,8 @@ impl Card {
                 unsafe { NSFontWeightRegular },
             )));
             button.setFrame(rect(102.0, 237.0 + index as f64 * 22.0, 198.0, 22.0));
+            // Set once: re-setting a tooltip restarts its hover delay.
+            button.setToolTip(Some(&NSString::from_str("Click to copy")));
             this.addSubview(&button);
             buttons.push(button);
             let icon = NSImageView::new(mtm);
@@ -345,6 +375,7 @@ impl Card {
             this.addSubview(&icon);
             copy_icons.push(icon);
         }
+        labels[12].setToolTip(Some(&NSString::from_str("Result of the HTTP reachability check against captive.apple.com; timing includes connection and response.")));
         *this.ivars().parts.borrow_mut() = Some(Parts {
             labels,
             glyph,
@@ -407,6 +438,8 @@ impl Card {
         let Some(p) = parts.as_ref() else {
             return;
         };
+        let hover = self.hover_index(&c);
+        self.ivars().hover.set(hover);
         let (internet_status, internet_detail) =
             c.internet.split_once(" · ").unwrap_or((&c.internet, ""));
         let quality = c.verdict.rsplit_once(" · ").map(|(_, q)| q).unwrap_or("");
@@ -493,7 +526,6 @@ impl Card {
         } else {
             0xa8a9ae
         })));
-        p.labels[12].setToolTip(Some(&NSString::from_str("Result of the HTTP reachability check against captive.apple.com; timing includes connection and response.")));
         for (index, label) in [(5, "Signal"), (6, "Noise"), (7, "Transmit rate")] {
             let unit = if index == 7 { "Mbps" } else { "dBm" };
             p.labels[index].setAccessibilityLabel(Some(&NSString::from_str(&format!(
@@ -526,7 +558,7 @@ impl Card {
             }
             button.setEnabled(value.is_some());
             p.copy_icons[index].setHidden(
-                !c.associated || value.is_none() || self.ivars().hover.get() != Some(index),
+                !c.associated || value.is_none() || hover != Some(index),
             );
             if let Some(value) = value {
                 let key = ["IP", "Gateway", "my MAC", "AP"][index];
@@ -547,8 +579,6 @@ impl Card {
                     format!("{value}{}", if private { "  PRIVATE" } else { "" })
                 };
                 button.setTitle(&NSString::from_str(&title));
-
-                button.setToolTip(Some(&NSString::from_str("Click to copy")));
                 button.setAccessibilityLabel(Some(&NSString::from_str(&format!(
                     "Copy {key} address {value}"
                 ))));

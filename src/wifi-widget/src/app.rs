@@ -55,6 +55,10 @@ struct Ui {
     scan: wifi::Scan,
     saved_names: Vec<String>,
     known_empty: Retained<NSMenuItem>,
+    known_empty_label: Retained<objc2_app_kit::NSTextField>,
+    /// Names in the rows, top to bottom. Kept across scan batches so rows
+    /// stay put under the pointer; reset each time the menu opens.
+    order: Vec<String>,
     location_item: Retained<NSMenuItem>,
     login_item: Retained<NSMenuItem>,
     portal_item: Retained<NSMenuItem>,
@@ -103,7 +107,7 @@ define_class!(
     unsafe impl NSMenuDelegate for Widget {
         #[unsafe(method(menuWillOpen:))]
         fn menu_open(&self, _menu: &NSMenu) {
-            if let Some(ui) = self.ivars().borrow_mut().as_mut() { ui.open = true; ui.next_poll = Instant::now(); wifi::refresh_known_networks(); ui.scan.start_if_stale(); ui.login_enabled = ui.bundled && login::enabled(); }
+            if let Some(ui) = self.ivars().borrow_mut().as_mut() { ui.open = true; ui.order.clear(); ui.next_poll = Instant::now(); wifi::refresh_known_networks(); ui.scan.start_if_stale(); ui.login_enabled = ui.bundled && login::enabled(); }
             self.set_timer(TICK_OPEN);
             self.refresh();
         }
@@ -229,10 +233,9 @@ impl Widget {
             known.push((item, row));
         }
         let known_empty = this.item(&menu, "No other visible networks found", None);
-        known_empty.setView(Some(&crate::row::placeholder_row(
-            "No other visible networks found",
-            mtm,
-        )));
+        let (empty_view, known_empty_label) =
+            crate::row::placeholder_row("No other visible networks found", mtm);
+        known_empty.setView(Some(&empty_view));
         menu.addItem(&NSMenuItem::separatorItem(mtm));
         let portal_item = this.item(&menu, "Open Login Page", Some(sel!(portalAction:)));
         portal_item.setHidden(true);
@@ -286,6 +289,8 @@ impl Widget {
             },
             saved_names: Vec::new(),
             known_empty,
+            known_empty_label,
+            order: Vec::new(),
             location_item,
             login_item,
             portal_item,
@@ -486,20 +491,34 @@ impl Widget {
             .reading
             .as_ref()
             .and_then(|r| r.value.ssid.as_deref());
-        // A join in progress keeps its row, pinned first, until its outcome
-        // has been shown, even once it is the connected network.
+        // A join in progress keeps its row, where it was clicked, until its
+        // outcome has been shown, even once it is the connected network.
         let joining = crate::join::progress();
-        let mut names: Vec<_> = ui
+        let joining_name = joining.as_ref().map(|j| j.name.as_str());
+        let mut top: Vec<String> = ui
             .scan
             .visible_names()
             .into_iter()
-            .filter(|name| Some(name.as_str()) != connected)
-            .filter(|name| joining.as_ref().is_none_or(|j| &j.name != name))
+            .filter(|name| Some(name.as_str()) != connected || Some(name.as_str()) == joining_name)
+            .take(MAX_NETWORKS)
             .collect();
-        if let Some(j) = &joining {
-            names.insert(0, j.name.clone());
+        if let Some(name) = joining_name
+            && !top.iter().any(|n| n == name)
+        {
+            top.truncate(MAX_NETWORKS - 1);
+            top.push(name.to_owned());
         }
-        names.truncate(MAX_NETWORKS);
+        // The strongest six are always the ones shown, but a new scan batch
+        // must not re-sort them: a click joins, so a row that moves under the
+        // pointer joins the wrong network. Survivors keep their place and
+        // newcomers go to the end.
+        ui.order.retain(|name| top.contains(name));
+        for name in top {
+            if !ui.order.contains(&name) {
+                ui.order.push(name);
+            }
+        }
+        let names = ui.order.clone();
         // While a scan is running the section spinner already says so; the
         // placeholder only speaks for a finished, empty scan.
         for (index, (item, row)) in ui.known.iter().enumerate() {
@@ -532,6 +551,22 @@ impl Widget {
             }
             ui.rows[index] = key;
         }
+        let auth = unsafe { ui.location.authorizationStatus() };
+        let authorized = matches!(
+            auth,
+            CLAuthorizationStatus::AuthorizedAlways | CLAuthorizationStatus::AuthorizedWhenInUse
+        );
+        // Without Location every scanned network arrives nameless, which is
+        // not the same as there being none.
+        let empty = if !authorized {
+            "Allow Location to see nearby network names"
+        } else if ui.scan.failed() {
+            "Couldn’t scan for networks — try Refresh"
+        } else {
+            "No other visible networks found"
+        };
+        set_text(&ui.known_empty_label, empty);
+        set_title(&ui.known_empty, empty);
         ui.known_empty.setHidden(!names.is_empty() || ui.scan.busy());
         let mut content = crate::card::Content::from_snapshot(&snapshot, now);
         if content.associated {
@@ -550,11 +585,7 @@ impl Widget {
         {
             menu.itemChanged(&ui.card_item);
         }
-        let auth = unsafe { ui.location.authorizationStatus() };
-        ui.location_item.setHidden(matches!(
-            auth,
-            CLAuthorizationStatus::AuthorizedAlways | CLAuthorizationStatus::AuthorizedWhenInUse
-        ));
+        ui.location_item.setHidden(authorized);
         ui.location_item.setEnabled(ui.bundled);
         set_title(
             &ui.location_item,
@@ -574,16 +605,12 @@ impl Widget {
         });
         ui.portal_item
             .setHidden(snapshot.headline != State::LoginRequired);
-        ui.refresh_item
-            .setToolTip(Some(&NSString::from_str(if ui.scan.busy() {
-                "Scanning nearby networks…"
-            } else {
-                "Refresh Wi-Fi readings and nearby networks"
-            })));
+        // Only on a change of state: setting a tooltip on every tick restarts
+        // its hover delay, so it would never get to appear.
         let scanning = ui.scan.busy();
-        ui.refresh_item.setEnabled(!scanning);
-        ui.refresh_item.setHidden(scanning);
         if ui.scan_spinner.isHidden() == scanning {
+            ui.refresh_item.setEnabled(!scanning);
+            ui.refresh_item.setHidden(scanning);
             ui.scan_spinner.setHidden(!scanning);
             if scanning {
                 unsafe {

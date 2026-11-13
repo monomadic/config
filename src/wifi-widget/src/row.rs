@@ -1,7 +1,7 @@
 //! Compact saved-network row. Availability stays unclaimed until scans exist.
 use objc2::runtime::{AnyObject, ProtocolObject};
 use objc2::{
-    AnyThread, DefinedClass, MainThreadMarker, MainThreadOnly, define_class, msg_send,
+    AnyThread, DefinedClass, MainThreadMarker, MainThreadOnly, Message, define_class, msg_send,
     rc::Retained, sel,
 };
 use objc2_app_kit::*;
@@ -49,10 +49,23 @@ define_class!(
             }
         }
 
+        /// Accessibility presses the button; the pointer goes through `mouseUp:`.
         #[unsafe(method(openSettings:))]
-        fn open_settings(&self,_sender:&NSButton) {
-            // The menu stays open: the row itself shows the join's progress.
-            crate::join::start(self.ivars().name.borrow().clone(), None);
+        fn open_settings(&self,_sender:&NSButton) { self.join(); }
+        /// The whole highlighted row is the target, not just the name's text:
+        /// every click lands on the row itself instead of whichever label,
+        /// icon or gap happens to be under the pointer.
+        #[unsafe(method_id(hitTest:))]
+        fn hit_test(&self, point: NSPoint) -> Option<Retained<NSView>> {
+            let inside: Option<Retained<NSView>> = unsafe { msg_send![super(self), hitTest: point] };
+            inside.map(|_| self.retain().into_super())
+        }
+        #[unsafe(method(mouseDown:))]
+        fn mouse_down(&self, _event: &NSEvent) {}
+        #[unsafe(method(mouseUp:))]
+        fn mouse_up(&self, event: &NSEvent) {
+            let point = self.convertPoint_fromView(event.locationInWindow(), None);
+            if self.mouse_inRect(point, self.bounds()) { self.join(); }
         }
     }
 );
@@ -210,6 +223,26 @@ impl KnownRow {
     }
 }
 impl KnownRow {
+    /// Starts a join and shows it on this row at once, rather than on the
+    /// next timer tick. The menu stays open: the row carries the progress.
+    fn join(&self) {
+        let name = self.ivars().name.borrow().clone();
+        if name.is_empty() {
+            return;
+        }
+        crate::join::start(name.clone(), None);
+        // Another join may already be running; then this row has nothing to show.
+        let progress = crate::join::progress()
+            .filter(|p| p.name == name)
+            .map(|p| (p.phase, p.detail));
+        if progress.is_some()
+            && self.set_progress(progress)
+            && let Some(item) = self.enclosingMenuItem()
+            && let Some(menu) = unsafe { item.menu() }
+        {
+            menu.itemChanged(&item);
+        }
+    }
     /// Shows a join on this row: a spinner in place of the icon while it
     /// runs, a check or warning when it ends, and the system's last word on a
     /// line beneath. Returns true when the row changed height, so the caller
@@ -331,7 +364,7 @@ pub fn section(
 
 /// Quiet placeholder under a section header, sized so it never outweighs the
 /// 11pt heading above it the way a plain 13pt menu item does.
-pub fn placeholder_row(text: &str, mtm: MainThreadMarker) -> Retained<NSView> {
+pub fn placeholder_row(text: &str, mtm: MainThreadMarker) -> (Retained<NSView>, Retained<NSTextField>) {
     let view = NSView::new(mtm);
     view.setFrame(frame(0., 0., 320., 20.));
     let label = NSTextField::labelWithString(&NSString::from_str(text), mtm);
@@ -339,7 +372,7 @@ pub fn placeholder_row(text: &str, mtm: MainThreadMarker) -> Retained<NSView> {
     label.setFont(Some(&NSFont::systemFontOfSize(11.)));
     label.setTextColor(Some(&NSColor::tertiaryLabelColor()));
     view.addSubview(&label);
-    view
+    (view, label)
 }
 
 /// The Style item: a plain menu row with the current choice dimmed on the

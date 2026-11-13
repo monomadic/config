@@ -155,11 +155,18 @@ are user-approved and should stay. Planned row enrichment adds saved security
 labels and scanned strength meters; Refresh becomes a small circular symbol button.
 
 Nearby Networks shows only named networks detected by a recent scan, including
-unsaved networks, sorted by signal strength. The connected network stays in the
+unsaved networks: the six strongest, strongest first when the menu opens. While
+the menu is open a new scan batch never re-sorts them — rows that are still in
+range keep their place and newcomers are added at the end — because a click
+joins. The connected network stays in the
 main card. Scans start in the background at app launch. Menu openings reuse results for three minutes; Refresh requests a new scan. A disabled spinner replaces Refresh while
 scanning, with only one
 scan in flight. Each SSID shows its strongest scanned access point's band and
-signal; duplicate access points are combined and readings expire after three minutes.
+signal; duplicate access points are combined and readings expire after three
+minutes — the name stays listed, without band or signal, until the next batch
+replaces it. A scan that fails leaves the list as it was. Clicking anywhere on a
+row joins that network; only a failure a password could fix asks for one, and
+any other error is shown on the row.
 Hover the band for RSSI. The outlined Refresh control and network rows highlight
 on hover.
 

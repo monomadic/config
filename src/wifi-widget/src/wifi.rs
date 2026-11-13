@@ -175,12 +175,18 @@ type ScannedNetwork = (String, Band, i32, &'static str);
 /// Single-flight, user-triggered scan; no AppKit objects cross threads.
 #[derive(Default)]
 pub struct Scan {
-    pending: Option<std::sync::mpsc::Receiver<(Vec<ScannedNetwork>, bool)>>,
+    pending: Option<std::sync::mpsc::Receiver<Batch>>,
     results: Vec<ScannedNetwork>,
     updated: Option<std::time::Instant>,
     cached: bool,
+    failed: bool,
 }
-/// Results older than this are never shown and never block cached updates.
+/// A batch of results, or `None` when the scan failed, and whether the scan
+/// is finished. A failure keeps whatever was on screen.
+type Batch = (Option<Vec<ScannedNetwork>>, bool);
+/// Results older than this keep their names in the list, so the menu does not
+/// open empty and then grow, but lose signal and band until a new batch lands.
+/// They never block cached updates.
 const STALE: std::time::Duration = std::time::Duration::from_secs(180);
 impl Scan {
     fn fresh(&self) -> bool {
@@ -202,9 +208,7 @@ impl Scan {
         self.pending = Some(rx);
         std::thread::spawn(move || {
             let results = objc2::rc::autoreleasepool(|_| unsafe {
-                let Some(interface) = CWWiFiClient::new().interface() else {
-                    return Vec::new();
-                };
+                let interface = CWWiFiClient::new().interface()?;
                 if let Some(networks) = interface.cachedScanResults() {
                     let cached = networks
                         .iter()
@@ -217,12 +221,10 @@ impl Scan {
                             ))
                         })
                         .collect();
-                    let _ = tx.send((cached, false));
+                    let _ = tx.send((Some(cached), false));
                 }
-                let Ok(networks) = interface.scanForNetworksWithName_error(None) else {
-                    return Vec::new();
-                };
-                networks
+                let networks = interface.scanForNetworksWithName_error(None).ok()?;
+                let fresh: Vec<ScannedNetwork> = networks
                     .iter()
                     .filter_map(|network| {
                         Some((
@@ -232,7 +234,8 @@ impl Scan {
                             security_label(|kind| network.supportsSecurity(kind)),
                         ))
                     })
-                    .collect()
+                    .collect();
+                Some(fresh)
             });
             let _ = tx.send((results, true));
         });
@@ -243,17 +246,24 @@ impl Scan {
                 Ok((results, finished)) => {
                     // The cached batch must not lose to expired leftovers, or a
                     // reopened menu sits empty until the fresh scan completes.
-                    if finished || !self.fresh() {
-                        self.results = results;
-                        self.updated = Some(std::time::Instant::now());
-                        self.cached = !finished;
+                    match results {
+                        Some(results) if finished || !self.fresh() => {
+                            self.results = results;
+                            self.updated = Some(std::time::Instant::now());
+                            self.cached = !finished;
+                            self.failed = false;
+                        }
+                        // A busy radio or a missing interface is not an
+                        // empty neighbourhood: keep the rows already shown.
+                        None => self.failed = true,
+                        _ => {}
                     }
                     if finished {
                         self.pending = None;
                     }
                 }
                 Err(std::sync::mpsc::TryRecvError::Disconnected) => {
-                    self.results.clear();
+                    self.failed = true;
                     self.pending = None;
                 }
                 _ => {}
@@ -264,13 +274,23 @@ impl Scan {
         let mut names: Vec<_> = self
             .results
             .iter()
-            .filter(|r| !r.0.is_empty() && self.reading(&r.0).is_some())
+            .filter(|r| !r.0.is_empty())
             .map(|r| r.0.clone())
             .collect();
         names.sort();
         names.dedup();
-        names.sort_by_key(|name| std::cmp::Reverse(self.reading(name).map(|r| r.1)));
+        names.sort_by_key(|name| std::cmp::Reverse(self.strongest(name).map(|r| r.2)));
         names
+    }
+    /// The last scan ended in an error rather than a list.
+    pub fn failed(&self) -> bool {
+        self.failed
+    }
+    fn strongest(&self, name: &str) -> Option<&ScannedNetwork> {
+        self.results
+            .iter()
+            .filter(|r| r.0 == name)
+            .max_by_key(|r| r.2)
     }
     pub fn is_cached(&self) -> bool {
         self.cached
@@ -279,22 +299,14 @@ impl Scan {
         self.pending.is_some()
     }
     pub fn security(&self, name: &str) -> Option<&'static str> {
-        self.reading(name)?;
-        self.results
-            .iter()
-            .filter(|r| r.0 == name)
-            .max_by_key(|r| r.2)
-            .map(|r| r.3)
+        self.strongest(name).map(|r| r.3)
     }
+    /// Band and signal, only while the measurement is recent enough to trust.
     pub fn reading(&self, name: &str) -> Option<(Band, i32)> {
         if !self.fresh() {
             return None;
         }
-        self.results
-            .iter()
-            .filter(|r| r.0 == name)
-            .max_by_key(|r| r.2)
-            .map(|r| (r.1, r.2))
+        self.strongest(name).map(|r| (r.1, r.2))
     }
 }
 
@@ -308,13 +320,13 @@ mod tests {
             pending: Some(rx),
             ..Scan::default()
         };
-        tx.send((vec![("Cached".into(), Band::Ghz5, -60, "WPA2")], false))
+        tx.send((Some(vec![("Cached".into(), Band::Ghz5, -60, "WPA2")]), false))
             .unwrap();
         scan.tick();
         assert!(scan.busy());
         assert!(scan.is_cached());
         assert_eq!(scan.visible_names(), vec!["Cached"]);
-        tx.send((vec![("Fresh".into(), Band::Ghz6, -50, "WPA3")], true))
+        tx.send((Some(vec![("Fresh".into(), Band::Ghz6, -50, "WPA3")]), true))
             .unwrap();
         scan.tick();
         assert!(!scan.busy());
@@ -322,16 +334,35 @@ mod tests {
         assert_eq!(scan.visible_names(), vec!["Fresh"]);
     }
     #[test]
+    fn failed_scan_keeps_the_rows_already_shown() {
+        let (tx, rx) = std::sync::mpsc::channel();
+        let mut scan = Scan {
+            pending: Some(rx),
+            ..Scan::default()
+        };
+        tx.send((Some(vec![("Cached".into(), Band::Ghz5, -60, "WPA2")]), false))
+            .unwrap();
+        scan.tick();
+        tx.send((None, true)).unwrap();
+        scan.tick();
+        assert!(!scan.busy());
+        assert!(scan.failed());
+        assert_eq!(scan.visible_names(), vec!["Cached"]);
+        assert_eq!(scan.reading("Cached"), Some((Band::Ghz5, -60)));
+    }
+    #[test]
     fn cached_results_replace_expired_leftovers_immediately() {
         let (tx, rx) = std::sync::mpsc::channel();
         let mut scan = Scan {
             pending: Some(rx),
             cached: false,
+            failed: false,
             results: vec![("Old".into(), Band::Ghz5, -60, "WPA2")],
             updated: Some(std::time::Instant::now() - STALE - std::time::Duration::from_secs(1)),
         };
-        assert!(scan.visible_names().is_empty());
-        tx.send((vec![("Cached".into(), Band::Ghz5, -62, "WPA2")], false))
+        assert_eq!(scan.visible_names(), vec!["Old"]);
+        assert_eq!(scan.reading("Old"), None);
+        tx.send((Some(vec![("Cached".into(), Band::Ghz5, -62, "WPA2")]), false))
             .unwrap();
         scan.tick();
         assert!(scan.is_cached());
@@ -342,6 +373,7 @@ mod tests {
         let mut scan = Scan {
             pending: None,
             cached: false,
+            failed: false,
             results: vec![
                 ("Home".into(), Band::Ghz5, -70, "WPA2"),
                 ("Home".into(), Band::Ghz6, -50, "WPA3"),
@@ -357,9 +389,10 @@ mod tests {
         scan.start_if_stale();
         assert!(!scan.busy());
         scan.updated = Some(std::time::Instant::now() - std::time::Duration::from_secs(181));
+        // Expired: the name stays listed, the measurement does not.
         assert_eq!(scan.reading("Home"), None);
-        assert!(scan.visible_names().is_empty());
-        assert_eq!(scan.security("Home"), None);
+        assert_eq!(scan.visible_names(), vec!["Home"]);
+        assert_eq!(scan.security("Home"), Some("WPA3"));
     }
     #[test]
     fn security_labels_preserve_mixed_and_unknown_modes() {
