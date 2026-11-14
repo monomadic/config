@@ -16,10 +16,10 @@ use objc2_app_kit::{
     NSApplication, NSApplicationActivationPolicy, NSAttributedStringAttachmentConveniences,
     NSAttributedStringNSStringDrawing, NSBezierPath, NSCellImagePosition, NSColor,
     NSCompositingOperation, NSControlStateValueOff, NSControlStateValueOn, NSFont,
-    NSFontAttributeName, NSFontWeightRegular, NSForegroundColorAttributeName, NSImage, NSMenu,
-    NSMenuItem, NSMutableParagraphStyle, NSParagraphStyleAttributeName, NSRectFillUsingOperation,
-    NSStatusBar, NSStatusItem, NSStringDrawing, NSTextAlignment, NSTextAttachment, NSTextTab,
-    NSVariableStatusItemLength,
+    NSFontAttributeName, NSFontWeightRegular, NSForegroundColorAttributeName, NSImage,
+    NSImageSymbolConfiguration, NSMenu, NSMenuItem, NSMutableParagraphStyle,
+    NSParagraphStyleAttributeName, NSRectFillUsingOperation, NSStatusBar, NSStatusItem,
+    NSStringDrawing, NSTextAlignment, NSTextAttachment, NSTextTab, NSVariableStatusItemLength,
 };
 use objc2_foundation::{
     NSArray, NSAttributedString, NSMutableAttributedString, NSMutableDictionary, NSObject, NSPoint,
@@ -704,13 +704,30 @@ fn neutral_bar(percent: i32) -> Option<BarSpec> {
 /// native status item; the two rows retain the design's 11/9 pt type sizes.
 fn icon_power_image(info: &BatteryInfo) -> Retained<NSImage> {
     let ink = NSColor::blackColor();
-    let icon = NSString::from_str(status_icon(info));
+    let symbol = match info.state {
+        BatteryState::Charging => "bolt.fill",
+        _ if info.percent < LOW_BATTERY_THRESHOLD => "battery.0percent",
+        _ => "battery.100percent",
+    };
+    // Named symbols do not depend on the system font exposing private-use
+    // SF Symbols codepoints (which can render as missing-glyph boxes).
+    let icon = NSImage::imageWithSystemSymbolName_accessibilityDescription(
+        &NSString::from_str(symbol),
+        None,
+    )
+    .expect("standard battery/bolt SF Symbol");
+    let configuration =
+        NSImageSymbolConfiguration::configurationWithPointSize_weight(16.0, unsafe {
+            NSFontWeightRegular
+        });
+    let icon = icon
+        .imageWithSymbolConfiguration(&configuration)
+        .unwrap_or(icon);
     let percent = NSString::from_str(&format!("{}%", info.percent));
     let power = NSString::from_str(&power_text(info));
-    let icon_attrs = glyph_attrs(16.0, Some(&ink));
     let percent_attrs = glyph_attrs(11.0, Some(&ink));
     let power_attrs = glyph_attrs(9.0, Some(&ink));
-    let icon_size = unsafe { icon.sizeWithAttributes(Some(&icon_attrs)) };
+    let icon_size = icon.size();
     let percent_size = unsafe { percent.sizeWithAttributes(Some(&percent_attrs)) };
     let power_size = unsafe { power.sizeWithAttributes(Some(&power_attrs)) };
     let text_x = icon_size.width + 5.0;
@@ -720,13 +737,13 @@ fn icon_power_image(info: &BatteryInfo) -> Retained<NSImage> {
     };
     let handler = block2::RcBlock::new(move |_bounds: NSRect| -> objc2::runtime::Bool {
         unsafe {
-            icon.drawAtPoint_withAttributes(
-                NSPoint {
+            icon.drawInRect(NSRect {
+                origin: NSPoint {
                     x: 0.0,
                     y: (size.height - icon_size.height) / 2.0,
                 },
-                Some(&icon_attrs),
-            );
+                size: icon_size,
+            });
             percent.drawAtPoint_withAttributes(
                 NSPoint {
                     x: text_x,
