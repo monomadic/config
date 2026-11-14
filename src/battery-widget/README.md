@@ -19,9 +19,16 @@ Pick from the Style submenu; persisted to `~/.config/battery-widget/style`.
 | Icon and Bar | dim bolt + bar |
 | Percentage and Bar | `87%` + bar |
 | Bar | bar only |
-| Bar and Power | bar + `8.4w` discharging / `+42w` charging |
+| Bar and Power | bar + `−8.4w` discharging / `+42w` charging |
 | Smart Bar | state-aware (default) |
 | Smart Bar and Timer | smart bar + `· 3:12` |
+| Icon and Power | battery/charging icon + percentage above signed power |
+
+Power values use `+` while charging and `−` while drawing from the battery,
+with an unsigned `0.0w` at zero and unsigned values while idle. The same
+format is used in every style, its live submenu preview, and the dropdown.
+Icon and Power stacks 11 pt percentage above 9 pt power beside a 16 pt icon,
+as one template image that follows the menu bar appearance.
 
 The smart bar colors by state: green + bolt while charging (text shows charge
 rate and time to full in the dropdown), red below 10% while discharging,

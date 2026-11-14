@@ -13,13 +13,13 @@ use objc2::{
     AnyThread, DefinedClass, MainThreadMarker, MainThreadOnly, define_class, msg_send, sel,
 };
 use objc2_app_kit::{
-    NSApplication, NSApplicationActivationPolicy, NSBezierPath, NSCellImagePosition, NSColor,
-    NSControlStateValueOff, NSControlStateValueOn, NSFont, NSFontAttributeName,
-    NSAttributedStringAttachmentConveniences, NSAttributedStringNSStringDrawing,
-    NSCompositingOperation, NSFontWeightRegular,
-    NSForegroundColorAttributeName, NSImage, NSMenu, NSMenuItem, NSMutableParagraphStyle,
-    NSParagraphStyleAttributeName, NSRectFillUsingOperation, NSStatusBar, NSStatusItem,
-    NSStringDrawing, NSTextAlignment, NSTextAttachment, NSTextTab, NSVariableStatusItemLength,
+    NSApplication, NSApplicationActivationPolicy, NSAttributedStringAttachmentConveniences,
+    NSAttributedStringNSStringDrawing, NSBezierPath, NSCellImagePosition, NSColor,
+    NSCompositingOperation, NSControlStateValueOff, NSControlStateValueOn, NSFont,
+    NSFontAttributeName, NSFontWeightRegular, NSForegroundColorAttributeName, NSImage, NSMenu,
+    NSMenuItem, NSMutableParagraphStyle, NSParagraphStyleAttributeName, NSRectFillUsingOperation,
+    NSStatusBar, NSStatusItem, NSStringDrawing, NSTextAlignment, NSTextAttachment, NSTextTab,
+    NSVariableStatusItemLength,
 };
 use objc2_foundation::{
     NSArray, NSAttributedString, NSMutableAttributedString, NSMutableDictionary, NSObject, NSPoint,
@@ -94,9 +94,10 @@ enum LayoutStyle {
     BarPower,
     SmartBar,
     SmartBarTimer,
+    IconPower,
 }
 
-const ALL_STYLES: [LayoutStyle; 9] = [
+const ALL_STYLES: [LayoutStyle; 10] = [
     LayoutStyle::Text,
     LayoutStyle::IconText,
     LayoutStyle::BarText,
@@ -106,6 +107,7 @@ const ALL_STYLES: [LayoutStyle; 9] = [
     LayoutStyle::BarPower,
     LayoutStyle::SmartBar,
     LayoutStyle::SmartBarTimer,
+    LayoutStyle::IconPower,
 ];
 
 impl LayoutStyle {
@@ -120,6 +122,7 @@ impl LayoutStyle {
             LayoutStyle::BarPower => "Bar and Power",
             LayoutStyle::SmartBar => "Smart Bar",
             LayoutStyle::SmartBarTimer => "Smart Bar and Timer",
+            LayoutStyle::IconPower => "Icon and Power",
         }
     }
 
@@ -134,6 +137,7 @@ impl LayoutStyle {
             LayoutStyle::BarPower => "bar_power",
             LayoutStyle::SmartBar => "smart_bar",
             LayoutStyle::SmartBarTimer => "smart_bar_timer",
+            LayoutStyle::IconPower => "icon_power",
         }
     }
 
@@ -194,7 +198,7 @@ impl Run {
 struct BarSpec {
     percent: i32,
     fill: Option<Retained<NSColor>>, // None = template image, adapts to menu bar
-    bolt: Option<Retained<NSColor>>,         // overlaid on the track
+    bolt: Option<Retained<NSColor>>, // overlaid on the track
     leading_bolt: Option<Retained<NSColor>>, // in its own slot, left of the track
 }
 
@@ -278,6 +282,7 @@ impl Accent {
 }
 
 struct TitleSpec {
+    image: Option<Retained<NSImage>>,
     runs: Vec<Run>,
     bar: Option<BarSpec>,
     bar_on_left: bool,
@@ -395,6 +400,10 @@ fn tinted(image: &NSImage) -> Retained<NSImage> {
 fn preview_image(info: &BatteryInfo, style: LayoutStyle) -> Retained<NSImage> {
     let spec = title_spec(info, style, &Accent::new(info));
 
+    if let Some(image) = &spec.image {
+        return tinted(image);
+    }
+
     let title = attributed_runs(&spec.runs, Some(&NSColor::labelColor()));
     let title_size = if spec.runs.is_empty() {
         NSSize {
@@ -488,7 +497,9 @@ fn style_row_title(label: &str, preview: &NSImage) -> Retained<NSMutableAttribut
         NSMutableAttributedString::alloc(),
         &NSString::from_str(&format!("{label}\t")),
     );
-    title.appendAttributedString(&NSAttributedString::attributedStringWithAttachment(&attachment));
+    title.appendAttributedString(&NSAttributedString::attributedStringWithAttachment(
+        &attachment,
+    ));
     title
 }
 
@@ -650,19 +661,25 @@ fn state_color(info: &BatteryInfo) -> Option<Retained<NSColor>> {
     }
 }
 
-// power_text renders battery power flow compactly: "8.4w" discharging,
-// "+42w" charging.
+// One formatter for every status style, style preview and dropdown readout.
+// A rounded zero has no direction; idle does not imply charging just because
+// the adapter is connected.
 fn power_text(info: &BatteryInfo) -> String {
-    let prefix = if info.state == BatteryState::Charging {
-        "+"
+    let magnitude = if info.watts >= 10.0 {
+        format!("{:.0}", info.watts)
     } else {
-        ""
+        format!("{:.1}", info.watts)
     };
-    if info.watts >= 10.0 {
-        format!("{prefix}{:.0}w", info.watts)
+    let prefix = if magnitude == "0.0" {
+        ""
     } else {
-        format!("{prefix}{:.1}w", info.watts)
-    }
+        match info.state {
+            BatteryState::Charging => "+",
+            BatteryState::Discharging => "−",
+            BatteryState::Idle => "",
+        }
+    };
+    format!("{prefix}{magnitude}w")
 }
 
 fn status_icon(info: &BatteryInfo) -> &'static str {
@@ -680,6 +697,50 @@ fn neutral_bar(percent: i32) -> Option<BarSpec> {
         bolt: None,
         leading_bolt: None,
     })
+}
+
+/// One template image keeps the icon and two text rows centered together.
+/// The same image is tinted for the submenu preview. A 22 pt canvas fits the
+/// native status item; the two rows retain the design's 11/9 pt type sizes.
+fn icon_power_image(info: &BatteryInfo) -> Retained<NSImage> {
+    let ink = NSColor::blackColor();
+    let icon = NSString::from_str(status_icon(info));
+    let percent = NSString::from_str(&format!("{}%", info.percent));
+    let power = NSString::from_str(&power_text(info));
+    let icon_attrs = glyph_attrs(16.0, Some(&ink));
+    let percent_attrs = glyph_attrs(11.0, Some(&ink));
+    let power_attrs = glyph_attrs(9.0, Some(&ink));
+    let icon_size = unsafe { icon.sizeWithAttributes(Some(&icon_attrs)) };
+    let percent_size = unsafe { percent.sizeWithAttributes(Some(&percent_attrs)) };
+    let power_size = unsafe { power.sizeWithAttributes(Some(&power_attrs)) };
+    let text_x = icon_size.width + 5.0;
+    let size = NSSize {
+        width: (text_x + percent_size.width.max(power_size.width)).ceil(),
+        height: 22.0,
+    };
+    let handler = block2::RcBlock::new(move |_bounds: NSRect| -> objc2::runtime::Bool {
+        unsafe {
+            icon.drawAtPoint_withAttributes(
+                NSPoint {
+                    x: 0.0,
+                    y: (size.height - icon_size.height) / 2.0,
+                },
+                Some(&icon_attrs),
+            );
+            percent.drawAtPoint_withAttributes(
+                NSPoint {
+                    x: text_x,
+                    y: size.height - percent_size.height,
+                },
+                Some(&percent_attrs),
+            );
+            power.drawAtPoint_withAttributes(NSPoint { x: text_x, y: 0.0 }, Some(&power_attrs));
+        }
+        objc2::runtime::Bool::YES
+    });
+    let image = NSImage::imageWithSize_flipped_drawingHandler(size, false, &handler);
+    image.setTemplate(true);
+    image
 }
 
 fn smart_title(info: &BatteryInfo, accent: &Accent, with_timer: bool) -> TitleSpec {
@@ -704,6 +765,7 @@ fn smart_title(info: &BatteryInfo, accent: &Accent, with_timer: bool) -> TitleSp
     }
 
     TitleSpec {
+        image: None,
         runs,
         bar: Some(BarSpec {
             percent: info.percent,
@@ -718,6 +780,7 @@ fn smart_title(info: &BatteryInfo, accent: &Accent, with_timer: bool) -> TitleSp
 fn title_spec(info: &BatteryInfo, style: LayoutStyle, accent: &Accent) -> TitleSpec {
     let percent = format!("{}%", info.percent);
     let text_only = |runs: Vec<Run>| TitleSpec {
+        image: None,
         runs,
         bar: None,
         bar_on_left: true,
@@ -729,6 +792,7 @@ fn title_spec(info: &BatteryInfo, style: LayoutStyle, accent: &Accent) -> TitleS
             text_only(vec![Run::plain(format!("{} {percent}", status_icon(info)))])
         }
         LayoutStyle::BarText => TitleSpec {
+            image: None,
             runs: vec![Run::plain(percent)],
             bar: neutral_bar(info.percent),
             bar_on_left: true,
@@ -736,6 +800,7 @@ fn title_spec(info: &BatteryInfo, style: LayoutStyle, accent: &Accent) -> TitleS
         // Bolt and bar are one image, so the button has nothing to centre but
         // that image — no title run, no side bearing, no lopsided capsule.
         LayoutStyle::IconBar => TitleSpec {
+            image: None,
             runs: Vec::new(),
             bar: Some(BarSpec {
                 leading_bolt: Some(accent.bolt_color.clone()),
@@ -744,22 +809,29 @@ fn title_spec(info: &BatteryInfo, style: LayoutStyle, accent: &Accent) -> TitleS
             bar_on_left: true,
         },
         LayoutStyle::PercentBar => TitleSpec {
+            image: None,
             runs: vec![Run::plain(percent)],
             bar: neutral_bar(info.percent),
             bar_on_left: false,
         },
         LayoutStyle::Bar => TitleSpec {
+            image: None,
             runs: Vec::new(),
             bar: neutral_bar(info.percent),
             bar_on_left: true,
         },
         LayoutStyle::BarPower => TitleSpec {
+            image: None,
             runs: vec![Run::plain(power_text(info))],
             bar: neutral_bar(info.percent),
             bar_on_left: true,
         },
         LayoutStyle::SmartBar => smart_title(info, accent, false),
         LayoutStyle::SmartBarTimer => smart_title(info, accent, true),
+        LayoutStyle::IconPower => TitleSpec {
+            image: Some(icon_power_image(info)),
+            ..text_only(Vec::new())
+        },
     };
 
     if let Some(bar) = spec.bar.as_mut() {
@@ -1066,6 +1138,11 @@ impl Widget {
             return;
         };
         button.setAttributedTitle(&title);
+        if let Some(image) = &spec.image {
+            button.setImage(Some(image));
+            button.setImagePosition(NSCellImagePosition::ImageOnly);
+            return;
+        }
         match &spec.bar {
             Some(bar) => {
                 let (position, pad) = if spec.runs.is_empty() {
@@ -1127,4 +1204,65 @@ fn main() {
     }
 
     app.run();
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn reading(state: BatteryState, watts: f64) -> BatteryInfo {
+        BatteryInfo {
+            percent: 72,
+            state,
+            time_remaining: Some("0:48".into()),
+            watts,
+            health_percent: 96,
+            cycle_count: 124,
+            low_power_mode: false,
+            on_ac: state != BatteryState::Discharging,
+        }
+    }
+
+    #[test]
+    fn power_signs_follow_battery_state_and_keep_existing_precision() {
+        for (watts, charge, draw) in [
+            (0.0, "0.0w", "0.0w"),
+            (0.01, "0.0w", "0.0w"),
+            (0.1, "+0.1w", "−0.1w"),
+            (8.4, "+8.4w", "−8.4w"),
+            (42.3, "+42w", "−42w"),
+        ] {
+            assert_eq!(power_text(&reading(BatteryState::Charging, watts)), charge);
+            assert_eq!(power_text(&reading(BatteryState::Discharging, watts)), draw);
+        }
+        assert_eq!(power_text(&reading(BatteryState::Idle, 0.0)), "0.0w");
+        assert_eq!(power_text(&reading(BatteryState::Idle, 1.2)), "1.2w");
+        let mut adapter_draw = reading(BatteryState::Discharging, 8.4);
+        adapter_draw.on_ac = true;
+        assert_eq!(power_text(&adapter_draw), "−8.4w");
+    }
+
+    #[test]
+    fn every_menu_style_has_a_unique_persistent_key() {
+        let mut keys = std::collections::HashSet::new();
+        for style in ALL_STYLES {
+            assert!(keys.insert(style.key()));
+            assert!(LayoutStyle::from_key(style.key()) == Some(style));
+        }
+        assert!(LayoutStyle::from_key("icon_power") == Some(LayoutStyle::IconPower));
+        assert_eq!(LayoutStyle::IconPower.label(), "Icon and Power");
+    }
+
+    #[test]
+    fn icon_tracks_charging_and_low_battery() {
+        let mut info = reading(BatteryState::Discharging, 6.2);
+        assert_eq!(status_icon(&info), BATTERY_ICON);
+        info.percent = 7;
+        assert_eq!(status_icon(&info), LOW_BATTERY_ICON);
+        info.state = BatteryState::Charging;
+        assert_eq!(status_icon(&info), BOLT_ICON);
+        info.state = BatteryState::Idle;
+        info.percent = 100;
+        assert_eq!(status_icon(&info), BATTERY_ICON);
+    }
 }
