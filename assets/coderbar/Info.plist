@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>CFBundleExecutable</key>
+	<string>coder-bar</string>
+	<key>CFBundleIdentifier</key>
+	<string>dev.coderbar.app</string>
+	<key>CFBundleName</key>
+	<string>CoderBar</string>
+	<key>CFBundleDisplayName</key>
+	<string>CoderBar</string>
+	<key>CFBundlePackageType</key>
+	<string>APPL</string>
+	<key>CFBundleShortVersionString</key>
+	<string>0.5.5</string>
+	<key>CFBundleVersion</key>
+	<string>1</string>
+	<key>CFBundleIconFile</key>
+	<string>AppIcon</string>
+	<key>LSUIElement</key>
+	<true/>
+	<key>LSMinimumSystemVersion</key>
+	<string>14.0</string>
+	<key>NSAppleEventsUsageDescription</key>
+	<string>CoderBar brings your terminal to the front when you click a session or notification.</string>
+	<key>NSUserNotificationUsageDescription</key>
+	<string>CoderBar shows notifications when an agent needs your attention.</string>
+</dict>
+</plist>

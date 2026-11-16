@@ -1,0 +1,2 @@
+#!/usr/bin/env bash
+open /Applications/CoderBar.app --args "$@"
