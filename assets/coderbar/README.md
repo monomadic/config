@@ -2,7 +2,7 @@
 
 Source: https://github.com/monomadic/CoderBar
 Upstream: https://github.com/helloyulife/CoderBar
-Pinned commit: `c3b3613` (0.5.5, macOS arm64).
+Pinned commit: `71b33e5` (0.5.5, macOS arm64).
 
 `vendor/bin/coder-bar`, `coder-bar-hook`, and `coder-bar-ctl` are the
 executables from that build. This directory contains its bundle metadata
