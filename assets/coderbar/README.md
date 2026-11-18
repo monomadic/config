@@ -2,7 +2,7 @@
 
 Source: https://github.com/monomadic/CoderBar
 Upstream: https://github.com/helloyulife/CoderBar
-Pinned commit: `ff9c416` (0.5.5, macOS arm64).
+Pinned commit: `f1fd52e` (0.5.5, macOS arm64).
 
 `vendor/bin/coder-bar`, `coder-bar-hook`, and `coder-bar-ctl` are the
 executables from that build. This directory contains its bundle metadata
@@ -18,4 +18,4 @@ from `dist/CoderBar.app/Contents/MacOS/` into `vendor/bin/`, and copy its
 Info.plist and Resources into this directory. Update the pinned commit,
 run the installer, and restart the app.
 
-The bundle icon is the Space Classic Red candy-wrapper concept (`13-space-classic-red`). It is loaded from the static AppIcon.icns resource.
+The bundle icon is the peeled Space Chocolate candy-wrapper concept (`14-space-chocolate-coderbar`). It is loaded from the static AppIcon.icns resource.
