@@ -10,6 +10,10 @@ for binary in coder-bar coder-bar-hook coder-bar-ctl; do
 done
 cp "$DOTFILES_DIR/assets/coderbar/Info.plist" "$APP_DIR/Contents/Info.plist"
 cp "$DOTFILES_DIR/assets/coderbar/AppIcon.icns" "$DOTFILES_DIR/assets/coderbar/ChatGPT.png" "$APP_DIR/Contents/Resources/"
+# Remove a previous Finder override before signing, then restore it afterward.
+/usr/bin/osascript -l JavaScript "$DOTFILES_DIR/assets/coderbar/set-app-icon.js" "$APP_DIR" --clear
 codesign --force --deep --sign - "$APP_DIR"
 codesign --verify --deep --strict "$APP_DIR"
+/usr/bin/osascript -l JavaScript "$DOTFILES_DIR/assets/coderbar/set-app-icon.js" "$APP_DIR"
+codesign --verify --deep "$APP_DIR"
 echo "Installed $APP_DIR"

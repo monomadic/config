@@ -19,3 +19,5 @@ Info.plist and Resources into this directory. Update the pinned commit,
 run the installer, and restart the app.
 
 The bundle icon is the peeled Space Chocolate candy-wrapper concept (`14-space-chocolate-coderbar`). It is loaded from the static AppIcon.icns resource.
+
+The installer uses `set-app-icon.js` with built-in osascript to apply a Finder custom icon after signing, preserving the wrapper silhouette on macOS Tahoe. Strict signing verification runs before adding Finder metadata; ordinary signature verification runs afterward. No runtime icon override is used.
