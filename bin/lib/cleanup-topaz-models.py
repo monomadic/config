@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Inventory of Topaz model weights for `cleanup`: one TSV row per model.
 
-usage: cleanup-topaz-models.py <models-dir> <presets-dir> [<archive-dir>]
+usage: cleanup-topaz-models.py <models-dir> <presets-dir> [<archive-dir>...]
 
 Columns: kind, key, name, weight_bytes, cache_bytes, nfiles, uses
 
@@ -9,7 +9,9 @@ Columns: kind, key, name, weight_bytes, cache_bytes, nfiles, uses
            cache_bytes is its compiled coreMLCache/<stem>-v<ver>-* dirs.
   store    key = neuroserver store dir under models/models (slp26, ...).
   restore-model / restore-store
-           the same, found in <archive-dir> but absent locally.
+           the same, found in an <archive-dir> but absent locally. These
+           rows carry an eighth column, the archive dir; when several hold
+           the same model the first one given wins.
 
 `uses` is how many enabled presets under <presets-dir> reach the model: a
 `model=<code>` in a tvai filter, or an `ns_store` for a store. A composite
@@ -117,7 +119,7 @@ def main():
         sys.stderr.write(__doc__)
         return 2
     models, presets = sys.argv[1], sys.argv[2]
-    archive = sys.argv[3] if len(sys.argv) > 3 else None
+    archives = sys.argv[3:]
 
     descriptors, _ = status.load(models)
     by_code, by_store = preset_uses(presets, descriptors)
@@ -146,16 +148,21 @@ def main():
                 emit("store", name, name, dir_bytes(path), 0, len(os.listdir(path)),
                      len(by_store.get(name, ())))
 
-    if archive and os.path.isdir(archive):
+    seen_models, seen_stores = set(local), set(local_stores)
+    for archive in archives:
+        if not os.path.isdir(archive):
+            continue
         for code, (size, n) in sorted(weights_in(archive).items()):
-            if code not in local:
-                emit("restore-model", code, display_name(code, descriptors), size, 0, n, 0)
+            if code not in seen_models:
+                seen_models.add(code)
+                emit("restore-model", code, display_name(code, descriptors), size, 0, n, 0, archive)
         astores = os.path.join(archive, "models")
         if os.path.isdir(astores):
             for name in sorted(os.listdir(astores)):
                 path = os.path.join(astores, name)
-                if os.path.isdir(path) and not name.startswith("__") and name not in local_stores:
-                    emit("restore-store", name, name, dir_bytes(path), 0, len(os.listdir(path)), 0)
+                if os.path.isdir(path) and not name.startswith("__") and name not in seen_stores:
+                    seen_stores.add(name)
+                    emit("restore-store", name, name, dir_bytes(path), 0, len(os.listdir(path)), 0, archive)
     return 0
 
 

@@ -14,8 +14,10 @@
 #                       that is mounted, into <drive>/Movies/Porn/Downloads.
 #                       Files that don't fit in its free space are skipped.
 #   Topaz models ▸      every model one by one (weights + compiled cache),
-#                       with how many of your presets use it. Archive to the
-#                       Tower, delete, or restore an archived one.
+#                       with how many of your presets use it. Enter on one
+#                       copies or moves it to the Tower (mounted on demand)
+#                       or a plugged-in external drive, or deletes it; a
+#                       model archived there can be restored.
 #   Large files ▸       files over 250M in ~/Movies ~/Music ~/Downloads ~/Pictures
 #   ~/src ▸             repos (dirty / unpushed work flagged), worktrees, cargo
 #                       target dirs, and directories that aren't git at all
@@ -50,6 +52,7 @@
 # CLEANUP_USB        external drives offered as sync targets (default: every mounted
 #                    external disk; set it empty to offer none, or to plain folders for tests)
 # CLEANUP_USB_DIR    the sync folder on such a drive (default Movies/Porn/Downloads)
+# CLEANUP_USB_TOPAZ  where Topaz models go on such a drive (default Backups/topaz-models)
 
 setopt pipe_fail
 zmodload zsh/stat 2>/dev/null
@@ -70,6 +73,7 @@ arch_topaz=$archive/topaz-models
 sync_src=${CLEANUP_SYNC_SRC:-$HOME/Movies/Porn/Downloads}
 tower_dst=${CLEANUP_SYNC_DST:-$tower/Movies/Porn/Downloads}
 usb_dir=${CLEANUP_USB_DIR:-Movies/Porn/Downloads}
+usb_topaz=${CLEANUP_USB_TOPAZ:-Backups/topaz-models}
 sync_dst=$tower_dst sync_name=Tower sync_root=$tower   # see sync_target
 models_dir=$(topaz_resolve_models_dir 2>/dev/null)
 presets_dir=$dotfiles/bin/lib/topaz-presets
@@ -165,6 +169,11 @@ sync_target() {
   else sync_dst=$1/$usb_dir sync_name=${1:t} sync_root=$1; fi
 }
 
+# A Topaz archive dir -> REPLY, its name for messages.
+arch_name() {
+  if [[ $1 == $arch_topaz ]]; then REPLY='the Tower'; else REPLY=${${1%/$usb_topaz}:t}; fi
+}
+
 sync_tmp() { REPLY=$CLEANUP_TMP/sync-${1//[^A-Za-z0-9]/_} }  # target -> preview file stem
 
 free_kb() { REPLY=$(df -k $1 2>/dev/null | awk 'NR==2 {print $4}') }
@@ -256,13 +265,15 @@ scan_topaz() {
   [[ -d $models_dir ]] || return
   local raw=$CLEANUP_TMP/sub-topaz.raw
   local -a lines; local l kind key name wb cb n uses kb text risk what
-  local total=0 nmodels=0 unused_kb=0 unused_n=0 arch=
+  local total=0 nmodels=0 unused_kb=0 unused_n=0 src v
+  local -a arch
   : > $raw
-  tower_up && arch=$arch_topaz
+  tower_up && arch=($arch_topaz)
+  usb_drives; for v in $reply; do arch+=($v/$usb_topaz); done
   lines=(${(f)"$(python3 $dotfiles/bin/lib/cleanup-topaz-models.py $models_dir $presets_dir $arch 2>/dev/null)"})
   print -rl -- $lines > $CLEANUP_TMP/topaz.tsv   # the menu row's preview reads it
   for l in $lines; do
-    IFS=$'\t' read -r kind key name wb cb n uses <<< $l
+    IFS=$'\t' read -r kind key name wb cb n uses src <<< $l
     kb=$(( (wb + cb) / 1024 ))
     case $kind in
       model)
@@ -281,8 +292,9 @@ scan_topaz() {
         row $kb - tstore $models_dir/models/$key - model $risk "Starlight store $key ${dim}(neuroserver)${o}  $what" >> $raw
         ;;
       restore-model|restore-store)
+        arch_name $src; local where=$REPLY
         human $(( wb / 1024 ))
-        row 0 "↩ $REPLY" trestore $key ${kind#restore-} archive s "${name} ${dim}archived on the Tower — enter restores it${o}" >> $raw
+        row 0 "↩ $REPLY" trestore $key ${kind#restore-}:$src archive s "${name} ${dim}archived on $where — enter restores it${o}" >> $raw
         ;;
     esac
   done
@@ -659,11 +671,79 @@ offload() {  # path [dest] — dest defaults to <archive>/offloaded/<path under 
     dest=$archive/offloaded/$rel
   fi
   tower_mount || { print "Tower isn't mounted — can't reach $tower_url"; return 1 }
+  copy_verified $src $dest 'the Tower'
+}
+
+copy_verified() {  # src dest name — the copy and the compare, wherever dest is
+  local src=$1 dest=$2
   mkdir -p ${dest:h} || return 1
   if [[ -d $src ]]; then rsync -a --ignore-existing --progress $src/ $dest/ || return 1
   else rsync -a --ignore-existing --progress $src $dest || return 1; fi
   python3 $dotfiles/bin/lib/cleanup-safety.py verify $src $dest || return 1
-  print -- "verified on the Tower: $dest"
+  print -- "verified on $3: $dest"
+}
+
+# Ask where a Topaz model should go: the Tower (mounted on demand) or an
+# external drive that is plugged in. Sets tdest (the archive dir), troot (its
+# volume) and tname in the caller; fails on cancel or when it can't be reached.
+topaz_dest() {
+  local -a drives; local i
+  usb_drives; drives=($reply[1,9])
+  tdest=$arch_topaz troot=$tower tname='the Tower'
+  if (( $#drives )); then
+    print -r -- "$1 where?"
+    print -r -- "  [t] Tower ${dim}$tower_url$( tower_up || print -n ' — not mounted, will mount' )${o}"
+    for i in {1..$#drives}; do
+      free_kb $drives[i]; human ${REPLY:-0}
+      print -r -- "  [$i] ${drives[i]:t} ${dim}$REPLY free${o}"
+    done
+    choose '  [c]ancel' t {1..$#drives} c
+    case $REPLY in
+      c) return 1 ;;
+      t) ;;
+      *) troot=$drives[REPLY] tdest=$troot/$usb_topaz tname=${troot:t} ;;
+    esac
+  fi
+  if [[ $tdest == $arch_topaz ]]; then
+    tower_mount || { print -r -- "${c_red}can't mount $tower_url${o}"; pause; return 1 }
+  else
+    [[ -d $troot ]] || { print -r -- "${c_red}$tname isn't mounted any more${o}"; pause; return 1 }
+  fi
+}
+
+# Copy Topaz files or a store dir into $tdest/<sub>, contents compared. What is
+# already there is not copied again and never overwritten.
+topaz_put() {  # sub paths…
+  local sub=$1 f need=0; shift
+  for f; do [[ -e $tdest/$sub${f:t} ]] || { kb_of $f; (( need += REPLY )) }; done
+  free_kb $troot
+  if [[ -n $REPLY ]] && (( need + 1024 > REPLY )); then
+    human $REPLY; local fr=$REPLY; human $need
+    print -r -- "${c_amb}no room${o}: $REPLY to copy, $fr free on $tname — nothing copied, nothing removed"
+    return 1
+  fi
+  for f; do copy_verified $f $tdest/$sub${f:t} $tname || return 1; done
+}
+
+# One Topaz model or store: copy it away, move it away, or delete it.
+# Sets msg, before and keep_row in run() (dynamic scope); fails on cancel.
+topaz_action() {  # label hsz sub paths… — and `extra`: what goes with a move or delete
+  local label=$1 hsz=$2 sub=$3; shift 3
+  local tdest troot tname
+  choose "$label ($hsz): [y] copy · [m]ove · [d]elete · [c]ancel" y m d c
+  case $REPLY in
+    y) topaz_dest 'copy' || return 1
+       topaz_put "$sub" "$@" || { pause; return 1 }
+       msg="copied $label to $tname — the local copy stays"; before=0 keep_row=1 ;;
+    m) topaz_dest 'move' || return 1
+       topaz_put "$sub" "$@" || { pause; return 1 }
+       rm -rf -- "$@" $extra
+       msg="moved $label to $tname and removed it here ($hsz)" ;;
+    d) confirm_always "delete $label for good? $delete_note" || return 1
+       rm -rf -- "$@" $extra
+       msg="deleted $label ($hsz)" ;;
+    *) return 1 ;;
+  esac
 }
 
 # One Downloads file: copy it to the sync target unless it is there already,
@@ -770,7 +850,7 @@ ytdlp_resume() {  # base url format alias
 }
 
 run() {
-  local kind=$1 a1=$2 a2=$3 what before msg
+  local kind=$1 a1=$2 a2=$3 what before msg keep_row=
   local free0=$(df -k $HOME | awk 'NR==2 {print $4}')
   [[ $kind == menu ]] && { $self --view $a1; return }
   print -r -- 'cancelled' > $CLEANUP_TMP/last
@@ -828,18 +908,8 @@ run() {
       local f hsz
       (( $#files )) || fail "no weights for $a1 on disk"
       kb_of $files $cdirs; before=$REPLY; what=$a1; human $before; hsz=$REPLY
-      choose "$a1 ($hsz incl. cache): [a]rchive to Tower then remove · [d]elete · [c]ancel" a d c
-      case $REPLY in
-        a) for f in $files; do
-             offload $f $arch_topaz/${f:t} || { pause; return }
-           done
-           rm -f -- $files; rm -rf -- $cdirs
-           msg="archived $a1 to the Tower and removed it ($hsz)" ;;
-        d) confirm_always "delete $a1's $#files weight files and its compiled cache?" || return
-           rm -f -- $files; rm -rf -- $cdirs
-           msg="deleted $a1 ($hsz)" ;;
-        *) return ;;
-      esac
+      local -a extra=($cdirs); local delete_note="$#files weight files and the compiled cache"
+      topaz_action $a1 "$hsz incl. cache" '' $files || return
       pause
       ;;
 
@@ -847,32 +917,31 @@ run() {
       [[ $a1 == $models_dir/models/* && -d $a1 ]] || fail "not a Topaz store: $a1"
       local hsz
       kb_of $a1; before=$REPLY; what=${a1:t}; human $before; hsz=$REPLY
-      choose "${a1:t} ($hsz): [a]rchive to Tower then remove · [d]elete · [c]ancel" a d c
-      case $REPLY in
-        a) offload $a1 $arch_topaz/models/${a1:t} || { pause; return }
-           rm -rf -- $a1; msg="archived ${a1:t} to the Tower and removed it ($hsz)" ;;
-        d) confirm_always "delete ${a1:t}? only the Topaz app can download it again" || return
-           rm -rf -- $a1; msg="deleted ${a1:t} ($hsz)" ;;
-        *) return ;;
-      esac
+      local -a extra=(); local delete_note='only the Topaz app can download it again'
+      topaz_action ${a1:t} $hsz models/ $a1 || return
       pause
       ;;
 
-    trestore)  # a1 = code or store name, a2 = model | store
-      tower_mount || fail "can't mount $tower_url"
+    trestore)  # a1 = code or store name, a2 = model:<archive dir> | store:<archive dir>
+      local rkind=${a2%%:*} rsrc=${a2#*:} rname
+      [[ $rsrc == $arch_topaz || $rsrc == */$usb_topaz ]] || fail "not a Topaz archive: $rsrc"
+      arch_name $rsrc; rname=$REPLY
+      if [[ $rsrc == $arch_topaz ]]; then tower_mount || fail "can't mount $tower_url"
+      else [[ -d $rsrc ]] || fail "$rname isn't mounted any more"; fi
       what="restore $a1"
-      if [[ $a2 == store ]]; then
-        kb_of $arch_topaz/models/$a1; human $REPLY
+      if [[ $rkind == store ]]; then
+        kb_of $rsrc/models/$a1; human $REPLY
         confirm_always "copy $a1 ($REPLY) back into the Topaz app?" || return
-        rsync -a --ignore-existing --progress $arch_topaz/models/$a1/ $models_dir/models/$a1/ || fail 'restore failed'
+        rsync -a --ignore-existing --progress $rsrc/models/$a1/ $models_dir/models/$a1/ || fail 'restore failed'
       else
         local rstem=${a1%-*} rver=${a1##*-}
-        local -a rfiles=($arch_topaz/${rstem}-v${rver}-*.tz3(N))
+        local -a rfiles=($rsrc/${rstem}-v${rver}-*.tz3(N))
+        (( $#rfiles )) || fail "no weights for $a1 on $rname"
         kb_of $rfiles; human $REPLY
         confirm_always "copy $#rfiles files for $a1 ($REPLY) back into the Topaz app?" || return
         rsync -a --ignore-existing --progress $rfiles $models_dir/ || fail 'restore failed'
       fi
-      before=0; msg="restored $a1 from the Tower (the copy there stays)"
+      before=0; msg="restored $a1 from $rname (the copy there stays)"
       pause
       ;;
 
@@ -1018,7 +1087,7 @@ run() {
     *) return ;;
   esac
 
-  dropped $kind $a1 $a2 ''
+  [[ -n $keep_row ]] || dropped $kind $a1 $a2 ''
   case $kind in
     sync)      # local files changed, so every target's counts are stale
                local t; usb_drives; for t in tower $reply; do dropped sync $t - ''; done ;;
@@ -1085,15 +1154,15 @@ advice() {
         print -r -- "$sync_name is an external drive: a file that doesn't fit in its free space is skipped and its local copy kept. Deleting or trashing the local copy leaves the drive as the only copy, so sync to the Tower first if you want two." } ;;
     tmodel)
       print s
-      print -r -- "Deleting is recoverable: weights are fetched on demand, so the next render with this model stalls while they download (topaz-fetch-models $a1 does it up front). Archiving keeps a copy on the Tower to restore without the download. Its compiled cache goes too and rebuilds on first use."
+      print -r -- "Deleting is recoverable: weights are fetched on demand, so the next render with this model stalls while they download (topaz-fetch-models $a1 does it up front). Copy puts the weights on the Tower (mounted if it isn't) or a plugged-in external drive and leaves this Mac alone; move does the same, compares the contents, then removes them here. Either copy can be restored from this list without the download. With a move or delete the compiled cache goes too and rebuilds on first use."
       print
       print -r -- '"Used by N presets" counts the enabled presets in bin/lib/topaz-presets, following Starlight Mini into its encoder/unet/decoder. A model you only use from the Topaz GUI shows 0.' ;;
     tstore)
       print c
-      print -r -- 'Neuroserver model data for Starlight Precise. The Topaz app is the only thing that can download it again, so archive to the Tower rather than delete unless you are sure.' ;;
+      print -r -- 'Neuroserver model data for Starlight Precise. The Topaz app is the only thing that can download it again, so move it to the Tower or an external drive rather than delete unless you are sure. Copy leaves it here as well.' ;;
     trestore)
       print s
-      print -r -- 'Copies the archived files back into the Topaz app. The copy on the Tower stays. Check free space first.' ;;
+      print -r -- 'Copies the archived files back into the Topaz app. The copy on the Tower or drive stays. Check free space first.' ;;
     ytpart)
       print c
       print -r -- 'A download that died. Resume re-runs it through the alias that made it (dl-porn, --visuals), in the format it had chosen, and yt-dlp carries on from where the partial stops. Before downloading it checks that yt-dlp would use this same file name; if the title changed on the site, or the alias has a new template, it offers to rename the partial to match rather than start again from zero.'
@@ -1184,11 +1253,11 @@ listing() {  # biggest entries inside a directory
 preview_topaz() {
   local tsv=$CLEANUP_TMP/topaz.tsv
   [[ -s $tsv ]] || return
-  local kind key name wb cb n uses kb line d
+  local kind key name wb cb n uses src kb line d
   local nm=0 wkb=0 ckb=0 ukb=0 skb=0 okb=0
   local -a used unused stores arch orphans
   local -A have
-  while IFS=$'\t' read -r kind key name wb cb n uses; do
+  while IFS=$'\t' read -r kind key name wb cb n uses src; do
     kb=$(( (wb + cb) / 1024 )); sized $kb
     line=$(printf '%s  %s%-8s%s %s' $REPLY $c_cyan $key $o "${name:#$key}")
     case $kind in
@@ -1200,7 +1269,7 @@ preview_topaz() {
         (( skb += kb ))
         if (( uses )); then stores+=("$kb"$'\t'"$line  ${c_grn}$uses preset${${uses:#1}:+s}${o}")
         else stores+=("$kb"$'\t'"$line  ${c_amb}unused — no enabled preset uses it${o}"); (( ukb += kb )); fi ;;
-      restore-*) arch+=("$kb"$'\t'"$line") ;;
+      restore-*) arch_name $src; arch+=("$kb"$'\t'"$line  ${dim}on $REPLY${o}") ;;
     esac
   done < $tsv
   # Compiled caches whose weights are gone.
@@ -1224,7 +1293,7 @@ preview_topaz() {
       used)   title="${c_grn}in use by your presets${o}" ;;
       unused) title="${c_amb}unused — no preset uses these${o}" ;;
       stores) title="${c_cyan}neuroserver stores (Starlight Precise)${o}" ;;
-      arch)   title="${c_cyan}archived on the Tower, not here${o}" ;;
+      arch)   title="${c_cyan}archived elsewhere, not here${o}" ;;
     esac
     print; print -r -- "${bold}$title${o}"
     print -rl -- "${(P@)sec}" | sort -t$'\t' -k1,1rn | cut -f2-

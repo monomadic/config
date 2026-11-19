@@ -229,6 +229,11 @@ review-only. Source directories and emptying Trash never participate in bulk
 cleanup. Offloads compare file bytes, names and symlink targets before trashing the
 source. Safety regression fixtures run with
 `python3 scripts/tests/test_cleanup_safety.py` and never use live paths.
+Enter on a Topaz model asks copy, move or delete, and for the first two where:
+the Tower (`<archive>/topaz-models`, mounted on demand) or an external drive
+(`<drive>/Backups/topaz-models`, `CLEANUP_USB_TOPAZ`). A move removes the local
+files only after the contents compare equal; models found in either place but
+not here get a restore row.
 Topaz rows come from `bin/lib/cleanup-topaz-models.py`, which follows
 composite models (Starlight Mini) so their parts aren't reported as unused. The
 yt-dlp submenu lists each dead download from `bin/lib/cleanup-ytdlp-partials.py`,
