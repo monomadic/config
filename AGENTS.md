@@ -240,6 +240,10 @@ and non-git folders share one action: move to the Tower or an external drive
 (`<drive>/Backups/offloaded/<path under ~>`, `CLEANUP_USB_OFFLOAD`), optionally
 leaving a symlink, which is then added to `.git/info/exclude` if git would
 report it.
+Topaz Photo's models (`CLEANUP_PHOTO_MODELS`) share the Topaz submenu and the
+same actions, archived under `photo/`; they are scanned in zsh, with no preset
+"used by". The Claude desktop app's Cowork VM bundle (`CLEANUP_CLAUDE_VM`) has
+a row that only ever trashes it — set both empty in tests.
 Topaz rows come from `bin/lib/cleanup-topaz-models.py`, which follows
 composite models (Starlight Mini) so their parts aren't reported as unused. The
 yt-dlp submenu lists each dead download from `bin/lib/cleanup-ytdlp-partials.py`,

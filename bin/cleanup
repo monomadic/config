@@ -17,7 +17,9 @@
 #                       with how many of your presets use it. Enter on one
 #                       copies or moves it to the Tower (mounted on demand)
 #                       or a plugged-in external drive, or deletes it; a
-#                       model archived there can be restored.
+#                       model archived there can be restored. Topaz Photo's
+#                       bigger models, its neuroserver data and its compiled
+#                       cache are listed there too.
 #   Large files ▸       files over 250M in ~/Movies ~/Music ~/Downloads ~/Pictures
 #   ~/src ▸             repos (dirty / unpushed work flagged), worktrees, cargo
 #                       target dirs, and big folders inside a repo that git
@@ -57,6 +59,9 @@
 # CLEANUP_USB_DIR    the sync folder on such a drive (default Movies/Porn/Downloads)
 # CLEANUP_USB_TOPAZ  where Topaz models go on such a drive (default Backups/topaz-models)
 # CLEANUP_USB_OFFLOAD where moved files and folders go on it (default Backups/offloaded)
+# CLEANUP_PHOTO_MODELS  Topaz Photo's models folder (default: inside /Applications/Topaz Photo.app;
+#                    set it empty to leave Photo out)
+# CLEANUP_CLAUDE_VM  the Claude desktop app's Cowork VM bundle (set empty to leave it out)
 # CLEANUP_DATA_MB    smallest untracked folder in a repo worth a row (default 1024)
 
 setopt pipe_fail
@@ -86,6 +91,8 @@ data_skip=(.git target node_modules .venv venv .build build dist .next .claude .
 sync_dst=$tower_dst sync_name=Tower sync_root=$tower   # see sync_target
 models_dir=$(topaz_resolve_models_dir 2>/dev/null)
 presets_dir=$dotfiles/bin/lib/topaz-presets
+photo_models=${CLEANUP_PHOTO_MODELS-/Applications/Topaz Photo.app/Contents/Resources/models}
+claude_vm=${CLEANUP_CLAUDE_VM-$HOME/Library/Application Support/Claude/vm_bundles/claudevm.bundle}
 ytdlp_tmp=${YT_DLP_TEMP_DIR:-$HOME/.cache/yt-dlp-tmp}
 ytdlp_days=${CLEANUP_YTDLP_DAYS:-7}
 ytdlp_json=${CLEANUP_YTDLP_JSON:-$HOME/Library/Mobile Documents/com~apple~CloudDocs/Sync/JSON}
@@ -271,7 +278,7 @@ sync_row() {  # target — after sync_target; uses total and nice from scan_sync
 # --- scanners: Topaz -----------------------------------------------------------
 
 scan_topaz() {
-  [[ -d $models_dir ]] || return
+  [[ -d $models_dir || -d $photo_models ]] || return
   local raw=$CLEANUP_TMP/sub-topaz.raw
   local -a lines; local l kind key name wb cb n uses kb text risk what
   local total=0 nmodels=0 unused_kb=0 unused_n=0 src v
@@ -279,6 +286,7 @@ scan_topaz() {
   : > $raw
   tower_up && arch=($arch_topaz)
   usb_drives; for v in $reply; do arch+=($v/$usb_topaz); done
+  [[ -d $models_dir ]] &&
   lines=(${(f)"$(python3 $dotfiles/bin/lib/cleanup-topaz-models.py $models_dir $presets_dir $arch 2>/dev/null)"})
   print -rl -- $lines > $CLEANUP_TMP/topaz.tsv   # the menu row's preview reads it
   for l in $lines; do
@@ -311,10 +319,12 @@ scan_topaz() {
     kb_of $models_dir/coreMLCache
     row $REPLY - tcache $models_dir/coreMLCache - topaz s "coreMLCache ${dim}— all compiled model caches (already counted in the rows above)${o}" >> $raw
   fi
+  local photo_kb=0
+  scan_topaz_photo >> $raw
   format < $raw > $CLEANUP_TMP/list.topaz
 
-  human $total
-  row $total - menu topaz - topaz c "Topaz models ${ICON[more]}  ${dim}$nmodels models · $unused_n unused$( (( unused_kb )) && { human $unused_kb; print -n " ($REPLY)" } )${o}"
+  human $(( total + photo_kb ))
+  row $(( total + photo_kb )) - menu topaz - topaz c "Topaz models ${ICON[more]}  ${dim}$nmodels models · $unused_n unused$( (( unused_kb )) && { human $unused_kb; print -n " ($REPLY)" } )$( (( photo_kb )) && { human $photo_kb; print -n " · Photo $REPLY" } )${o}"
 
   # A store the presets have given up on is the easiest big win.
   if [[ -d $models_dir/models/slp25m ]] && head -1 $presets_dir/enhancement/starlight-precise-25.toml 2>/dev/null | grep -q '^# Disabled'; then
@@ -324,6 +334,57 @@ scan_topaz() {
   if (( unused_kb > 1048576 )); then
     human $unused_kb
     tip 20 "$unused_n Topaz models ($REPLY) aren't used by any preset  ${dim}→ Topaz models ${ICON[more]} archive or delete${o}"
+  fi
+}
+
+# Topaz Photo keeps its models the same way but shares nothing with the
+# presets, so there is no "used by": one row per model worth chasing (weights
+# + compiled cache over 100M), its neuroserver data, and the compiled cache.
+# Uses arch from scan_topaz and adds to its photo_kb.
+scan_topaz_photo() {
+  [[ -n $photo_models && -d $photo_models ]] || return
+  local f key kb a name w
+  local -A wkb ckb seen
+  local -a sz
+  for f in $photo_models/*-v<->-*.tz(N.); do
+    [[ ${f:t} =~ '^(.+)-v([0-9]+)-' ]] || continue
+    zstat -A sz +size -- $f; (( wkb[$match[1]-$match[2]] += sz[1] / 1024 ))
+  done
+  for f in $photo_models/coreMLCache/*(N); do
+    [[ ${f:t} =~ '^(.+)-v([0-9]+)-' ]] || continue
+    key=$match[1]-$match[2]
+    kb_of $f; (( ckb[$key] += REPLY ))
+  done
+  for key in ${(k)wkb}; do
+    seen[m:$key]=1
+    kb=$(( wkb[$key] + ${ckb[$key]:-0} )); (( photo_kb += kb ))
+    (( kb >= 102400 )) || continue
+    human $wkb[$key]; w=$REPLY; human ${ckb[$key]:-0}
+    row $kb - tmodel $key photo model c "Photo ${dim}$key  · weights $w + cache $REPLY${o}"
+  done
+  for f in $photo_models/neuroserver/*(N/); do
+    seen[s:${f:t}]=1
+    kb_of $f; (( photo_kb += REPLY ))
+    row $REPLY - tstore $f photo model c "Photo store ${f:t} ${dim}(neuroserver)${o}"
+  done
+  for a in $arch; do
+    arch_name $a; name=$REPLY
+    for f in $a/photo/*-v<->-*.tz(N.); do
+      [[ ${f:t} =~ '^(.+)-v([0-9]+)-' ]] || continue
+      key=$match[1]-$match[2]
+      [[ -n $seen[m:$key] ]] && continue; seen[m:$key]=1
+      kb_of $a/photo/$match[1]-v$match[2]-*.tz(N.); human $REPLY
+      row 0 "↩ $REPLY" trestore $key pmodel:$a archive s "Photo $key ${dim}archived on $name — enter restores it${o}"
+    done
+    for f in $a/photo/neuroserver/*(N/); do
+      [[ -n $seen[s:${f:t}] ]] && continue; seen[s:${f:t}]=1
+      kb_of $f; human $REPLY
+      row 0 "↩ $REPLY" trestore ${f:t} pstore:$a archive s "Photo store ${f:t} ${dim}archived on $name — enter restores it${o}"
+    done
+  done
+  if [[ -d $photo_models/coreMLCache ]]; then
+    kb_of $photo_models/coreMLCache
+    row $REPLY - tcache $photo_models/coreMLCache - topaz s "Photo coreMLCache ${dim}— all of Photo's compiled caches (already counted in the rows above)${o}"
   fi
 }
 
@@ -588,6 +649,11 @@ scan_caches() {
     row $kb - dir $dir - $tag $risk $REPLY
   done
 
+  if [[ -n $claude_vm && -d $claude_vm ]]; then
+    kb_of $claude_vm; kb=$REPLY
+    (( kb > 102400 )) && row $kb - vm $claude_vm - cache c "Claude Cowork VM ${dim}— the Linux image the desktop app runs Cowork in${o}"
+  fi
+
   # Anything else that is big under the cache roots.
   du -sk -- $HOME/.cache/*(N/) $HOME/Library/Caches/*(N/) 2>/dev/null |
   while IFS=$'\t' read -r kb dir; do
@@ -690,7 +756,7 @@ fail() {
 
 wipe_contents() {  # empty a directory, keep the directory
   local d=${1:A}
-  [[ -d $d && ( $d == $HOME/*/* || $d == $models_dir/coreMLCache ) ]] || fail "refusing to wipe $1"
+  [[ -d $d && ( $d == $HOME/*/* || $d == $models_dir/coreMLCache || ( -n $photo_models && $d == $photo_models/coreMLCache ) ) ]] || fail "refusing to wipe $1"
   rm -rf -- $d/*(DN)
 }
 
@@ -979,32 +1045,54 @@ run() {
 
     tmodel)
       local stem=${a1%-*} ver=${a1##*-}
-      local -a files=($models_dir/${stem}-v${ver}-*.tz3(N)) cdirs=($models_dir/coreMLCache/${stem}-v${ver}-*(N/))
+      local tbase=$models_dir text=tz3 tsub= tlabel=$a1
+      [[ $a2 == photo ]] && tbase=$photo_models text=tz tsub=photo/ tlabel="Photo $a1"
+      local -a files=($tbase/${stem}-v${ver}-*.$text(N.)) cdirs=($tbase/coreMLCache/${stem}-v${ver}-*(N))
       local f hsz
       (( $#files )) || fail "no weights for $a1 on disk"
-      kb_of $files $cdirs; before=$REPLY; what=$a1; human $before; hsz=$REPLY
+      kb_of $files $cdirs; before=$REPLY; what=$tlabel; human $before; hsz=$REPLY
       local -a extra=($cdirs); local delete_note="$#files weight files and the compiled cache"
-      topaz_action $a1 "$hsz incl. cache" '' $files || return
+      topaz_action $tlabel "$hsz incl. cache" "$tsub" $files || return
       pause
       ;;
 
     tstore)
-      [[ $a1 == $models_dir/models/* && -d $a1 ]] || fail "not a Topaz store: $a1"
+      local tsub=models/ tlabel=${a1:t}
+      if [[ $a2 == photo ]]; then
+        [[ -n $photo_models && $a1 == $photo_models/neuroserver/* && -d $a1 ]] || fail "not a Topaz Photo store: $a1"
+        tsub=photo/neuroserver/ tlabel="Photo ${a1:t}"
+      else
+        [[ $a1 == $models_dir/models/* && -d $a1 ]] || fail "not a Topaz store: $a1"
+      fi
       local hsz
-      kb_of $a1; before=$REPLY; what=${a1:t}; human $before; hsz=$REPLY
+      kb_of $a1; before=$REPLY; what=$tlabel; human $before; hsz=$REPLY
       local -a extra=(); local delete_note='only the Topaz app can download it again'
-      topaz_action ${a1:t} $hsz models/ $a1 || return
+      topaz_action $tlabel $hsz $tsub $a1 || return
       pause
       ;;
 
-    trestore)  # a1 = code or store name, a2 = model:<archive dir> | store:<archive dir>
+    trestore)  # a1 = code or store name, a2 = <kind>:<archive dir>; kind model | store, pmodel | pstore for Photo
       local rkind=${a2%%:*} rsrc=${a2#*:} rname
       [[ $rsrc == $arch_topaz || $rsrc == */$usb_topaz ]] || fail "not a Topaz archive: $rsrc"
       arch_name $rsrc; rname=$REPLY
       if [[ $rsrc == $arch_topaz ]]; then tower_mount || fail "can't mount $tower_url"
       else [[ -d $rsrc ]] || fail "$rname isn't mounted any more"; fi
       what="restore $a1"
-      if [[ $rkind == store ]]; then
+      if [[ $rkind == p* ]]; then
+        [[ -n $photo_models && -d $photo_models ]] || fail "Topaz Photo isn't installed"
+        if [[ $rkind == pstore ]]; then
+          [[ -d $rsrc/photo/neuroserver/$a1 ]] || fail "$a1 isn't on $rname"
+          kb_of $rsrc/photo/neuroserver/$a1; human $REPLY
+          confirm_always "copy $a1 ($REPLY) back into Topaz Photo?" || return
+          rsync -a --ignore-existing --progress $rsrc/photo/neuroserver/$a1/ $photo_models/neuroserver/$a1/ || fail 'restore failed'
+        else
+          local -a pfiles=($rsrc/photo/${a1%-*}-v${a1##*-}-*.tz(N.))
+          (( $#pfiles )) || fail "no weights for $a1 on $rname"
+          kb_of $pfiles; human $REPLY
+          confirm_always "copy $#pfiles files for $a1 ($REPLY) back into Topaz Photo?" || return
+          rsync -a --ignore-existing --progress $pfiles $photo_models/ || fail 'restore failed'
+        fi
+      elif [[ $rkind == store ]]; then
         kb_of $rsrc/models/$a1; human $REPLY
         confirm_always "copy $a1 ($REPLY) back into the Topaz app?" || return
         rsync -a --ignore-existing --progress $rsrc/models/$a1/ $models_dir/models/$a1/ || fail 'restore failed'
@@ -1084,6 +1172,22 @@ run() {
       confirm "delete every compiled model cache? they rebuild on first use" || return
       wipe_contents $a1
       kb_of $a1; (( before -= REPLY ))
+      ;;
+
+    vm)
+      [[ -n $claude_vm && $a1 == $claude_vm && -d $a1 ]] || fail "not the Claude VM bundle: $a1"
+      local hsz
+      what='Claude Cowork VM'
+      kb_of $a1; human $REPLY; hsz=$REPLY
+      pgrep -xq Claude && print -r -- "${c_amb}Claude is running${o} — quit it first, or at least close any Cowork session"
+      choose "Claude Cowork VM ($hsz): [t]rash · [r]eveal in Finder · [c]ancel" t r c
+      case $REPLY in
+        t) confirm_always 'move the VM bundle to the Trash?' || return
+           trash $a1 || fail "could not trash $a1"
+           before=0; msg="Claude Cowork VM ($hsz) is in the Trash — start a Cowork session to check it comes back, then empty the Trash" ;;
+        r) open -R $a1; return ;;
+        *) return ;;
+      esac
       ;;
 
     file|plain|data)
@@ -1228,12 +1332,19 @@ advice() {
       [[ $a1 == tower ]] || { print
         print -r -- "$sync_name is an external drive: a file that doesn't fit in its free space is skipped and its local copy kept. Deleting or trashing the local copy leaves the drive as the only copy, so sync to the Tower first if you want two." } ;;
     tmodel)
+      [[ $a2 == photo ]] && {
+        print c
+        print -r -- "A Topaz Photo model: its weight files and their compiled cache. Photo fetches weights it is missing when a tool needs them, so deleting should cost a download — but that is how the app is built, not something this script has checked, so move it to the Tower or a drive if you are unsure. Copy and move put the weights under photo/ in the Topaz archive there, and they can be restored from this list. No preset uses Photo's models, so there is no \"used by\" count."
+        return }
       print s
       print -r -- "Deleting is recoverable: weights are fetched on demand, so the next render with this model stalls while they download (topaz-fetch-models $a1 does it up front). Copy puts the weights on the Tower (mounted if it isn't) or a plugged-in external drive and leaves this Mac alone; move does the same, compares the contents, then removes them here. Either copy can be restored from this list without the download. With a move or delete the compiled cache goes too and rebuilds on first use."
       print
       print -r -- '"Used by N presets" counts the enabled presets in bin/lib/topaz-presets, following Starlight Mini into its encoder/unet/decoder. A model you only use from the Topaz GUI shows 0.' ;;
     tstore)
       print c
+      [[ $a2 == photo ]] && {
+        print -r -- "Neuroserver model data for Topaz Photo's generative tools. Only the Photo app can download it again, so move it to the Tower or an external drive rather than delete unless you are sure. Copy leaves it here as well."
+        return }
       print -r -- 'Neuroserver model data for Starlight Precise. The Topaz app is the only thing that can download it again, so move it to the Tower or an external drive rather than delete unless you are sure. Copy leaves it here as well.' ;;
     trestore)
       print s
@@ -1248,6 +1359,11 @@ advice() {
       print -r -- "yt-dlp's temp dir (set in config/yt-dlp/config). Finished downloads are moved out; what stays are .part and .ytdl files from downloads that died or were abandoned. Only files untouched for $ytdlp_days+ days are removed, so a download in progress is safe."
       print
       print -r -- 'You lose the chance to resume those downloads — re-run the URL and yt-dlp starts again from zero. Nothing already moved to its destination is touched.' ;;
+    vm)
+      print c
+      print -r -- "The Linux VM the Claude desktop app runs Cowork sessions in: a 10G root disk unpacked from the 1.2G download beside it, plus the VM's identity and a small session disk. Nothing else on this Mac uses it."
+      print
+      print -r -- "The app is expected to download and unpack it again the next time Cowork starts, but this script has not checked that — so it goes to the Trash, not away. Quit Claude first; afterwards start a Cowork session, and only empty the Trash once that works. If it doesn't, put the bundle back. State kept inside the VM's session disk goes with it." ;;
     tcache)
       print s
       print -r -- 'Compiled CoreML versions of the weights. Always safe: each model/size rebuilds on its first run, which takes a little while. The weights are untouched.' ;;
@@ -1434,8 +1550,8 @@ preview() {
   out=$(advice $kind $a1 $a2)
   risk=${out%%$'\n'*}
   case $kind in   # same call the row made: a model your presets use needs a second look
-    tmodel) users=$(grep -rlE "model=$a1([^0-9]|\$)" $presets_dir 2>/dev/null | wc -l | tr -d ' ') ;;
-    tstore) users=$(grep -rl "ns_store = \"${a1:t}\"" $presets_dir 2>/dev/null | wc -l | tr -d ' ') ;;
+    tmodel) [[ $a2 == photo ]] || users=$(grep -rlE "model=$a1([^0-9]|\$)" $presets_dir 2>/dev/null | wc -l | tr -d ' ') ;;
+    tstore) [[ $a2 == photo ]] || users=$(grep -rl "ns_store = \"${a1:t}\"" $presets_dir 2>/dev/null | wc -l | tr -d ' ') ;;
   esac
   [[ -n $users ]] && (( users )) && { risk=c; note=" — $users preset(s) name it" }
   print -r -- "$RISK[$risk]● $RISKTXT[$risk]$note${o}"
@@ -1458,12 +1574,16 @@ preview() {
     tmodel)
       local stem=${a1%-*} ver=${a1##*-}
       print -r -- "${bold}weights${o}"
-      du -sk -- $models_dir/${stem}-v${ver}-*.tz3(N) 2>/dev/null | sort -rn | head -12 |
+      local -a wf=($models_dir/${stem}-v${ver}-*.tz3(N))
+      [[ $a2 == photo ]] && wf=($photo_models/${stem}-v${ver}-*.tz(N))
+      du -sk -- $wf 2>/dev/null | sort -rn | head -12 |
         while IFS=$'\t' read -r kb p; do sized $kb; printf '%s  %s\n' $REPLY ${p:t}; done
+      [[ $a2 == photo ]] && return
       print; print -r -- "${bold}presets using $a1${o}"
       grep -rlE "model=$a1([^0-9]|\$)" $presets_dir 2>/dev/null | sed "s|.*/||;s|\.toml||;s/^/  /" | head -15
       ;;
     tstore)
+      [[ $a2 == photo ]] && { listing $a1; return }
       print -r -- "${bold}presets using ${a1:t}${o}"
       grep -rl "ns_store = \"${a1:t}\"" $presets_dir 2>/dev/null | sed "s|.*/||;s|\.toml||;s/^/  /"
       ;;
