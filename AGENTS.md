@@ -234,6 +234,12 @@ the Tower (`<archive>/topaz-models`, mounted on demand) or an external drive
 (`<drive>/Backups/topaz-models`, `CLEANUP_USB_TOPAZ`). A move removes the local
 files only after the contents compare equal; models found in either place but
 not here get a restore row.
+The `~/src` submenu also lists folders inside a repo that git doesn't track at
+all (`CLEANUP_DATA_MB`, default 1G; build dirs are skipped). Those, large files
+and non-git folders share one action: move to the Tower or an external drive
+(`<drive>/Backups/offloaded/<path under ~>`, `CLEANUP_USB_OFFLOAD`), optionally
+leaving a symlink, which is then added to `.git/info/exclude` if git would
+report it.
 Topaz rows come from `bin/lib/cleanup-topaz-models.py`, which follows
 composite models (Starlight Mini) so their parts aren't reported as unused. The
 yt-dlp submenu lists each dead download from `bin/lib/cleanup-ytdlp-partials.py`,

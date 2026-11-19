@@ -20,6 +20,9 @@
 #                       model archived there can be restored.
 #   Large files ▸       files over 250M in ~/Movies ~/Music ~/Downloads ~/Pictures
 #   ~/src ▸             repos (dirty / unpushed work flagged), worktrees, cargo
+#                       target dirs, and big folders inside a repo that git
+#                       doesn't track — those can move to the Tower or an
+#                       external drive, with a symlink left in their place.
 #                       target dirs, and directories that aren't git at all
 #   yt-dlp partials ▸   downloads that died, one row each: resume it (the URL
 #                       comes from its leftover info.json or its id) or delete it
@@ -53,6 +56,8 @@
 #                    external disk; set it empty to offer none, or to plain folders for tests)
 # CLEANUP_USB_DIR    the sync folder on such a drive (default Movies/Porn/Downloads)
 # CLEANUP_USB_TOPAZ  where Topaz models go on such a drive (default Backups/topaz-models)
+# CLEANUP_USB_OFFLOAD where moved files and folders go on it (default Backups/offloaded)
+# CLEANUP_DATA_MB    smallest untracked folder in a repo worth a row (default 1024)
 
 setopt pipe_fail
 zmodload zsh/stat 2>/dev/null
@@ -74,6 +79,10 @@ sync_src=${CLEANUP_SYNC_SRC:-$HOME/Movies/Porn/Downloads}
 tower_dst=${CLEANUP_SYNC_DST:-$tower/Movies/Porn/Downloads}
 usb_dir=${CLEANUP_USB_DIR:-Movies/Porn/Downloads}
 usb_topaz=${CLEANUP_USB_TOPAZ:-Backups/topaz-models}
+usb_offload=${CLEANUP_USB_OFFLOAD:-Backups/offloaded}
+data_kb=$(( ${CLEANUP_DATA_MB:-1024} * 1024 ))
+# Folders in a repo that rebuild or belong to a tool: never offered as data.
+data_skip=(.git target node_modules .venv venv .build build dist .next .claude .codex)
 sync_dst=$tower_dst sync_name=Tower sync_root=$tower   # see sync_target
 models_dir=$(topaz_resolve_models_dir 2>/dev/null)
 presets_dir=$dotfiles/bin/lib/topaz-presets
@@ -105,7 +114,7 @@ typeset -A ICON=(
   files   $''  file    $''  src     $''  repo    $''
   worktree $'' brew    $''  cargo   $''  cache   $''
   tool    $''  trash   $''  resolve $''  ios     $''
-  ytdlp   $'\uf019'
+  ytdlp   $'\uf019'  data    $'\uf1c0'
   disk    $''  tip     $''  more    $''
 )
 
@@ -440,9 +449,32 @@ scan_cargo() {
   row $total - cargo-all - - cargo s "ALL $#targets cargo target dirs"
 }
 
+# Big folders inside a repo that git doesn't track at all: datasets, model
+# files, test output. Not rebuildable and not on the remote, so the useful
+# thing to do with them is move them off the system drive.
+scan_data() {
+  [[ -d $src_dir ]] || return
+  local d sub kb total=0 n=0
+  for d in $src_dir/*(N/); do
+    [[ -e $d/.git ]] || continue
+    du -sk -- $d/*(DN/) 2>/dev/null | while IFS=$'\t' read -r kb sub; do
+      (( kb >= data_kb )) || continue
+      (( ${data_skip[(Ie)${sub:t}]} )) && continue
+      [[ -e $sub/CACHEDIR.TAG ]] && continue
+      [[ -z $(git -C $d ls-files -- ${sub:t} 2>/dev/null | head -1) ]] || continue
+      (( total += kb, n++ ))
+      row $kb - data $sub - data c "${d:t}/${sub:t}  ${c_amb}not in git${o} ${dim}— move it to the Tower or a drive${o}"
+    done
+  done
+  if (( total > 5242880 )); then
+    human $total
+    tip 25 "$n folders ($REPLY) inside repos aren't tracked by git  ${dim}→ ~/src ${ICON[more]}: move them to the Tower or a drive${o}"
+  fi
+}
+
 scan_src() {
   local raw=$CLEANUP_TMP/sub-src.raw total
-  { scan_repos; scan_worktrees; scan_cargo } > $raw
+  { scan_repos; scan_worktrees; scan_cargo; scan_data } > $raw
   format < $raw > $CLEANUP_TMP/list.src
   # Worktrees and cargo dirs live inside the repos' own sizes; count each byte once.
   total=$(awk -F'\t' '$3 ~ /^(repo|plain|file)$/ {s += $1} END {print s + 0}' $raw)
@@ -683,13 +715,14 @@ copy_verified() {  # src dest name — the copy and the compare, wherever dest i
   print -- "verified on $3: $dest"
 }
 
-# Ask where a Topaz model should go: the Tower (mounted on demand) or an
-# external drive that is plugged in. Sets tdest (the archive dir), troot (its
-# volume) and tname in the caller; fails on cancel or when it can't be reached.
-topaz_dest() {
+# Ask where something should go: the Tower (mounted on demand) or an external
+# drive that is plugged in; with no drive it is the Tower without asking. Sets
+# troot (the volume), tname and ttower (1 for the Tower) in the caller; fails
+# on cancel or when the place can't be reached.
+pick_dest() {  # verb
   local -a drives; local i
   usb_drives; drives=($reply[1,9])
-  tdest=$arch_topaz troot=$tower tname='the Tower'
+  troot=$tower tname='the Tower' ttower=1
   if (( $#drives )); then
     print -r -- "$1 where?"
     print -r -- "  [t] Tower ${dim}$tower_url$( tower_up || print -n ' — not mounted, will mount' )${o}"
@@ -701,27 +734,41 @@ topaz_dest() {
     case $REPLY in
       c) return 1 ;;
       t) ;;
-      *) troot=$drives[REPLY] tdest=$troot/$usb_topaz tname=${troot:t} ;;
+      *) troot=$drives[REPLY] tname=${troot:t} ttower=0 ;;
     esac
   fi
-  if [[ $tdest == $arch_topaz ]]; then
+  if (( ttower )); then
     tower_mount || { print -r -- "${c_red}can't mount $tower_url${o}"; pause; return 1 }
   else
     [[ -d $troot ]] || { print -r -- "${c_red}$tname isn't mounted any more${o}"; pause; return 1 }
   fi
 }
 
+# The same for a Topaz model; also sets tdest, the archive dir there.
+topaz_dest() {
+  local ttower
+  pick_dest $1 || return 1
+  if (( ttower )); then tdest=$arch_topaz; else tdest=$troot/$usb_topaz; fi
+}
+
+# Is there room for these paths on $troot? Says so and fails if not.
+has_room() {  # paths…
+  local need fr
+  kb_of "$@"; need=$REPLY
+  free_kb $troot
+  [[ -n $REPLY ]] && (( need + 1024 > REPLY )) || return 0
+  human $REPLY; fr=$REPLY; human $need
+  print -r -- "${c_amb}no room${o}: $REPLY to copy, $fr free on $tname — nothing copied, nothing removed"
+  return 1
+}
+
 # Copy Topaz files or a store dir into $tdest/<sub>, contents compared. What is
 # already there is not copied again and never overwritten.
 topaz_put() {  # sub paths…
-  local sub=$1 f need=0; shift
-  for f; do [[ -e $tdest/$sub${f:t} ]] || { kb_of $f; (( need += REPLY )) }; done
-  free_kb $troot
-  if [[ -n $REPLY ]] && (( need + 1024 > REPLY )); then
-    human $REPLY; local fr=$REPLY; human $need
-    print -r -- "${c_amb}no room${o}: $REPLY to copy, $fr free on $tname — nothing copied, nothing removed"
-    return 1
-  fi
+  local sub=$1 f; shift
+  local -a todo
+  for f; do [[ -e $tdest/$sub${f:t} ]] || todo+=($f); done
+  (( ! $#todo )) || has_room $todo || return 1
   for f; do copy_verified $f $tdest/$sub${f:t} $tname || return 1; done
 }
 
@@ -783,16 +830,30 @@ sync_prune() {
   done
 }
 
-# A file or directory with no cleaner of its own: move it to the Tower, trash it, or look at it.
+# A file or directory with no cleaner of its own: move it to the Tower or an
+# external drive, trash it, or look at it. A move copies, compares contents,
+# then trashes the local copy; "link" also leaves a symlink to the new place,
+# so whatever reads the path keeps working while that volume is mounted.
 # Sets `before` and `msg` in run() (dynamic scope).
 path_action() {
-  local p=$1 hsz
+  local p=$1 hsz mode dest rel troot tname ttower
   kb_of $p; before=$REPLY; human $before; hsz=$REPLY
-  choose "${p:t} ($hsz): [m]ove to Tower · [t]rash · [r]eveal in Finder · [c]ancel" m t r c
-  case $REPLY in
-    m) offload $p || { pause; return 1 }
+  choose "${p:t} ($hsz): [m]ove away · [l] move, leave a symlink · [t]rash · [r]eveal in Finder · [c]ancel" m l t r c
+  mode=$REPLY
+  case $mode in
+    m|l) [[ -L $p ]] && { print -r -- "${p:t} is a symlink already"; pause; return 1 }
+       pick_dest 'move' || return 1
+       [[ $p == $HOME/* ]] && rel=${p#$HOME/} || rel=${p#/}
+       if (( ttower )); then dest=$archive/offloaded/$rel; else dest=$troot/$usb_offload/$rel; fi
+       [[ -e $dest ]] || has_room $p || { pause; return 1 }
+       copy_verified $p $dest $tname || { pause; return 1 }
        trash $p || fail "could not trash $p"
-       msg="moved ${p:t} to the Tower · $hsz now in the Trash — empty it to reclaim" ;;
+       msg="moved ${p:t} to $tname · $hsz now in the Trash — empty it to reclaim"
+       if [[ $mode == l ]]; then
+         ln -s -- $dest $p || fail "moved, but could not link $p → $dest"
+         msg="moved ${p:t} to $tname, symlink left · $hsz now in the Trash — empty it to reclaim"
+         link_exclude $p
+       fi ;;
     t) confirm_always "move ${p:t} to the Trash?" || return 1
        trash $p || fail "could not trash $p"
        msg="${p:t} ($hsz) is in the Trash — empty it to reclaim" ;;
@@ -800,6 +861,20 @@ path_action() {
     *) return 1 ;;
   esac
   before=0
+}
+
+# A rule like "name/" ignores a directory but not the symlink that replaced
+# it. If git now reports the link as untracked, ignore it in this checkout
+# only (.git/info/exclude), so the tree stays as clean as it was.
+link_exclude() {  # path
+  local top rel ex
+  top=$(git -C ${1:h} rev-parse --show-toplevel 2>/dev/null) || return 0
+  local dir=${1:h}   # not $1:A — that would follow the new link
+  rel=${${dir:A}#${top:A}}/${1:t}; rel=${rel#/}
+  [[ -n $(git -C $top status --porcelain -- $rel 2>/dev/null) ]] || return 0
+  ex=$(git -C $top rev-parse --git-path info/exclude) || return 0
+  [[ $ex == /* ]] || ex=$top/$ex
+  mkdir -p ${ex:h} && print -r -- "/$rel" >> $ex
 }
 
 # Re-run a dead download so yt-dlp picks its partial up again. Resuming only
@@ -1011,7 +1086,7 @@ run() {
       kb_of $a1; (( before -= REPLY ))
       ;;
 
-    file|plain)
+    file|plain|data)
       [[ -e $a1 ]] || fail "$a1 is gone"
       what=${a1:t}
       path_action $a1 || return
@@ -1178,7 +1253,12 @@ advice() {
       print -r -- 'Compiled CoreML versions of the weights. Always safe: each model/size rebuilds on its first run, which takes a little while. The weights are untouched.' ;;
     file)
       print c
-      print -r -- 'One large file. Move to Tower copies it to Backups/offloaded/ (same path as here), compares file contents, names and symlink targets, then trashes the local copy. Trashing alone is recoverable until you empty the Trash.' ;;
+      print -r -- 'One large file. Move copies it to the Tower (Backups/offloaded/, same path as here) or an external drive, compares file contents, names and symlink targets, then trashes the local copy. Trashing alone is recoverable until you empty the Trash.' ;;
+    data)
+      print c
+      print -r -- "A folder inside a repo that git doesn't track: no file in it is committed, so it is not on the remote and nothing rebuilds it. Move copies it to the Tower (Backups/offloaded/, same path as here) or an external drive ($usb_offload/), compares file contents, names and symlink targets, then trashes the local copy."
+      print
+      print -r -- 'With a symlink left behind the repo keeps working while that volume is mounted. An ignore rule written as "name/" matches only a real directory, so if git would list the link as untracked it is added to .git/info/exclude.' ;;
     plain)
       print d
       print -r -- 'Not a git repository, so there is no remote to re-clone from — deleting is permanent unless you moved it first. Put it in git, or move it to the Tower.' ;;
@@ -1432,7 +1512,7 @@ preview() {
         print 'Directory is gone — enter drops its stale record from the repo.'
       fi
       ;;
-    cargo|dir|orphan|plain|tcache) [[ -d $a1 ]] && listing $a1 ;;
+    cargo|dir|orphan|plain|data|tcache) [[ -d $a1 ]] && listing $a1 ;;
   esac
 }
 
