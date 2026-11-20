@@ -15,6 +15,9 @@ use wifi_widget::{
     signal::Signal,
 };
 const WIDTH: f64 = 320.0;
+/// Empty space either side of a mini switch's track within its frame,
+/// measured on macOS 26 (a 54 pt frame around a 36 pt track).
+const SWITCH_MARGIN: f64 = 9.0;
 #[derive(Clone, Debug, PartialEq)]
 pub struct Content {
     pub headline: String,
@@ -32,6 +35,8 @@ pub struct Content {
     pub node: Option<String>,
     pub state: State,
     pub associated: bool,
+    /// Radio power; `None` when there is no interface to switch.
+    pub power: Option<bool>,
 }
 impl Content {
     pub fn from_snapshot(s: &Snapshot, now: Instant) -> Self {
@@ -46,7 +51,11 @@ impl Content {
             State::MeteredFallback => "Metered",
             State::BandFallback => "Band fallback",
             State::Healthy => "Connected",
-            State::Unknown if associated => "Connected",
+            // Associated is not connected until the internet check answers.
+            State::Unknown if associated && wifi_widget::model::internet_confirmed(s, now) => {
+                "Connected"
+            }
+            State::Unknown if associated => "Connecting…",
             _ => "Unavailable",
         }
         .into();
@@ -90,6 +99,11 @@ impl Content {
             gateway: None,
             headline,
             associated,
+            power: match s.link {
+                LinkHealth::Unavailable => None,
+                LinkHealth::Off => Some(false),
+                _ => Some(true),
+            },
             state: s.headline,
             name: r
                 .and_then(|r| r.ssid.as_ref())
@@ -105,6 +119,7 @@ impl Content {
                         r.phy.map(str::to_owned),
                         r.channel.map(|n| format!("ch {n}")),
                         r.width_mhz.map(|n| format!("{n} MHz")),
+                        r.security.map(str::to_owned),
                     ]
                     .into_iter()
                     .flatten()
@@ -148,12 +163,17 @@ struct Parts {
     glyph: Retained<NSImageView>,
     buttons: Vec<Retained<NSButton>>,
     copy_icons: Vec<Retained<NSImageView>>,
+    power: Retained<NSSwitch>,
 }
 pub struct CardIvars {
     content: RefCell<Content>,
     parts: RefCell<Option<Parts>>,
     copied: Cell<Option<(usize, Instant)>>,
     hover: Cell<Option<usize>>,
+    /// The position the switch was just flicked to, held until the radio
+    /// reports it or the deadline passes, so a poll in between cannot snap
+    /// the switch back.
+    power_pending: Cell<Option<(bool, Instant)>>,
 }
 define_class!(
     #[unsafe(super(NSView))]
@@ -170,8 +190,10 @@ define_class!(
             let c = self.ivars().content.borrow(); let ink = accent(c.state);
             // No background fill: the menu's own material must show through,
             // or this item reads as a different shade from the rows below it.
-            fill(rect(11.0,6.0,14.0,14.0), &ink.colorWithAlphaComponent(0.18), 7.0);
-            fill(rect(14.0,9.0,8.0,8.0),&ink,4.0);
+            // The dot follows the switch, whose width is the system's to choose.
+            let x = self.ivars().parts.borrow().as_ref().map(|p| p.power.frame()).map(|f| f.origin.x + f.size.width - SWITCH_MARGIN + 8.0).unwrap_or(11.0);
+            fill(rect(x,6.0,14.0,14.0), &ink.colorWithAlphaComponent(0.18), 7.0);
+            fill(rect(x+3.0,9.0,8.0,8.0),&ink,4.0);
             if !c.associated { return; }
             fill(rect(7.0,30.0,306.0,c.height()-34.0),&NSColor::blackColor().colorWithAlphaComponent(0.3),10.0);
             fill(rect(16.0,130.0,288.0,c.height()-147.0),&NSColor::whiteColor().colorWithAlphaComponent(0.04),7.0);
@@ -211,6 +233,17 @@ define_class!(
                     self.sync(Instant::now());
                 }
             }
+        }
+        #[unsafe(method(togglePower:))]
+        fn toggle_power(&self, sender: &NSSwitch) {
+            let on = sender.state() == NSControlStateValueOn;
+            self.ivars().power_pending.set(Some((on, Instant::now() + Duration::from_secs(6))));
+            std::thread::spawn(move || {
+                if let Err(error) = wifi_widget::wifi::set_power(on) {
+                    eprintln!("Wi-Fi power: {error}");
+                }
+                wifi_widget::events::changed();
+            });
         }
         #[unsafe(method(openSettings:))]
         fn open_settings(&self, _sender: &NSButton) {
@@ -263,13 +296,14 @@ impl Card {
             parts: RefCell::new(None),
             copied: Cell::new(None),
             hover: Cell::new(None),
+            power_pending: Cell::new(None),
         });
         let this: Retained<Self> =
             unsafe { msg_send![super(this),initWithFrame:rect(0.0,0.0,WIDTH,height)] };
         this.setAccessibilityElement(false);
         let mut labels = Vec::new();
         for (x, y, w, h, size) in [
-            (31., 4., 246., 20., 13.),
+            (65., 4., 212., 20., 13.),
             (66., 39., 193., 18., 13.),
             (264., 42., 58., 15., 9.),
             (66., 58., 237., 15., 10.),
@@ -327,6 +361,27 @@ impl Card {
             this.addSubview(&label);
             labels.push(label);
         }
+        let power = NSSwitch::new(mtm);
+        power.setControlSize(NSControlSize::Mini);
+        power.sizeToFit();
+        let size = power.frame().size;
+        // Lay out by what is drawn, not by the frame: the visible track sits
+        // centred inside a wider frame that reports no alignment insets.
+        power.setFrame(rect(
+            11.0 - SWITCH_MARGIN,
+            ((26.0 - size.height) / 2.0).round(),
+            size.width,
+            size.height,
+        ));
+        let headline = 11.0 + size.width - 2.0 * SWITCH_MARGIN + 8.0 + 20.0;
+        labels[0].setFrame(rect(headline, 4.0, 277.0 - headline, 20.0));
+        unsafe {
+            power.setTarget(Some(this.as_ref()));
+            power.setAction(Some(sel!(togglePower:)));
+        }
+        power.setToolTip(Some(&NSString::from_str("Turn Wi-Fi on or off")));
+        power.setAccessibilityLabel(Some(&NSString::from_str("Wi-Fi")));
+        this.addSubview(&power);
         let glyph = NSImageView::new(mtm);
         let settings = crate::row::settings_button(this.as_ref(), mtm);
         this.addSubview(&settings);
@@ -381,6 +436,7 @@ impl Card {
             glyph,
             buttons,
             copy_icons,
+            power,
         });
         let tracking = unsafe {
             NSTrackingArea::initWithRect_options_owner_userInfo(
@@ -429,6 +485,14 @@ impl Card {
         {
             self.ivars().copied.set(None);
             self.sync(now);
+        } else if self
+            .ivars()
+            .power_pending
+            .get()
+            .is_some_and(|(_, until)| now >= until)
+        {
+            // The radio never followed the switch: put the switch back.
+            self.sync(now);
         }
         resized
     }
@@ -440,6 +504,18 @@ impl Card {
         };
         let hover = self.hover_index(&c);
         self.ivars().hover.set(hover);
+        let pending = self
+            .ivars()
+            .power_pending
+            .get()
+            .filter(|(on, until)| now < *until && c.power != Some(*on));
+        self.ivars().power_pending.set(pending);
+        let on = pending.map(|(on, _)| on).or(c.power).unwrap_or(false);
+        p.power.setEnabled(c.power.is_some());
+        let state = if on { NSControlStateValueOn } else { NSControlStateValueOff };
+        if p.power.state() != state {
+            p.power.setState(state);
+        }
         let (internet_status, internet_detail) =
             c.internet.split_once(" · ").unwrap_or((&c.internet, ""));
         let quality = c.verdict.rsplit_once(" · ").map(|(_, q)| q).unwrap_or("");

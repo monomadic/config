@@ -38,6 +38,8 @@ const MAX_NETWORKS: usize = 6;
 /// Tick fast only while the menu is open; closed, the bar needs at most 1 Hz.
 const TICK_OPEN: f64 = 0.25;
 const TICK_CLOSED: f64 = 1.0;
+/// Closed but connecting: fast enough to step the glyph's arcs.
+const TICK_CONNECTING: f64 = 0.4;
 type RowKey = (
     String,
     Option<(wifi::Band, i32)>,
@@ -46,6 +48,9 @@ type RowKey = (
 );
 struct Ui {
     timer: Option<Retained<NSTimer>>,
+    interval: f64,
+    /// When the current "connecting" spell began; drives the glyph animation.
+    connecting_since: Option<Instant>,
     rows: Vec<Option<RowKey>>,
     tooltip: String,
     status: Retained<NSStatusItem>,
@@ -275,6 +280,8 @@ impl Widget {
         let now = Instant::now();
         *this.ivars().borrow_mut() = Some(Ui {
             timer: None,
+            interval: 0.0,
+            connecting_since: None,
             rows: vec![None; MAX_NETWORKS],
             tooltip: String::new(),
             status,
@@ -338,11 +345,10 @@ impl Widget {
         // Let macOS coalesce wakeups with other timers.
         timer.setTolerance(interval * 0.2);
         unsafe { NSRunLoop::mainRunLoop().addTimer_forMode(&timer, NSRunLoopCommonModes) };
-        let old = self
-            .ivars()
-            .borrow_mut()
-            .as_mut()
-            .and_then(|ui| ui.timer.replace(timer));
+        let old = self.ivars().borrow_mut().as_mut().and_then(|ui| {
+            ui.interval = interval;
+            ui.timer.replace(timer)
+        });
         if let Some(old) = old {
             old.invalidate();
         }
@@ -361,13 +367,36 @@ impl Widget {
         item
     }
     fn refresh(&self) {
+        let connecting = self.update();
+        let want = {
+            let state = self.ivars().borrow();
+            let Some(ui) = state.as_ref() else {
+                return;
+            };
+            let want = if ui.open {
+                TICK_OPEN
+            } else if connecting {
+                TICK_CONNECTING
+            } else {
+                TICK_CLOSED
+            };
+            if ui.interval == want {
+                return;
+            }
+            want
+        };
+        self.set_timer(want);
+    }
+    /// One pass over the model and the views. Returns whether the menu bar
+    /// icon is showing "connecting", which needs a faster tick to animate.
+    fn update(&self) -> bool {
         let menu = self.ivars().borrow().as_ref().and_then(|ui| ui.status.menu(self.mtm()));
         crate::join::tick(self.mtm(), menu.as_deref());
         let now = Instant::now();
         let (read, invalidate, quality) = events::take();
         let mut state = self.ivars().borrow_mut();
         let Some(ui) = state.as_mut() else {
-            return;
+            return false;
         };
         if invalidate {
             ui.store.invalidate_link();
@@ -423,8 +452,24 @@ impl Widget {
         let segments = tier.map(|t| t.segments()).unwrap_or(0);
         let bar_state = wifi_widget::model::headline_state_for_tier(&snapshot, now, tier);
         let text = tag(&snapshot, bar_state);
+        // Associated is not connected. Until the internet check answers (or
+        // settles on a portal or a dead uplink) the icon animates its arcs
+        // over an empty meter, and the same while a join is under way.
+        let joining = crate::join::progress()
+            .is_some_and(|j| j.phase == crate::join::Phase::Working);
+        let connecting = joining
+            || (associated
+                && !wifi_widget::model::internet_confirmed(&snapshot, now)
+                && !matches!(bar_state, State::NoInternet | State::LoginRequired));
+        let frame = if connecting {
+            let since = *ui.connecting_since.get_or_insert(now);
+            (now.saturating_duration_since(since).as_millis() / 400 % 3) as u8 + 1
+        } else {
+            ui.connecting_since = None;
+            0
+        };
         let chip_key = format!(
-            "{:?}/{:?}/{segments}/{text}/{associated}",
+            "{:?}/{:?}/{segments}/{text}/{associated}/{frame}",
             ui.style, bar_state
         );
         if chip_key != ui.last_chip {
@@ -433,12 +478,13 @@ impl Widget {
                 State::Healthy | State::Unknown | State::WifiOff | State::Disconnected
             );
             let symbol = match bar_state {
+                _ if connecting => "wifi",
                 State::WifiOff | State::Disconnected => "wifi.slash",
                 State::MeteredFallback => "personalhotspot",
                 _ if alarm => "wifi.exclamationmark",
                 _ => "wifi",
             };
-            let tint = if ui.style == Style::Icon {
+            let tint = if ui.style == Style::Icon || connecting {
                 Tint::Normal
             } else {
                 match bar_state {
@@ -453,9 +499,13 @@ impl Widget {
             let show_bar = shows_detail && associated && bar_state != State::NoInternet;
             let chip = Chip {
                 symbol,
-                variable: f64::from(segments) / 4.0,
+                variable: if connecting {
+                    f64::from(frame) / 3.0
+                } else {
+                    f64::from(segments) / 4.0
+                },
                 bar: show_bar.then_some(BarFill {
-                    segments,
+                    segments: if connecting { 0 } else { segments },
                     dim: snapshot.signal.is_none(),
                 }),
                 text: (shows_detail && !text.is_empty()).then_some(text),
@@ -472,7 +522,10 @@ impl Widget {
         if let Some(names) = wifi::take_known_networks() {
             ui.saved_names = names;
         }
-        let lines = summary(&snapshot, now);
+        let mut lines = summary(&snapshot, now);
+        if connecting {
+            lines[0] = "Wi-Fi — Connecting…".into();
+        }
         let label = format!("{}; {}; {}", lines[0], lines[1], lines[3]);
         if label != ui.tooltip
             && let Some(button) = ui.status.button(self.mtm())
@@ -485,7 +538,7 @@ impl Widget {
         // Everything below only feeds the open menu; menuWillOpen refreshes
         // before it is drawn. Skipping it keeps scutil and view redraws idle.
         if !ui.open {
-            return;
+            return connecting;
         }
         let connected = snapshot
             .reading
@@ -640,6 +693,7 @@ impl Widget {
             Style::Stacked => "Stacked",
         };
         set_text(&ui.style_detail, current);
+        connecting
     }
 }
 fn tag(s: &Snapshot, state: State) -> String {

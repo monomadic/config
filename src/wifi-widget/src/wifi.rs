@@ -1,4 +1,5 @@
-//! Read-only CoreWLAN adapter. No joins or power changes.
+//! CoreWLAN adapter. Reads only, apart from `set_power`; joins live in the
+//! app's `join` module.
 use objc2_core_wlan::{CWChannelBand, CWChannelWidth, CWPHYMode, CWSecurity, CWWiFiClient};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -57,6 +58,8 @@ pub struct LinkReading {
     pub band: Option<Band>,
     pub width_mhz: Option<u16>,
     pub phy: Option<&'static str>,
+    /// Security of the current association, e.g. "WPA3" or "WPA2/3".
+    pub security: Option<&'static str>,
 }
 fn dbm(value: isize) -> Option<i32> {
     // CoreWLAN reports 0 for unavailable/dropped measurements.
@@ -96,9 +99,42 @@ pub fn read() -> Option<LinkReading> {
                 band,
                 width_mhz: channel.as_ref().and_then(|c| width(c.channelWidth())),
                 phy: associated.then(|| phy(mode, band)),
+                security: associated
+                    .then(|| {
+                        let current = interface.security();
+                        security_label(|kind| kind == current)
+                    })
+                    .filter(|label| *label != "Unknown"),
             })
         }
     })
+}
+/// Turns the Wi-Fi radio on or off. Blocks on airportd, so call it off the
+/// main thread. CoreWLAN first; `networksetup` when it refuses.
+pub fn set_power(on: bool) -> Result<(), String> {
+    let (name, error) = objc2::rc::autoreleasepool(|_| unsafe {
+        let Some(interface) = CWWiFiClient::new().interface() else {
+            return (None, Some("Wi-Fi interface unavailable".to_owned()));
+        };
+        let name = interface.interfaceName().map(|n| n.to_string());
+        match interface.setPower_error(on) {
+            Ok(()) => (name, None),
+            Err(error) => (name, Some(error.localizedDescription().to_string())),
+        }
+    });
+    let Some(error) = error else {
+        return Ok(());
+    };
+    let Some(name) = name else {
+        return Err(error);
+    };
+    let fallback = std::process::Command::new("/usr/sbin/networksetup")
+        .args(["-setairportpower", &name, if on { "on" } else { "off" }])
+        .status();
+    match fallback {
+        Ok(status) if status.success() => Ok(()),
+        _ => Err(error),
+    }
 }
 /// Saved names do not require Location access. This is not a scan and provides
 /// no evidence about availability, signal, band or whether a network is open.

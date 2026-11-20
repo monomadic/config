@@ -33,8 +33,15 @@ impl Probes {
         if let Some(receiver) = &self.receiver {
             match receiver.try_recv() {
                 Ok(result) => {
+                    let failed = result.status.is_failure();
                     apply(store, result);
                     self.receiver = None;
+                    // One failure proves nothing and the menu bar shows
+                    // "connecting" until it is settled: ask again soon rather
+                    // than leave that up for a full 30 s cycle.
+                    if failed && store.snapshot(now).failures < 2 {
+                        self.due = self.due.min(now + Duration::from_secs(4));
+                    }
                 }
                 Err(TryRecvError::Disconnected) => {
                     self.receiver = None;

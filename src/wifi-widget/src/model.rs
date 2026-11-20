@@ -157,6 +157,14 @@ pub fn headline_state_for_tier(s: &Snapshot, now: Instant, tier: Option<Tier>) -
         State::Unknown
     }
 }
+/// The endpoint answered recently. Association alone is not a connection:
+/// until this holds, the link is still "connecting" as far as the user cares.
+pub fn internet_confirmed(s: &Snapshot, now: Instant) -> bool {
+    s.probe
+        .as_ref()
+        .filter(|p| p.age(now) < Duration::from_secs(65))
+        .is_some_and(|p| matches!(p.value, ProbeStatus::Reachable { .. }))
+}
 #[derive(Default)]
 pub struct Store {
     state: Snapshot,

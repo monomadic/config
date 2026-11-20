@@ -154,6 +154,13 @@ weights and vertically centered pill text. The two-line signal/noise/Mbps stats
 are user-approved and should stay. Planned row enrichment adds saved security
 labels and scanned strength meters; Refresh becomes a small circular symbol button.
 
+The header carries a Wi-Fi power switch (CoreWLAN, falling back to
+`networksetup`), and the card's spec line ends with the security of the current
+association. Associated is not connected: until the internet check answers, the
+menu bar icon steps its arcs over an empty meter and the card reads
+"Connecting…". A portal or a confirmed dead uplink ends that state, and a
+single failed check is retried after four seconds instead of thirty.
+
 Nearby Networks shows only named networks detected by a recent scan, including
 unsaved networks: the six strongest, strongest first when the menu opens. While
 the menu is open a new scan batch never re-sorts them — rows that are still in

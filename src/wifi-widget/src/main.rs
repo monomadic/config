@@ -50,7 +50,7 @@ fn main() -> ExitCode {
         }
         [arg] if arg == "--help" || arg == "-h" => {
             println!(
-                "Usage: wifi-widget [--dump | --ui-diagnostics]\nRead Wi-Fi measurements and probe captive.apple.com. Does not change your connection."
+                "Usage: wifi-widget [--dump | --ui-diagnostics]\nRead Wi-Fi measurements and probe captive.apple.com. Only its menu can join a network or switch Wi-Fi power."
             );
             ExitCode::SUCCESS
         }

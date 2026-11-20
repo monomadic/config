@@ -51,6 +51,7 @@ pub fn render(directory: &Path) -> Result<(), String> {
             band: Some(Band::Ghz6),
             width_mhz: Some(160),
             phy: Some("Wi-Fi 6E"),
+            security: Some("WPA3"),
         };
         match name {
             "weak" => {
