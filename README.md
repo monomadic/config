@@ -96,7 +96,7 @@ symlink to it).
 ### Find LAN web servers
 
 `lan-http` scans local IPv4 networks with 256 concurrent probes, printing each
-responding URL, HTTP status and HTML page title. It discovers active interface
+responding URL and HTTP status. Add `--fetch-titles` to include HTML page titles. It discovers active interface
 subnets and explicit RFC 1918 routes (including VPN routes). When a discovered
 network is in `192.168.*.*`, it quickly checks `.1` and `.254` on ports 80 and 443
 in the other /24 subnets, then scans only those with a responding router plus the
@@ -104,20 +104,20 @@ networks already known to macOS. This can find downstream LANs such as
 `192.168.8.*` without probing every address in the entire /16. Duplicate/contained ranges are scanned only once.
 
 ```sh
-lan-http                              # fast automatic scan; ports 80/443 + titles
+lan-http                              # fast automatic scan; ports 80/443
 lan-http --list                       # discover target subnets without the host scan
 lan-http -p 80,443,8000,8080,8443       # include alternate web ports
 lan-http -i en0                        # restrict to en0's configured subnets
 lan-http 192.168.8.0/24 -p 80,443      # explicitly scan one subnet
 lan-http -p 1-65535                    # every TCP port (much slower)
 lan-http --timeout 2                   # allow slower devices to respond
-lan-http --no-title                    # skip page fetches
+lan-http --fetch-titles                # fetch and print page titles
 lan-http --full                        # exhaustive 192.168/16 sweep when in use
 ```
 
 Requires Python 3 and macOS's built-in curl. The default ports are 80 and 443.
 Use `-p` to include alternate web ports. It tries HTTP and HTTPS on open
-ports and accepts self-signed certificates. Titles follow up to three HTTP(S)
+ports and accepts self-signed certificates. With `--fetch-titles`, page fetches follow up to three HTTP(S)
 redirects, accept compressed/chunked responses, and read at most 128 KiB with a
 two-second deadline. Missing titles appear as `-`; JavaScript isn't executed.
 

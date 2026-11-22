@@ -145,7 +145,7 @@ async def run_scan(networks, args, concurrency):
         return
     targets = ', '.join(map(str, networks))
     print(f'Scanning {targets}, {len(args.ports)} ports, {concurrency} concurrent probes…', file=sys.stderr)
-    return await scan(networks, args.ports, concurrency, args.timeout, not args.no_title)
+    return await scan(networks, args.ports, concurrency, args.timeout, args.fetch_titles)
 
 
 class TitleParser(HTMLParser):
@@ -258,7 +258,7 @@ async def probe(host, port, timeout, context):
             return result
 
 
-async def scan(networks, ports, concurrency, timeout, titles=True):
+async def scan(networks, ports, concurrency, timeout, titles=False):
     context = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
     context.check_hostname = False
     context.verify_mode = ssl.CERT_NONE  # Discovery includes self-signed LAN appliances.
@@ -280,7 +280,7 @@ async def scan(networks, ports, concurrency, timeout, titles=True):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__, epilog=(
-        'Prints URL, HTTP status and page title. Includes active interfaces, private routes, and 192.168 subnets with a router responding on port 80 or 443 at .1 or .254. Use --full for the whole 192.168/16 block. '
+        'Prints URL and HTTP status; add --fetch-titles for page titles. Includes active interfaces, private routes, and 192.168 subnets with a router responding on port 80 or 443 at .1 or .254. Use --full for the whole 192.168/16 block. '
         'IPv4 only; hostname-only virtual hosts are not discovered. Short timeouts '
         'can miss slow devices; retry with --timeout 2. TLS certificates are not verified.'))
     parser.add_argument('cidr', nargs='?', help='subnet or IP (default: discover local networks automatically)')
@@ -289,7 +289,7 @@ def main():
                         help=f'comma-separated ports/ranges (default: {DEFAULT_PORTS}); all: 1-65535')
     parser.add_argument('-c', '--concurrency', type=int, default=256, help='parallel probes (default: 256)')
     parser.add_argument('-t', '--timeout', type=positive_float, default=0.6, help='seconds per network operation (default: 0.6)')
-    parser.add_argument('--no-title', action='store_true', help='skip page title fetches')
+    parser.add_argument('--fetch-titles', action='store_true', help='fetch and print HTML page titles (off by default)')
     parser.add_argument('--list', action='store_true', help='discover and print target networks without the host scan')
     parser.add_argument('--full', action='store_true', help='scan all of 192.168/16 when in use instead of router hints')
     args = parser.parse_args()
