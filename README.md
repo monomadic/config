@@ -104,9 +104,9 @@ networks already known to macOS. This can find downstream LANs such as
 `192.168.8.*` without probing every address in the entire /16. Duplicate/contained ranges are scanned only once.
 
 ```sh
-lan-http                              # discover networks; common web ports + titles
+lan-http                              # fast automatic scan; ports 80/443 + titles
 lan-http --list                       # discover target subnets without the host scan
-lan-http -p 80,443                     # standard web ports only
+lan-http -p 80,443,8000,8080,8443       # include alternate web ports
 lan-http -i en0                        # restrict to en0's configured subnets
 lan-http 192.168.8.0/24 -p 80,443      # explicitly scan one subnet
 lan-http -p 1-65535                    # every TCP port (much slower)
@@ -115,8 +115,8 @@ lan-http --no-title                    # skip page fetches
 lan-http --full                        # exhaustive 192.168/16 sweep when in use
 ```
 
-Requires Python 3 and macOS's built-in curl. The default ports are 80, 443, 8000,
-8008, 8080, 8081, 8443, 8888, 9000 and 9090. It tries HTTP and HTTPS on open
+Requires Python 3 and macOS's built-in curl. The default ports are 80 and 443.
+Use `-p` to include alternate web ports. It tries HTTP and HTTPS on open
 ports and accepts self-signed certificates. Titles follow up to three HTTP(S)
 redirects, accept compressed/chunked responses, and read at most 128 KiB with a
 two-second deadline. Missing titles appear as `-`; JavaScript isn't executed.
