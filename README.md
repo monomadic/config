@@ -92,3 +92,24 @@ Config directories kept in-tree but not deployed by Deployfile:
 See [docs/STRUCTURE.md](docs/STRUCTURE.md) for layout rules and
 [AGENTS.md](AGENTS.md) for the coding-agent orientation guide (`CLAUDE.md` is a
 symlink to it).
+
+### Find LAN web servers
+
+`lan-http` uses Python 3's standard library to scan the default interface's IPv4
+subnet with 256 concurrent probes, printing each responding URL and HTTP status.
+It checks ports 80, 443, 8000, 8008, 8080, 8081, 8443, 8888, 9000 and 9090, trying
+both HTTP and HTTPS on open ports and accepting self-signed certificates.
+
+```sh
+lan-http                              # common web ports, automatic subnet
+lan-http -i en0                       # choose a network interface
+lan-http 192.168.1.0/24 -p 80,443      # fastest, standard ports only
+lan-http -p 1-65535                    # every TCP port (much slower)
+lan-http --timeout 2                  # allow slower devices to respond
+```
+
+The default timeout is 0.6 seconds per network operation. This is a quick discovery
+scan, not an exhaustive inventory: slow devices, IPv6-only servers and sites that
+require a particular hostname can be missed. No ping, DNS lookup, login or redirect
+following is needed. Protocol regression checks use loopback only:
+`PYTHONDONTWRITEBYTECODE=1 python3 scripts/tests/test_lan_http.py`.
