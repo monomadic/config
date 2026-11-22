@@ -49,7 +49,7 @@ default 192.168.1.1 UGScg en0
     def test_interfaces_routes_and_home_range(self):
         with patch.object(scanner.subprocess, 'check_output', side_effect=[self.CONFIG, self.ROUTES]):
             self.assertEqual(set(map(str, scanner.local_networks())),
-                             {'192.168.0.0/16', '172.16.2.0/24', '10.42.0.0/16', '100.64.1.2/32'})
+                             {'192.168.1.0/24', '192.168.8.0/24', '172.16.2.0/24', '10.42.0.0/16', '100.64.1.2/32'})
         with patch.object(scanner.subprocess, 'check_output', return_value=self.CONFIG):
             self.assertEqual(list(map(str, scanner.local_networks('en0'))), ['192.168.1.0/24'])
         routes = set(map(str, scanner.route_networks(self.ROUTES)))
@@ -69,6 +69,40 @@ default 192.168.1.1 UGScg en0
 
 
 class DiscoveryTests(unittest.IsolatedAsyncioTestCase):
+    async def test_router_discovery_is_bounded_and_keeps_known_subnets(self):
+        known = list(map(ipaddress.IPv4Network, ['192.168.1.0/24', '10.42.0.0/24']))
+        calls = []
+        active = 0
+        peak = 0
+
+        class Writer:
+            def close(self):
+                pass
+
+            async def wait_closed(self):
+                pass
+
+        async def connect(host, port):
+            nonlocal active, peak
+            calls.append((host, port))
+            active += 1
+            peak = max(peak, active)
+            await asyncio.sleep(0)
+            active -= 1
+            if (host, port) in [('192.168.8.1', 80), ('192.168.9.254', 443)]:
+                return None, Writer()
+            raise ConnectionRefusedError
+
+        with patch.object(scanner.asyncio, 'open_connection', side_effect=connect):
+            result = await scanner.discover_networks(known, 16, 0.1)
+        self.assertEqual(set(map(str, result)),
+                         {'192.168.1.0/24', '10.42.0.0/24', '192.168.8.0/24', '192.168.9.0/24'})
+        self.assertLessEqual(peak, 16)
+        self.assertLessEqual(len(calls), 255 * 4)
+        self.assertFalse(any(host.startswith('192.168.1.') for host, _ in calls))
+        self.assertTrue(all(host.rsplit('.', 1)[1] in ('1', '254') and port in (80, 443)
+                            for host, port in calls))
+
     async def test_title_redirect_chunking_and_size_limit(self):
         async def handler(reader, writer):
             try:

@@ -105,14 +105,47 @@ def local_networks(interface=None):
     else:
         routes = subprocess.check_output(['/usr/sbin/netstat', '-rn', '-f', 'inet'], text=True)
         networks += route_networks(routes)
-        # Routers don't advertise downstream LANs to the Mac. Cover the common
-        # home-network block even when only one /24 appears in the routing table.
-        home = PRIVATE_NETWORKS[2]
-        if any(network.subnet_of(home) for network in networks):
-            networks.append(home)
     if not networks:
         raise ValueError('no local IPv4 networks found; specify a CIDR')
     return unique_networks(networks)
+
+
+async def discover_networks(networks, concurrency, timeout):
+    """Use common router web endpoints as hints, not an exhaustive inventory."""
+    if not any(network.subnet_of(PRIVATE_NETWORKS[2]) for network in networks):
+        return networks
+    candidates = [subnet for subnet in PRIVATE_NETWORKS[2].subnets(new_prefix=24)
+                  if not any(subnet.subnet_of(known) for known in networks)]
+    jobs = ((subnet, str(subnet.network_address + suffix), port)
+            for subnet in candidates for suffix in (1, 254) for port in (80, 443))
+    discovered = set()
+
+    async def worker():
+        for subnet, host, port in jobs:
+            if subnet in discovered:
+                continue
+            try:
+                _, writer = await asyncio.wait_for(asyncio.open_connection(host, port), timeout)
+            except (OSError, asyncio.TimeoutError):
+                continue
+            discovered.add(subnet)
+            await close(writer)
+
+    if candidates:
+        print(f'Checking router addresses in {len(candidates)} candidate subnets…', file=sys.stderr)
+        await asyncio.gather(*(worker() for _ in range(concurrency)))
+    return unique_networks([*networks, *discovered])
+
+
+async def run_scan(networks, args, concurrency):
+    if not args.cidr and not args.interface and not args.full:
+        networks = await discover_networks(networks, concurrency, args.timeout)
+    if args.list:
+        print('\n'.join(map(str, networks)))
+        return
+    targets = ', '.join(map(str, networks))
+    print(f'Scanning {targets}, {len(args.ports)} ports, {concurrency} concurrent probes…', file=sys.stderr)
+    return await scan(networks, args.ports, concurrency, args.timeout, not args.no_title)
 
 
 class TitleParser(HTMLParser):
@@ -247,7 +280,7 @@ async def scan(networks, ports, concurrency, timeout, titles=True):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__, epilog=(
-        'Prints URL, HTTP status and page title. Includes active interfaces, private routes, and the full 192.168/16 block when in use. '
+        'Prints URL, HTTP status and page title. Includes active interfaces, private routes, and 192.168 subnets with a router responding on port 80 or 443 at .1 or .254. Use --full for the whole 192.168/16 block. '
         'IPv4 only; hostname-only virtual hosts are not discovered. Short timeouts '
         'can miss slow devices; retry with --timeout 2. TLS certificates are not verified.'))
     parser.add_argument('cidr', nargs='?', help='subnet or IP (default: discover local networks automatically)')
@@ -257,17 +290,19 @@ def main():
     parser.add_argument('-c', '--concurrency', type=int, default=256, help='parallel probes (default: 256)')
     parser.add_argument('-t', '--timeout', type=positive_float, default=0.6, help='seconds per network operation (default: 0.6)')
     parser.add_argument('--no-title', action='store_true', help='skip page title fetches')
-    parser.add_argument('--list', action='store_true', help='print target networks without scanning')
+    parser.add_argument('--list', action='store_true', help='discover and print target networks without the host scan')
+    parser.add_argument('--full', action='store_true', help='scan all of 192.168/16 when in use instead of router hints')
     args = parser.parse_args()
     if args.concurrency < 1 or args.concurrency > 4096:
         parser.error('concurrency must be between 1 and 4096')
     if args.cidr and args.interface:
         parser.error('choose either CIDR or --interface')
+    if args.full and (args.cidr or args.interface):
+        parser.error('--full applies only to automatic scanning')
     try:
         networks = [ipaddress.IPv4Network(args.cidr, strict=False)] if args.cidr else local_networks(args.interface)
-        if args.list:
-            print('\n'.join(map(str, networks)))
-            return
+        if args.full and any(n.subnet_of(PRIVATE_NETWORKS[2]) for n in networks):
+            networks = unique_networks([*networks, PRIVATE_NETWORKS[2]])
         # Reserve descriptors for the interpreter and event loop, and respect OS limits.
         soft, hard = resource.getrlimit(resource.RLIMIT_NOFILE)
         desired = args.concurrency + 64
@@ -278,11 +313,10 @@ def main():
                 pass
         soft, _ = resource.getrlimit(resource.RLIMIT_NOFILE)
         concurrency = min(args.concurrency, max(1, soft - 64)) if soft != resource.RLIM_INFINITY else args.concurrency
-        targets = ', '.join(map(str, networks))
-        print(f'Scanning {targets}, {len(args.ports)} ports, {concurrency} concurrent probes…', file=sys.stderr)
         started = time.monotonic()
-        found = asyncio.run(scan(networks, args.ports, concurrency, args.timeout, not args.no_title))
-        print(f'Found {found} servers in {time.monotonic() - started:.2f}s.', file=sys.stderr)
+        found = asyncio.run(run_scan(networks, args, concurrency))
+        if found is not None:
+            print(f'Found {found} servers in {time.monotonic() - started:.2f}s.', file=sys.stderr)
     except (ValueError, OSError, subprocess.CalledProcessError) as error:
         parser.exit(1, f'lan-http: {error}\n')
     except KeyboardInterrupt:
