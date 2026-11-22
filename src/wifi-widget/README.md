@@ -74,6 +74,18 @@ reads passwords, or runs speed tests in this milestone.
 - The menu lists at most six nearby networks, strongest first.
 - Snapshots keep signal fresh below 10 seconds, stale at 10–20 seconds, unknown
   after 20 seconds. A zero RSSI never refreshes an older measurement.
+- Some drivers report an RSSI of 0 for the associated link for as long as the
+  association lasts (seen on 6 GHz, 160 MHz; `system_profiler` shows the same
+  `0 dBm`). While the link has no RSSI of its own, the access point's beacon
+  strength is read from the system scan cache every 20 seconds — a cache read on
+  a worker, never a scan — and stands in for it, marked `≈` and "last scan" in
+  the card. It needs the BSSID, so Location. macOS refreshes that cache on its
+  own schedule (one refresh seen in four minutes of watching), so the figure
+  can be minutes old; if the access point drops out of the cache the estimate
+  lapses after 70 seconds.
+- Online is healthy: a reachable endpoint gives the green dot whatever the
+  signal tier, short of Poor. With no measurement at all the chip draws the
+  plain glyph and no meter rather than an empty meter, which read as Wi-Fi off.
 - SNR uses measured noise. Without noise the meter uses separate RSSI tiers and
   the value is labelled dBm. Signal bars and weak-signal chip alarms use a 3 dB
   margin, 10-second degradation hold and 15-second recovery hold.
@@ -139,9 +151,9 @@ permissions, run:
 cargo run -- --render-preview /tmp/wifi-widget-v3
 ```
 
-This writes eleven PNGs, including light appearance, long names, zero signal,
-Location-redacted identity, Wi-Fi off, and disconnected. These are native view
-renders from fixture data, not screenshots of the user's current network.
+This writes twelve PNGs, including light appearance, long names, zero signal,
+a scan-cache estimate, Location-redacted identity, Wi-Fi off, and disconnected.
+These are native view renders from fixture data, not screenshots of the user's current network.
 
 Panel alignment refinements: Refresh is inline with Known Networks, saved names
 use explicit foreground contrast, the outlined band pill follows the network

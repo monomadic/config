@@ -32,6 +32,7 @@ pub fn render(directory: &Path) -> Result<(), String> {
         "metered",
         "redacted",
         "missing-signal",
+        "scan-estimate",
         "off",
         "disconnected",
         "long-name",
@@ -62,7 +63,7 @@ pub fn render(directory: &Path) -> Result<(), String> {
                 link.ssid = None;
                 link.bssid = None;
             }
-            "missing-signal" => {
+            "missing-signal" | "scan-estimate" => {
                 link.rssi = None;
             }
             "off" => {
@@ -86,6 +87,7 @@ pub fn render(directory: &Path) -> Result<(), String> {
             now,
         );
         match name {
+            "scan-estimate" => store.update_beacon("3c:22:fb:9e:41:a0", Some(-58), now),
             "offline" => {
                 store.update_probe(ProbeStatus::ConnectFailure, now);
                 store.update_probe(ProbeStatus::ConnectFailure, now);
@@ -261,12 +263,13 @@ pub fn render_chips(directory: &Path) -> Result<(), String> {
         ("Icon", false, false),
         ("Stacked", true, true),
     ];
-    // scenario label, symbol, segments, text, tint
-    let cases: [(&str, &str, u8, &str, Tint); 4] = [
-        ("healthy 6GHz", "wifi", 4, "6GHz", Tint::Normal),
-        ("2.4GHz fallback", "wifi.exclamationmark", 3, "2.4GHz", Tint::Orange),
-        ("weak", "wifi.exclamationmark", 1, "\u{2212}81 dB", Tint::Red),
-        ("hotspot", "personalhotspot", 4, "212 MB", Tint::Orange),
+    // scenario label, symbol, segments (None: no measurement), text, tint
+    let cases: [(&str, &str, Option<u8>, &str, Tint); 5] = [
+        ("healthy 6GHz", "wifi", Some(4), "6GHz", Tint::Normal),
+        ("no signal reported", "wifi", None, "6GHz", Tint::Normal),
+        ("2.4GHz fallback", "wifi.exclamationmark", Some(3), "2.4GHz", Tint::Orange),
+        ("weak", "wifi.exclamationmark", Some(1), "\u{2212}81 dB", Tint::Red),
+        ("hotspot", "personalhotspot", Some(4), "212 MB", Tint::Orange),
     ];
     let bar_h = NSStatusBar::systemStatusBar().thickness();
     let row_h = bar_h + 26.;
@@ -307,11 +310,10 @@ pub fn render_chips(directory: &Path) -> Result<(), String> {
                 canvas.addSubview(&strip);
                 let chip = Chip {
                     symbol,
-                    variable: f64::from(segments) / 4.0,
-                    bar: (detail && tint != Tint::Normal || detail).then_some(BarFill {
-                        segments,
-                        dim: false,
-                    }),
+                    variable: segments.map_or(1.0, |n| f64::from(n) / 4.0),
+                    bar: segments
+                        .filter(|_| detail)
+                        .map(|segments| BarFill { segments }),
                     text: detail.then(|| text.to_string()),
                     tint,
                     stacked,

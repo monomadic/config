@@ -88,6 +88,13 @@ pub struct Snapshot {
     pub reading: Option<Sample<LinkReading>>,
     pub rssi: Option<Sample<i32>>,
     pub noise: Option<Sample<i32>>,
+    /// The access point's beacon strength from the system scan cache. Stands
+    /// in while the driver reports no RSSI for the link itself.
+    pub beacon: Option<Sample<i32>>,
+    /// The RSSI behind `signal`: the link's own while fresh, else the beacon.
+    pub level: Option<i32>,
+    /// `signal` and `level` come from the scan cache, not the live link.
+    pub estimated: bool,
     pub signal: Option<Signal>,
     pub probe: Option<Sample<ProbeStatus>>,
     pub failures: u8,
@@ -105,6 +112,9 @@ impl Default for Snapshot {
             reading: None,
             rssi: None,
             noise: None,
+            beacon: None,
+            level: None,
+            estimated: false,
             signal: None,
             probe: None,
             failures: 0,
@@ -149,9 +159,9 @@ pub fn headline_state_for_tier(s: &Snapshot, now: Instant, tier: Option<Tier>) -
     if s.band.faster_band_visible {
         return State::BandFallback;
     }
-    if matches!(probe, Some(ProbeStatus::Reachable { .. }))
-        && tier.is_some_and(|tier| tier >= Tier::Good)
-    {
+    // Online is healthy. A middling signal, or one the driver is not reporting,
+    // is a detail for the card and must not make a working link look dead.
+    if matches!(probe, Some(ProbeStatus::Reachable { .. })) {
         State::Healthy
     } else {
         State::Unknown
@@ -165,6 +175,10 @@ pub fn internet_confirmed(s: &Snapshot, now: Instant) -> bool {
         .filter(|p| p.age(now) < Duration::from_secs(65))
         .is_some_and(|p| matches!(p.value, ProbeStatus::Reachable { .. }))
 }
+/// The app re-reads the scan cache every `BEACON_EVERY` while the link has no
+/// RSSI of its own; a reading that stops being renewed lapses after this.
+pub const BEACON_EVERY: Duration = Duration::from_secs(20);
+const BEACON_LIFE: Duration = Duration::from_secs(70);
 #[derive(Default)]
 pub struct Store {
     state: Snapshot,
@@ -220,9 +234,18 @@ impl Store {
             } else {
                 self.state.rssi = None;
                 self.state.noise = None;
+                self.state.beacon = None;
             }
         }
         self.state.reading = reading.map(|value| Sample { value, at: now });
+    }
+    /// A scan-cache reading for `bssid`; ignored unless it is still the
+    /// associated access point.
+    pub fn update_beacon(&mut self, bssid: &str, rssi: Option<i32>, now: Instant) {
+        let current = self.state.reading.as_ref().and_then(|r| r.value.bssid.as_deref());
+        if current.is_some_and(|current| crate::wifi::same_bssid(current, bssid)) {
+            self.state.beacon = rssi.map(|value| Sample { value, at: now });
+        }
     }
     pub fn update_probe(&mut self, value: ProbeStatus, now: Instant) {
         if self
@@ -247,7 +270,14 @@ impl Store {
         let mut s = self.state.clone();
         let rssi = s.rssi.as_ref().and_then(|r| r.fresh_value(now)).copied();
         let noise = s.noise.as_ref().and_then(|r| r.fresh_value(now)).copied();
-        s.signal = rssi.map(|r| Signal::from_readings(r, noise));
+        let beacon = s
+            .beacon
+            .as_ref()
+            .filter(|b| b.age(now) < BEACON_LIFE)
+            .map(|b| b.value);
+        s.level = rssi.or(beacon);
+        s.estimated = rssi.is_none() && beacon.is_some();
+        s.signal = s.level.map(|r| Signal::from_readings(r, noise));
         if s.reading
             .as_ref()
             .is_some_and(|r| r.freshness(now) == Freshness::Unknown)
@@ -405,12 +435,32 @@ mod tests {
                 false,
             ),
             (
-                State::Unknown,
+                State::Healthy,
                 LinkHealth::Associated,
                 None,
                 ProbeStatus::Reachable {
                     latency: Duration::ZERO,
                 },
+                0,
+                false,
+                false,
+            ),
+            (
+                State::Healthy,
+                LinkHealth::Associated,
+                Some(Signal::Snr(20)),
+                ProbeStatus::Reachable {
+                    latency: Duration::ZERO,
+                },
+                0,
+                false,
+                false,
+            ),
+            (
+                State::Unknown,
+                LinkHealth::Associated,
+                None,
+                ProbeStatus::Unknown,
                 0,
                 false,
                 false,
@@ -483,6 +533,50 @@ mod tests {
         );
         s.update_link(Some(LinkReading::default()), now + Duration::from_secs(21));
         assert!(s.snapshot(now + Duration::from_secs(21)).rssi.is_none());
+    }
+    #[test]
+    fn scan_cache_stands_in_for_a_link_without_rssi() {
+        let now = Instant::now();
+        let mut s = Store::default();
+        let mut r = link();
+        r.rssi = None;
+        r.noise = Some(-81);
+        r.bssid = Some("b6:8:bb:91:71:b3".into());
+        s.update_link(Some(r.clone()), now);
+        s.update_probe(
+            ProbeStatus::Reachable {
+                latency: Duration::ZERO,
+            },
+            now,
+        );
+        // Online with no signal at all is still a healthy connection.
+        let snap = s.snapshot(now);
+        assert_eq!((snap.signal, snap.headline), (None, State::Healthy));
+        // Another access point's beacon is not ours.
+        s.update_beacon("aa:bb:cc:dd:ee:ff", Some(-30), now);
+        assert_eq!(s.snapshot(now).signal, None);
+        s.update_beacon("B6:08:BB:91:71:B3", Some(-46), now);
+        let snap = s.snapshot(now);
+        assert_eq!(snap.signal, Some(Signal::Snr(35)));
+        assert!(snap.estimated);
+        assert_eq!(snap.level, Some(-46));
+        // The link's own measurement wins as soon as there is one.
+        r.rssi = Some(-60);
+        s.update_link(Some(r.clone()), now);
+        let snap = s.snapshot(now);
+        assert_eq!((snap.level, snap.estimated), (Some(-60), false));
+        // Unrenewed, the estimate lapses; a roam drops it at once.
+        r.rssi = None;
+        let later = now + Duration::from_secs(60);
+        s.update_link(Some(r.clone()), later);
+        assert!(s.snapshot(later).estimated);
+        let lapsed = now + BEACON_LIFE;
+        s.update_link(Some(r.clone()), lapsed);
+        assert_eq!(s.snapshot(lapsed).signal, None);
+        s.update_beacon("b6:08:bb:91:71:b3", Some(-46), lapsed);
+        r.bssid = Some("b6:08:bb:91:71:b4".into());
+        s.update_link(Some(r), lapsed);
+        assert_eq!(s.snapshot(lapsed).signal, None);
     }
     #[test]
     fn failures_require_confirmation_and_reset_on_association() {

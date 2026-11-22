@@ -109,6 +109,47 @@ pub fn read() -> Option<LinkReading> {
         }
     })
 }
+/// CoreWLAN prints BSSIDs without leading zeros in some places and with them
+/// in others; compare the octets.
+pub fn same_bssid(a: &str, b: &str) -> bool {
+    let octets = |s: &str| -> Option<Vec<u8>> {
+        s.split(':').map(|part| u8::from_str_radix(part, 16).ok()).collect()
+    };
+    matches!((octets(a), octets(b)), (Some(a), Some(b)) if a.len() == 6 && a == b)
+}
+/// Beacon strength of one access point, read from the system's scan cache on
+/// a worker (no scan is started). Some drivers report an RSSI of 0 for the
+/// associated link for as long as the association lasts; the beacon is then
+/// the only measurement there is. `refresh_beacon` starts a read;
+/// `take_beacon` hands over a finished one as (bssid, strongest RSSI seen).
+static BEACON: std::sync::Mutex<(bool, Option<(String, Option<i32>)>)> =
+    std::sync::Mutex::new((false, None));
+pub fn refresh_beacon(bssid: String) {
+    let mut beacon = BEACON.lock().unwrap();
+    if beacon.0 {
+        return;
+    }
+    beacon.0 = true;
+    std::thread::spawn(move || {
+        let rssi = objc2::rc::autoreleasepool(|_| unsafe {
+            CWWiFiClient::new()
+                .interface()?
+                .cachedScanResults()?
+                .iter()
+                .filter(|network| {
+                    network
+                        .bssid()
+                        .is_some_and(|found| same_bssid(&found.to_string(), &bssid))
+                })
+                .filter_map(|network| dbm(network.rssiValue()))
+                .max()
+        });
+        *BEACON.lock().unwrap() = (false, Some((bssid, rssi)));
+    });
+}
+pub fn take_beacon() -> Option<(String, Option<i32>)> {
+    BEACON.lock().unwrap().1.take()
+}
 /// Turns the Wi-Fi radio on or off. Blocks on airportd, so call it off the
 /// main thread. CoreWLAN first; `networksetup` when it refuses.
 pub fn set_power(on: bool) -> Result<(), String> {
@@ -457,5 +498,8 @@ mod tests {
         assert_eq!(phy(CWPHYMode::Mode11ax, Some(Band::Ghz5)), "Wi-Fi 6");
         assert_eq!(phy(CWPHYMode(99), Some(Band::Ghz6)), "Wi-Fi");
         assert_eq!(dbm(0), None);
+        assert!(same_bssid("b6:8:bb:91:71:b3", "B6:08:BB:91:71:B3"));
+        assert!(!same_bssid("b6:8:bb:91:71:b3", "b6:8:bb:91:71:b4"));
+        assert!(!same_bssid("", ""));
     }
 }

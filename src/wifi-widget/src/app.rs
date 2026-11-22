@@ -79,6 +79,8 @@ struct Ui {
     hysteresis: Hysteresis,
     style: Style,
     next_poll: Instant,
+    /// Next read of the scan cache, taken only while the link has no RSSI.
+    next_beacon: Instant,
     rapid_until: Instant,
     last_chip: String,
     bundled: bool,
@@ -320,6 +322,7 @@ impl Widget {
             hysteresis: Hysteresis::default(),
             style: settings::load(),
             next_poll: now,
+            next_beacon: now,
             rapid_until: now + Duration::from_secs(30),
             last_chip: String::new(),
             bundled,
@@ -407,6 +410,7 @@ impl Widget {
             return false;
         };
         if invalidate {
+            ui.next_beacon = now;
             ui.store.invalidate_link();
             ui.hysteresis = Hysteresis::default();
             ui.rapid_until = now + Duration::from_secs(30);
@@ -416,6 +420,7 @@ impl Widget {
             let generation = ui.store.generation();
             ui.store.update_link(wifi::read(), now);
             if generation != ui.store.generation() {
+                ui.next_beacon = now;
                 ui.hysteresis = Hysteresis::default();
                 ui.rapid_until = now + Duration::from_secs(30);
                 ui.probes.schedule(now, Duration::from_secs(2));
@@ -455,7 +460,18 @@ impl Widget {
                 }
             }
         }
+        if let Some((bssid, rssi)) = wifi::take_beacon() {
+            ui.store.update_beacon(&bssid, rssi, now);
+        }
         let snapshot = ui.store.snapshot(now);
+        // The driver can go a whole association without reporting RSSI. The
+        // system's scan cache still knows how loud the access point is.
+        if associated && (snapshot.signal.is_none() || snapshot.estimated) && now >= ui.next_beacon
+            && let Some(bssid) = snapshot.reading.as_ref().and_then(|r| r.value.bssid.clone())
+        {
+            wifi::refresh_beacon(bssid);
+            ui.next_beacon = now + wifi_widget::model::BEACON_EVERY;
+        }
         let tier = ui.hysteresis.update(snapshot.signal, now);
         let segments = tier.map(|t| t.segments()).unwrap_or(0);
         let bar_state = wifi_widget::model::headline_state_for_tier(&snapshot, now, tier);
@@ -477,8 +493,10 @@ impl Widget {
             0
         };
         let chip_key = format!(
-            "{:?}/{:?}/{segments}/{text}/{associated}/{frame}",
-            ui.style, bar_state
+            "{:?}/{:?}/{segments}/{text}/{associated}/{frame}/{}",
+            ui.style,
+            bar_state,
+            tier.is_some()
         );
         if chip_key != ui.last_chip {
             let alarm = !matches!(
@@ -504,17 +522,24 @@ impl Widget {
                 }
             };
             let shows_detail = ui.style != Style::Icon;
-            let show_bar = shows_detail && associated && bar_state != State::NoInternet;
+            // No measurement is not zero signal: an empty meter beside a
+            // faded glyph reads as a dead link, so draw neither. The meter
+            // stays through "connecting", where empty is the point.
+            let show_bar = shows_detail
+                && associated
+                && bar_state != State::NoInternet
+                && (connecting || tier.is_some());
             let chip = Chip {
                 symbol,
                 variable: if connecting {
                     f64::from(frame) / 3.0
+                } else if tier.is_none() {
+                    1.0
                 } else {
                     f64::from(segments) / 4.0
                 },
                 bar: show_bar.then_some(BarFill {
                     segments: if connecting { 0 } else { segments },
-                    dim: snapshot.signal.is_none(),
                 }),
                 text: (shows_detail && !text.is_empty()).then_some(text),
                 tint,
@@ -709,9 +734,8 @@ fn tag(s: &Snapshot, state: State) -> String {
         State::WifiOff | State::Disconnected | State::NoInternet => String::new(),
         State::LoginRequired => "Login".into(),
         State::Weak => s
-            .rssi
-            .as_ref()
-            .map(|r| format!("−{} dBm", r.value.abs()))
+            .level
+            .map(|v| format!("−{} dBm", v.abs()))
             .unwrap_or_default(),
         State::MeteredFallback => "Metered".into(),
         _ => s
@@ -735,7 +759,7 @@ fn summary(s: &Snapshot, now: Instant) -> Vec<String> {
         State::Unknown => {
             if matches!(s.link, LinkHealth::Associated | LinkHealth::Redacted) {
                 if s.signal.is_none() {
-                    "Connected · signal unavailable"
+                    "Connected · signal not reported"
                 } else if s
                     .signal
                     .is_some_and(|signal| signal.tier() == wifi_widget::signal::Tier::Fair)
@@ -782,7 +806,10 @@ fn summary(s: &Snapshot, now: Instant) -> Vec<String> {
         .join(" · ");
         lines[4] = format!(
             "Signal {}   Noise {}   {}",
-            dbm(&s.rssi, now),
+            match s.level {
+                Some(v) if s.estimated => format!("≈{v} dBm"),
+                _ => dbm(&s.rssi, now),
+            },
             dbm(&s.noise, now),
             r.rate_mbps
                 .map(|r| format!("{r:.0} Mbps"))
@@ -800,12 +827,20 @@ fn summary(s: &Snapshot, now: Instant) -> Vec<String> {
             .unwrap_or_default();
     }
     lines[3] = match s.signal {
+        Some(signal) if s.estimated => format!(
+            "≈{} {} · {:?} · from the last scan, macOS reports no link signal",
+            match signal {
+                Signal::Snr(v) | Signal::Rssi(v) => v,
+            },
+            if matches!(signal, Signal::Snr(_)) { "dB SNR" } else { "dBm RSSI" },
+            signal.tier()
+        ),
         Some(Signal::Snr(v)) => format!("{v} dB SNR · {:?}", s.signal.unwrap().tier()),
         Some(Signal::Rssi(v)) => format!(
             "{v} dBm RSSI · {:?} · noise unavailable",
             s.signal.unwrap().tier()
         ),
-        None => "Signal unavailable · waiting for a fresh measurement".into(),
+        None => "Signal not reported by macOS".into(),
     };
     lines[5] = format!(
         "Internet  {}",

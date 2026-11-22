@@ -27,6 +27,8 @@ pub struct Content {
     pub verdict: String,
     pub level: Option<f64>,
     pub snr: bool,
+    /// The signal figures come from the scan cache, not the live link.
+    pub estimated: bool,
     pub metrics: [String; 3],
     pub internet: String,
     pub ip: Option<String>,
@@ -59,18 +61,19 @@ impl Content {
             _ => "Unavailable",
         }
         .into();
+        let about = if s.estimated { "≈" } else { "" };
         let (verdict, level, snr) = match s.signal {
             Some(Signal::Snr(v)) => (
-                format!("{v} dB · {:?}", s.signal.unwrap().tier()),
+                format!("{about}{v} dB · {:?}", s.signal.unwrap().tier()),
                 Some((f64::from(v) / 50.0).clamp(0.0, 1.0)),
                 true,
             ),
             Some(Signal::Rssi(v)) => (
-                format!("{} dBm · {:?}", minus(v), s.signal.unwrap().tier()),
+                format!("{about}{} dBm · {:?}", minus(v), s.signal.unwrap().tier()),
                 Some(((f64::from(v) + 100.0) / 60.0).clamp(0.0, 1.0)),
                 false,
             ),
-            None => ("Signal unavailable".into(), None, false),
+            None => ("Signal not reported by macOS".into(), None, false),
         };
         let measured = |value: &Option<wifi_widget::model::Sample<i32>>| {
             value
@@ -130,8 +133,12 @@ impl Content {
             verdict,
             level,
             snr,
+            estimated: s.estimated,
             metrics: [
-                measured(&s.rssi),
+                match s.level {
+                    Some(v) if s.estimated => format!("≈{}", minus(v)),
+                    _ => measured(&s.rssi),
+                },
                 measured(&s.noise),
                 r.and_then(|r| r.rate_mbps)
                     .map(|v| format!("{v:.0}"))
@@ -528,7 +535,7 @@ impl Card {
             &c.metrics[0],
             &c.metrics[1],
             &c.metrics[2],
-            "signal · dBm",
+            if c.estimated { "last scan · dBm" } else { "signal · dBm" },
             "noise · dBm",
             "Mbps",
             "Internet",
@@ -715,6 +722,35 @@ mod tests {
         let stale = Content::from_snapshot(&store.snapshot(later), later);
         assert!(stale.level.is_none());
         assert_eq!(stale.metrics[0], "—");
+    }
+    #[test]
+    fn scan_estimate_is_marked_and_online_is_never_grey() {
+        let now = Instant::now();
+        let mut store = Store::default();
+        store.update_link(
+            Some(LinkReading {
+                power: true,
+                associated: true,
+                bssid: Some("b6:8:bb:91:71:b3".into()),
+                noise: Some(-81),
+                ..Default::default()
+            }),
+            now,
+        );
+        store.update_probe(
+            ProbeStatus::Reachable {
+                latency: Duration::from_millis(20),
+            },
+            now,
+        );
+        let bare = Content::from_snapshot(&store.snapshot(now), now);
+        assert_eq!((bare.headline.as_str(), bare.state), ("Connected", State::Healthy));
+        assert!(bare.level.is_none());
+        store.update_beacon("b6:08:bb:91:71:b3", Some(-46), now);
+        let c = Content::from_snapshot(&store.snapshot(now), now);
+        assert!(c.estimated && c.snr && c.level.is_some());
+        assert_eq!(c.verdict, "≈35 dB · Good");
+        assert_eq!(c.metrics[0], "≈−46");
     }
     #[test]
     fn redacted_and_off_cards_have_no_stale_identity() {

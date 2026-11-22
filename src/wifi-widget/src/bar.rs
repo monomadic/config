@@ -30,8 +30,6 @@ impl Tint {
 pub struct BarFill {
     /// Number of illuminated signal segments (0–4).
     pub segments: u8,
-    /// Missing signal draws the meter dimmed.
-    pub dim: bool,
 }
 
 pub struct Chip {
@@ -109,11 +107,7 @@ pub fn chip_image(chip: Chip) -> Retained<NSImage> {
             let segment_gap = 2.0;
             let segment_width = (bar_width - 3.0 * segment_gap) / 4.0;
             for index in 0..4 {
-                let alpha = if index < fill.segments.min(4) {
-                    if fill.dim { 0.55 } else { 1.0 }
-                } else {
-                    0.25
-                };
+                let alpha = if index < fill.segments.min(4) { 1.0 } else { 0.25 };
                 ink_for_draw.colorWithAlphaComponent(alpha).set();
                 NSBezierPath::bezierPathWithRoundedRect_xRadius_yRadius(
                     rect(
@@ -206,7 +200,9 @@ fn stacked_image(chip: Chip) -> Retained<NSImage> {
         .as_ref()
         .map(|(_, _, size)| size.height.ceil())
         .unwrap_or(0.0);
-    let stack_height = text_height + row_gap + bar_height;
+    // With no meter the text centres on its own.
+    let meter_height = if chip.bar.is_some() { row_gap + bar_height } else { 0.0 };
+    let stack_height = text_height + meter_height;
 
     // States that draw neither text nor meter (off, disconnected, no
     // internet) collapse to the glyph alone instead of an empty column.
@@ -241,7 +237,7 @@ fn stacked_image(chip: Chip) -> Retained<NSImage> {
                 string.drawAtPoint_withAttributes(
                     NSPoint {
                         x,
-                        y: bottom + bar_height + row_gap,
+                        y: bottom + meter_height,
                     },
                     Some(attrs),
                 )
@@ -251,11 +247,7 @@ fn stacked_image(chip: Chip) -> Retained<NSImage> {
             let segment_gap = 2.0;
             let segment_width = (column - 3.0 * segment_gap) / 4.0;
             for index in 0..4 {
-                let alpha = if index < fill.segments.min(4) {
-                    if fill.dim { 0.55 } else { 1.0 }
-                } else {
-                    0.25
-                };
+                let alpha = if index < fill.segments.min(4) { 1.0 } else { 0.25 };
                 ink_for_draw.colorWithAlphaComponent(alpha).set();
                 NSBezierPath::bezierPathWithRoundedRect_xRadius_yRadius(
                     rect(
