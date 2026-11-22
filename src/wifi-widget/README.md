@@ -172,8 +172,8 @@ scan in flight. Each SSID shows its strongest scanned access point's band and
 signal; duplicate access points are combined and readings expire after three
 minutes — the name stays listed, without band or signal, until the next batch
 replaces it. A scan that fails leaves the list as it was. Clicking anywhere on a
-row joins that network; only a failure a password could fix asks for one, and
-any other error is shown on the row.
+row joins that network. Join errors appear on the row. If the row offers a
+password retry, click it again to open the password prompt.
 Hover the band for RSSI. The outlined Refresh control and network rows highlight
 on hover.
 
@@ -181,8 +181,8 @@ IP and Gateway are copyable IPv4 values from the SystemConfiguration service
 matching the Wi-Fi interface. Missing values display an em dash. Reads happen
 in the background and refresh every five seconds.
 Clicking a nearby network attempts a CoreWLAN association in the background.
-If joining fails, a secure password field offers a retry; passwords are not
-written to settings or passed on a command line. Enterprise authentication uses
+The password prompt uses a secure text field. Passwords are not written to
+settings or passed on a command line. Enterprise authentication uses
 Wi-Fi Settings. Refresh keeps its hover feedback without an outline.
 
 Saved networks detected nearby use pure white names and icons; unsaved networks

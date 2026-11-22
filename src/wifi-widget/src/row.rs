@@ -6,7 +6,7 @@ use objc2::{
 };
 use objc2_app_kit::*;
 use objc2_foundation::{
-    NSMutableAttributedString, NSMutableDictionary, NSObjectProtocol, NSPoint, NSRect, NSSize,
+    NSMutableAttributedString, NSMutableDictionary, NSObjectNSDelayedPerforming, NSObjectProtocol, NSPoint, NSRect, NSSize,
     NSString,
 };
 use std::cell::{Cell, RefCell};
@@ -50,8 +50,12 @@ define_class!(
         }
 
         /// Accessibility presses the button; the pointer goes through `mouseUp:`.
-        #[unsafe(method(openSettings:))]
-        fn open_settings(&self,_sender:&NSButton) { self.join(); }
+        #[unsafe(method(joinNetwork:))]
+        fn join_network(&self, _sender: &AnyObject) { self.join(); }
+        #[unsafe(method(askNetworkPassword:))]
+        fn ask_network_password(&self, name: &NSString) {
+            crate::join::ask_password(self.mtm(), name.to_string());
+        }
         /// The whole highlighted row is the target, not just the name's text:
         /// every click lands on the row itself instead of whichever label,
         /// icon or gap happens to be under the pointer.
@@ -99,7 +103,7 @@ impl KnownRow {
         button.setFont(Some(&NSFont::systemFontOfSize(12.)));
         unsafe {
             button.setTarget(Some(this.as_ref()));
-            button.setAction(Some(sel!(openSettings:)));
+            button.setAction(Some(sel!(joinNetwork:)));
         }
         content.addSubview(button);
         let image = &this.ivars().image;
@@ -223,24 +227,28 @@ impl KnownRow {
     }
 }
 impl KnownRow {
-    /// Starts a join and shows it on this row at once, rather than on the
-    /// next timer tick. The menu stays open: the row carries the progress.
     fn join(&self) {
         let name = self.ivars().name.borrow().clone();
         if name.is_empty() {
             return;
         }
-        crate::join::start(name.clone(), None);
-        // Another join may already be running; then this row has nothing to show.
-        let progress = crate::join::progress()
-            .filter(|p| p.name == name)
-            .map(|p| (p.phase, p.detail));
-        if progress.is_some()
-            && self.set_progress(progress)
-            && let Some(item) = self.enclosingMenuItem()
-            && let Some(menu) = unsafe { item.menu() }
+        if crate::join::progress()
+            .is_some_and(|p| p.name == name && p.phase == crate::join::Phase::PasswordRequired)
         {
-            menu.itemChanged(&item);
+            // The default run loop presents the alert after menu tracking unwinds.
+            unsafe {
+                self.performSelector_withObject_afterDelay(
+                    sel!(askNetworkPassword:),
+                    Some(&NSString::from_str(&name)),
+                    0.0,
+                );
+            }
+            if let Some(menu) = self.enclosingMenuItem().and_then(|item| unsafe { item.menu() }) {
+                menu.cancelTracking();
+            }
+        } else {
+            // The widget timer updates the row after this mouse event returns.
+            crate::join::start(name, None);
         }
     }
     /// Shows a join on this row: a spinner in place of the icon while it
@@ -262,7 +270,7 @@ impl KnownRow {
         match &progress {
             Some((phase, detail)) => {
                 set_label(&ivars.status, detail);
-                ivars.status.setTextColor(Some(&*if *phase == Phase::Failed { NSColor::systemOrangeColor() } else { NSColor::secondaryLabelColor() }));
+                ivars.status.setTextColor(Some(&*if matches!(phase, Phase::Failed | Phase::PasswordRequired) { NSColor::systemOrangeColor() } else { NSColor::secondaryLabelColor() }));
             }
             None => set_label(&ivars.status, ""),
         }
@@ -283,7 +291,7 @@ impl KnownRow {
         use crate::join::Phase;
         let (name, tint) = match self.ivars().progress.borrow().as_ref().map(|p| p.0) {
             Some(Phase::Connected) => ("checkmark.circle.fill", Some(NSColor::systemGreenColor())),
-            Some(Phase::Failed) => ("exclamationmark.triangle.fill", Some(NSColor::systemOrangeColor())),
+            Some(Phase::Failed | Phase::PasswordRequired) => ("exclamationmark.triangle.fill", Some(NSColor::systemOrangeColor())),
             _ => (self.ivars().symbol.get(), None),
         };
         let image = &self.ivars().image;

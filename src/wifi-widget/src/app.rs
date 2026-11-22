@@ -20,7 +20,7 @@ use objc2_foundation::{
     NSString, NSTimer, NSURL, NSUserDefaults,
 };
 use std::{
-    cell::RefCell,
+    cell::{Cell, RefCell},
     time::{Duration, Instant},
 };
 use wifi_widget::{
@@ -78,7 +78,6 @@ struct Ui {
     probes: Probes,
     hysteresis: Hysteresis,
     style: Style,
-    open: bool,
     next_poll: Instant,
     rapid_until: Instant,
     last_chip: String,
@@ -86,16 +85,21 @@ struct Ui {
     login_enabled: bool,
     diagnostics_at: Option<Instant>,
 }
+#[derive(Default)]
+struct WidgetIvars {
+    ui: RefCell<Option<Ui>>,
+    menu_open: Cell<bool>,
+}
 define_class!(
     #[unsafe(super(NSObject))]
     #[thread_kind = MainThreadOnly]
-    #[ivars = RefCell<Option<Ui>>]
+    #[ivars = WidgetIvars]
     struct Widget;
     unsafe impl NSObjectProtocol for Widget {}
     unsafe impl NSApplicationDelegate for Widget {
         #[unsafe(method(applicationDidFinishLaunching:))]
         fn launched(&self, _note: &NSNotification) {
-            let manager = self.ivars().borrow().as_ref().map(|ui| (ui.location.clone(),ui.bundled));
+            let manager = self.ivars().ui.borrow().as_ref().map(|ui| (ui.location.clone(),ui.bundled));
             if let Some((manager,true)) = manager {
                 unsafe { if manager.authorizationStatus() == CLAuthorizationStatus::NotDetermined { manager.requestWhenInUseAuthorization(); } }
             }
@@ -105,21 +109,23 @@ define_class!(
         #[unsafe(method(locationManagerDidChangeAuthorization:))]
         unsafe fn authorization(&self, _manager: &CLLocationManager) {
             // A grant makes SSIDs visible; pre-grant results are worthless.
-            if let Some(ui) = self.ivars().borrow_mut().as_mut() { ui.scan.start(); }
+            if let Some(ui) = self.ivars().ui.borrow_mut().as_mut() { ui.scan.start(); }
             events::changed();
         }
     }
     unsafe impl NSMenuDelegate for Widget {
         #[unsafe(method(menuWillOpen:))]
         fn menu_open(&self, _menu: &NSMenu) {
-            if let Some(ui) = self.ivars().borrow_mut().as_mut() { ui.open = true; ui.order.clear(); ui.next_poll = Instant::now(); wifi::refresh_known_networks(); ui.scan.start_if_stale(); ui.login_enabled = ui.bundled && login::enabled(); }
+            self.ivars().menu_open.set(true);
+            if let Some(ui) = self.ivars().ui.borrow_mut().as_mut() { ui.order.clear(); ui.next_poll = Instant::now(); wifi::refresh_known_networks(); ui.scan.start_if_stale(); ui.login_enabled = ui.bundled && login::enabled(); }
             self.set_timer(TICK_OPEN);
             self.refresh();
         }
         #[unsafe(method(menuDidClose:))]
         fn menu_close(&self, _menu: &NSMenu) {
-            if let Some(ui) = self.ivars().borrow_mut().as_mut() { ui.open = false; }
-            self.set_timer(TICK_CLOSED);
+            // AppKit may close the menu during a view update. The next refresh
+            // adjusts the timer without borrowing the UI from this callback.
+            self.ivars().menu_open.set(false);
         }
     }
     impl Widget {
@@ -129,14 +135,14 @@ define_class!(
         fn woke(&self, _note: &NSNotification) { events::changed(); }
         #[unsafe(method(refreshAction:))]
         fn refresh_action(&self, _sender: &NSMenuItem) {
-            if let Some(ui) = self.ivars().borrow_mut().as_mut() {
+            if let Some(ui) = self.ivars().ui.borrow_mut().as_mut() {
                 if ui.scan.busy() { return; } wifi::refresh_known_networks(); ui.scan.start(); ui.next_poll = Instant::now(); ui.probes.schedule(Instant::now(),Duration::ZERO);
             }
             self.refresh();
         }
         #[unsafe(method(styleAction:))]
         fn style_action(&self, sender: &NSMenuItem) {
-            if let Some(ui) = self.ivars().borrow_mut().as_mut() {
+            if let Some(ui) = self.ivars().ui.borrow_mut().as_mut() {
                 let style = match sender.tag() { 1 => Style::Icon, 2 => Style::Stacked, _ => Style::Smart };
                 match settings::save(style) {
                     Ok(()) => { ui.style = style; ui.message.setHidden(true); }
@@ -147,7 +153,7 @@ define_class!(
         }
         #[unsafe(method(locationAction:))]
         fn location_action(&self, _sender: &NSMenuItem) {
-            let manager = self.ivars().borrow().as_ref().map(|ui| (ui.location.clone(),ui.bundled));
+            let manager = self.ivars().ui.borrow().as_ref().map(|ui| (ui.location.clone(),ui.bundled));
             if let Some((manager,true)) = manager {
                 unsafe {
                     if manager.authorizationStatus() == CLAuthorizationStatus::NotDetermined { manager.requestWhenInUseAuthorization(); }
@@ -158,10 +164,10 @@ define_class!(
         #[unsafe(method(loginAction:))]
         fn login_action(&self, _sender: &NSMenuItem) {
             if let Err(error) = login::toggle() {
-                if let Some(ui) = self.ivars().borrow_mut().as_mut() { set_title(&ui.message,&format!("Login Items: {error}")); ui.message.setHidden(false); }
+                if let Some(ui) = self.ivars().ui.borrow_mut().as_mut() { set_title(&ui.message,&format!("Login Items: {error}")); ui.message.setHidden(false); }
                 open_url("x-apple.systempreferences:com.apple.LoginItems-Settings.extension");
             }
-            if let Some(ui) = self.ivars().borrow_mut().as_mut() { ui.login_enabled = ui.bundled && login::enabled(); }
+            if let Some(ui) = self.ivars().ui.borrow_mut().as_mut() { ui.login_enabled = ui.bundled && login::enabled(); }
             self.refresh();
         }
         #[unsafe(method(settingsAction:))]
@@ -189,7 +195,7 @@ pub(crate) fn open_url(url: &str) {
 }
 impl Widget {
     fn new(mtm: MainThreadMarker, diagnostics: bool) -> Retained<Self> {
-        let this = Self::alloc(mtm).set_ivars(RefCell::new(None));
+        let this = Self::alloc(mtm).set_ivars(WidgetIvars::default());
         let this: Retained<Self> = unsafe { msg_send![super(this), init] };
         // Match menu-tidy's autosaved placement. Unnamed, newly created items
         // can land on the hidden side of its spacer. Seed only once: subsequent
@@ -232,7 +238,8 @@ impl Widget {
         let mut known = Vec::new();
         for _ in 0..MAX_NETWORKS {
             let row = crate::row::KnownRow::new(mtm);
-            let item = this.item(&menu, "Nearby network", Some(sel!(settingsAction:)));
+            let item = this.item(&menu, "Nearby network", Some(sel!(joinNetwork:)));
+            unsafe { item.setTarget(Some(row.as_ref())); }
             item.setView(Some(&row));
             item.setHidden(true);
             known.push((item, row));
@@ -278,7 +285,7 @@ impl Widget {
             .to_string()
             .ends_with(".app");
         let now = Instant::now();
-        *this.ivars().borrow_mut() = Some(Ui {
+        *this.ivars().ui.borrow_mut() = Some(Ui {
             timer: None,
             interval: 0.0,
             connecting_since: None,
@@ -312,7 +319,6 @@ impl Widget {
             probes: Probes::new(now),
             hysteresis: Hysteresis::default(),
             style: settings::load(),
-            open: false,
             next_poll: now,
             rapid_until: now + Duration::from_secs(30),
             last_chip: String::new(),
@@ -345,7 +351,7 @@ impl Widget {
         // Let macOS coalesce wakeups with other timers.
         timer.setTolerance(interval * 0.2);
         unsafe { NSRunLoop::mainRunLoop().addTimer_forMode(&timer, NSRunLoopCommonModes) };
-        let old = self.ivars().borrow_mut().as_mut().and_then(|ui| {
+        let old = self.ivars().ui.borrow_mut().as_mut().and_then(|ui| {
             ui.interval = interval;
             ui.timer.replace(timer)
         });
@@ -367,13 +373,16 @@ impl Widget {
         item
     }
     fn refresh(&self) {
+        if self.ivars().ui.try_borrow().is_err() {
+            return;
+        }
         let connecting = self.update();
         let want = {
-            let state = self.ivars().borrow();
+            let state = self.ivars().ui.borrow();
             let Some(ui) = state.as_ref() else {
                 return;
             };
-            let want = if ui.open {
+            let want = if self.ivars().menu_open.get() {
                 TICK_OPEN
             } else if connecting {
                 TICK_CONNECTING
@@ -390,11 +399,10 @@ impl Widget {
     /// One pass over the model and the views. Returns whether the menu bar
     /// icon is showing "connecting", which needs a faster tick to animate.
     fn update(&self) -> bool {
-        let menu = self.ivars().borrow().as_ref().and_then(|ui| ui.status.menu(self.mtm()));
-        crate::join::tick(self.mtm(), menu.as_deref());
+        crate::join::tick();
         let now = Instant::now();
         let (read, invalidate, quality) = events::take();
-        let mut state = self.ivars().borrow_mut();
+        let mut state = self.ivars().ui.borrow_mut();
         let Some(ui) = state.as_mut() else {
             return false;
         };
@@ -404,7 +412,7 @@ impl Widget {
             ui.rapid_until = now + Duration::from_secs(30);
             ui.probes.schedule(now, Duration::from_secs(2));
         }
-        if read || (quality && ui.open) || now >= ui.next_poll {
+        if read || (quality && self.ivars().menu_open.get()) || now >= ui.next_poll {
             let generation = ui.store.generation();
             ui.store.update_link(wifi::read(), now);
             if generation != ui.store.generation() {
@@ -413,7 +421,7 @@ impl Widget {
                 ui.probes.schedule(now, Duration::from_secs(2));
             }
             ui.next_poll = now
-                + Duration::from_secs(if ui.open || now < ui.rapid_until {
+                + Duration::from_secs(if self.ivars().menu_open.get() || now < ui.rapid_until {
                     1
                 } else {
                     5
@@ -537,7 +545,7 @@ impl Widget {
         }
         // Everything below only feeds the open menu; menuWillOpen refreshes
         // before it is drawn. Skipping it keeps scutil and view redraws idle.
-        if !ui.open {
+        if !self.ivars().menu_open.get() {
             return connecting;
         }
         let connected = snapshot
@@ -589,7 +597,7 @@ impl Widget {
                 .filter(|j| names.get(index) == Some(&j.name))
                 .map(|j| (j.phase, j.detail.clone()));
             if row.set_progress(progress)
-                && let Some(menu) = &menu
+                && let Some(menu) = ui.status.menu(self.mtm())
             {
                 menu.itemChanged(item);
             }

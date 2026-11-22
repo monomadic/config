@@ -15,8 +15,7 @@ struct Failure {
 fn failed(message: impl Into<String>) -> Failure {
     Failure { message: message.into(), ask_password: false }
 }
-type JoinResult = (String, Result<(), Failure>);
-static PENDING: Mutex<Option<Receiver<JoinResult>>> = Mutex::new(None);
+static PENDING: Mutex<Option<Receiver<()>>> = Mutex::new(None);
 static PROGRESS: Mutex<Option<Progress>> = Mutex::new(None);
 /// How long the outcome stays on the row before it settles into the card.
 const LINGER_OK: Duration = Duration::from_secs(4);
@@ -28,6 +27,7 @@ pub enum Phase {
     Working,
     Connected,
     Failed,
+    PasswordRequired,
 }
 /// What the row under the pointer shows while a join runs: the network, how
 /// it is going, and one line of what the system reported last.
@@ -46,7 +46,7 @@ fn report(name: &str, phase: Phase, detail: impl Into<String>) {
 pub fn progress() -> Option<Progress> {
     let mut slot = PROGRESS.lock().unwrap();
     let expired = slot.as_ref().and_then(|p| Some((p.phase, p.finished?))).is_some_and(|(phase, at)| {
-        at.elapsed() >= if phase == Phase::Failed { LINGER_FAILED } else { LINGER_OK }
+        at.elapsed() >= if matches!(phase, Phase::Failed | Phase::PasswordRequired) { LINGER_FAILED } else { LINGER_OK }
     });
     if expired {
         *slot = None;
@@ -119,68 +119,59 @@ pub fn start(name: String, password: Option<String>) {
             Ok::<(), Failure>(())
         });
         if let Err(failure) = &result {
-            report(&name, Phase::Failed, failure.message.clone());
+            let (phase, detail) = if failure.ask_password {
+                (
+                    Phase::PasswordRequired,
+                    format!("Click again to enter password · {}", failure.message),
+                )
+            } else {
+                (Phase::Failed, failure.message.clone())
+            };
+            report(&name, phase, detail);
         }
-        let _ = tx.send((name, result));
+        let _ = tx.send(());
     });
 }
-/// Delivers a finished join. A failure a password could fix closes the open
-/// menu before asking for one, since a modal alert can't sit on top of menu
-/// tracking. Any other failure stays on its row, where `report` put it.
-pub fn tick(mtm: MainThreadMarker, menu: Option<&NSMenu>) {
-    let result = {
-        let mut pending = PENDING.lock().unwrap();
-        match pending.as_ref().map(|rx| rx.try_recv()) {
-            Some(Ok(result)) => {
-                *pending = None;
-                Some(result)
-            }
-            Some(Err(mpsc::TryRecvError::Disconnected)) => {
-                *pending = None;
-                None
-            }
-            _ => None,
-        }
-    };
-    if let Some((name, Err(failure))) = result
-        && failure.ask_password
-    {
-        let error = failure.message;
-        if let Some(menu) = menu { menu.cancelTracking(); }
-        let alert = NSAlert::new(mtm);
-        alert.setMessageText(&NSString::from_str(&format!("Could not join {name}")));
-        alert.setInformativeText(&NSString::from_str(&format!(
-            "{error}\n\nEnter the network password to retry."
-        )));
-        // The bundle ships no app icon, so the alert would otherwise show a blank tile.
-        if let Some(icon) = NSImage::imageWithSystemSymbolName_accessibilityDescription(
-            &NSString::from_str("wifi.exclamationmark"),
-            Some(&NSString::from_str(&error)),
-        ) {
-            icon.setSize(NSSize { width: 64., height: 64. });
-            unsafe { alert.setIcon(Some(&icon)) };
-        }
-        let field = NSSecureTextField::new(mtm);
-        field.setFrame(NSRect {
-            origin: NSPoint { x: 0., y: 0. },
-            size: NSSize {
-                width: 280.,
-                height: 24.,
-            },
-        });
-        field.setPlaceholderString(Some(&NSString::from_str("Network password")));
-        alert.setAccessoryView(Some(&field));
-        alert.addButtonWithTitle(&NSString::from_str("Join"));
-        alert.addButtonWithTitle(&NSString::from_str("Cancel"));
-        // An accessory app is never frontmost on its own: without this the
-        // alert opens behind other windows and the typing goes elsewhere.
-        NSApplication::sharedApplication(mtm).activate();
-        alert.window().setInitialFirstResponder(Some(&field));
-        if alert.runModal() == NSAlertFirstButtonReturn {
-            let password = field.stringValue().to_string();
-            if !password.is_empty() {
-                start(name, Some(password));
-            }
+/// Releases the worker slot after the join finishes.
+pub fn tick() {
+    let mut pending = PENDING.lock().unwrap();
+    if pending.as_ref().is_some_and(|rx| !matches!(rx.try_recv(), Err(mpsc::TryRecvError::Empty))) {
+        *pending = None;
+    }
+}
+
+pub fn ask_password(mtm: MainThreadMarker, name: String) {
+    let alert = NSAlert::new(mtm);
+    alert.setMessageText(&NSString::from_str(&format!("Join {name}")));
+    alert.setInformativeText(&NSString::from_str("Enter the network password to retry."));
+    // The bundle ships no app icon, so the alert would otherwise show a blank tile.
+    if let Some(icon) = NSImage::imageWithSystemSymbolName_accessibilityDescription(
+        &NSString::from_str("wifi.exclamationmark"),
+        None,
+    ) {
+        icon.setSize(NSSize { width: 64., height: 64. });
+        unsafe { alert.setIcon(Some(&icon)) };
+    }
+    let field = NSSecureTextField::new(mtm);
+    field.setFrame(NSRect {
+        origin: NSPoint { x: 0., y: 0. },
+        size: NSSize {
+            width: 280.,
+            height: 24.,
+        },
+    });
+    field.setPlaceholderString(Some(&NSString::from_str("Network password")));
+    alert.setAccessoryView(Some(&field));
+    alert.addButtonWithTitle(&NSString::from_str("Join"));
+    alert.addButtonWithTitle(&NSString::from_str("Cancel"));
+    // An accessory app is never frontmost on its own: without this the
+    // alert opens behind other windows and the typing goes elsewhere.
+    NSApplication::sharedApplication(mtm).activate();
+    alert.window().setInitialFirstResponder(Some(&field));
+    if alert.runModal() == NSAlertFirstButtonReturn {
+        let password = field.stringValue().to_string();
+        if !password.is_empty() {
+            start(name, Some(password));
         }
     }
 }
