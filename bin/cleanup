@@ -13,13 +13,16 @@
 #   Downloads → <drive> the same, onto each external (USB/Thunderbolt) drive
 #                       that is mounted, into <drive>/Movies/Porn/Downloads.
 #                       Files that don't fit in its free space are skipped.
-#   Topaz models ▸      every model one by one (weights + compiled cache),
+#   Topaz app models ▸  vendor weights and compiled caches,
 #                       with how many of your presets use it. Enter on one
 #                       copies or moves it to the Tower (mounted on demand)
 #                       or a plugged-in external drive, or deletes it; a
 #                       model archived there can be restored. Topaz Photo's
 #                       bigger models, its neuroserver data and its compiled
 #                       cache are listed there too.
+#   Topaz runtime models ▸  unencrypted model folders used by Abner and CLI tools.
+#                       Copy or move local models to external storage. A move
+#                       leaves a symlink so tools keep finding the same path.
 #   Large files ▸       files over 250M in ~/Movies ~/Music ~/Downloads ~/Pictures
 #   ~/src ▸             repos (dirty / unpushed work flagged), worktrees, cargo
 #                       target dirs, and big folders inside a repo that git
@@ -36,7 +39,7 @@
 #              ctrl-r rescan
 #
 #   cleanup              main menu
-#   cleanup topaz        jump straight into a submenu (topaz | files | src | ytdlp)
+#   cleanup topaz        jump straight into a submenu (topaz | runtime | files | src | ytdlp)
 #   cleanup --list [v]   print a view and exit (no fzf)
 #
 # CLEANUP_ROOTS      dirs searched for worktrees and cargo projects (default $HOME)
@@ -58,6 +61,7 @@
 #                    external disk; set it empty to offer none, or to plain folders for tests)
 # CLEANUP_USB_DIR    the sync folder on such a drive (default Movies/Porn/Downloads)
 # CLEANUP_USB_TOPAZ  where Topaz models go on such a drive (default Backups/topaz-models)
+# CLEANUP_USB_RUNTIME where runtime models go on such a drive (default Backups/topaz-runtime)
 # CLEANUP_USB_OFFLOAD where moved files and folders go on it (default Backups/offloaded)
 # CLEANUP_PHOTO_MODELS  Topaz Photo's models folder (default: inside /Applications/Topaz Photo.app;
 #                    set it empty to leave Photo out)
@@ -84,6 +88,7 @@ sync_src=${CLEANUP_SYNC_SRC:-$HOME/Movies/Porn/Downloads}
 tower_dst=${CLEANUP_SYNC_DST:-$tower/Movies/Porn/Downloads}
 usb_dir=${CLEANUP_USB_DIR:-Movies/Porn/Downloads}
 usb_topaz=${CLEANUP_USB_TOPAZ:-Backups/topaz-models}
+usb_runtime=${CLEANUP_USB_RUNTIME:-Backups/topaz-runtime}
 usb_offload=${CLEANUP_USB_OFFLOAD:-Backups/offloaded}
 data_kb=$(( ${CLEANUP_DATA_MB:-1024} * 1024 ))
 # Folders in a repo that rebuild or belong to a tool: never offered as data.
@@ -92,6 +97,11 @@ sync_dst=$tower_dst sync_name=Tower sync_root=$tower   # see sync_target
 models_dir=$(topaz_resolve_models_dir 2>/dev/null)
 presets_dir=$dotfiles/bin/lib/topaz-presets
 photo_models=${CLEANUP_PHOTO_MODELS-/Applications/Topaz Photo.app/Contents/Resources/models}
+typeset -A runtime_dirs=(
+  decrypted $HOME/.local/share/models/topaz/decrypted
+  user-models $HOME/.models/topaz/decrypted
+  legacy $HOME/.local/share/topaz
+)
 claude_vm=${CLEANUP_CLAUDE_VM-$HOME/Library/Application Support/Claude/vm_bundles/claudevm.bundle}
 ytdlp_tmp=${YT_DLP_TEMP_DIR:-$HOME/.cache/yt-dlp-tmp}
 ytdlp_days=${CLEANUP_YTDLP_DAYS:-7}
@@ -324,17 +334,63 @@ scan_topaz() {
   format < $raw > $CLEANUP_TMP/list.topaz
 
   human $(( total + photo_kb ))
-  row $(( total + photo_kb )) - menu topaz - topaz c "Topaz models ${ICON[more]}  ${dim}$nmodels models · $unused_n unused$( (( unused_kb )) && { human $unused_kb; print -n " ($REPLY)" } )$( (( photo_kb )) && { human $photo_kb; print -n " · Photo $REPLY" } )${o}"
+  row $(( total + photo_kb )) - menu topaz - topaz c "Topaz app models ${ICON[more]}  ${dim}$nmodels models · $unused_n unused$( (( unused_kb )) && { human $unused_kb; print -n " ($REPLY)" } )$( (( photo_kb )) && { human $photo_kb; print -n " · Photo $REPLY" } )${o}"
 
   # A store the presets have given up on is the easiest big win.
   if [[ -d $models_dir/models/slp25m ]] && head -1 $presets_dir/enhancement/starlight-precise-25.toml 2>/dev/null | grep -q '^# Disabled'; then
     kb_of $models_dir/models/slp25m; human $REPLY
-    tip 10 "Topaz store slp25m ($REPLY) is stale — starlight-precise-25 is disabled  ${dim}→ Topaz models ${ICON[more]} slp25m${o}"
+    tip 10 "Topaz store slp25m ($REPLY) is stale — starlight-precise-25 is disabled  ${dim}→ Topaz app models ${ICON[more]} slp25m${o}"
   fi
   if (( unused_kb > 1048576 )); then
     human $unused_kb
-    tip 20 "$unused_n Topaz models ($REPLY) aren't used by any preset  ${dim}→ Topaz models ${ICON[more]} archive or delete${o}"
+    tip 20 "$unused_n Topaz models ($REPLY) aren't used by any preset  ${dim}→ Topaz app models ${ICON[more]} archive or delete${o}"
   fi
+}
+
+scan_runtime() {
+  local key p v base kb state target total=0 raw=$CLEANUP_TMP/sub-runtime.raw
+  local -a stores
+  : > $raw
+  for key in ${(k)runtime_dirs}; do
+    if [[ -L $runtime_dirs[$key] ]]; then
+      p=$runtime_dirs[$key]
+      row 0 - runtime-location $p - model c "${p:t} ${dim}· linked → $(readlink $p)${o}" >> $raw
+      continue
+    fi
+    for p in $runtime_dirs[$key]/*(N); do
+      if [[ -L $p ]]; then
+        target=$(readlink $p)
+        state='linked'
+        [[ -e $p ]] || state='link target unavailable'
+        row 0 - runtime-location $p - model c "${p:t} ${dim}· $state → $target${o}" >> $raw
+      elif [[ -d $p || -f $p ]]; then
+        kb_of $p; kb=$REPLY
+        (( total += kb ))
+        row $kb - runtime-model $p $key model c "${p:t} ${dim}· local${o}" >> $raw
+      fi
+    done
+  done
+
+  usb_drives
+  stores=()
+  tower_up && stores+=($archive/topaz-runtime)
+  for v in $reply; do
+    for p in $v/Models/topaz/decrypted/*(N/); do
+      kb_of $p; human $REPLY
+      row 0 "↗ $REPLY" runtime-location $p - archive s "${p:t} ${dim}· on ${v:t}${o}" >> $raw
+    done
+    stores+=($v/$usb_runtime)
+  done
+  for base in $stores; do
+    if [[ $base == $archive/topaz-runtime ]]; then state=Tower
+    else state=${${base%/$usb_runtime}:t}; fi
+    for p in $base/*/*(N); do
+      kb_of $p; human $REPLY
+      row 0 "↗ $REPLY" runtime-location $p - archive s "${p:t} ${dim}· backed up on $state${o}" >> $raw
+    done
+  done
+  format < $raw > $CLEANUP_TMP/list.runtime
+  [[ -s $raw ]] && row $total - menu runtime - model c "Topaz runtime models ${ICON[more]}  ${dim}· Abner and CLI tools${o}"
 }
 
 # Topaz Photo keeps its models the same way but shares nothing with the
@@ -678,7 +734,7 @@ scan_caches() {
 list_main() {
   # Every scanner runs at once; output keeps a fixed section order.
   local s p
-  local -a order=(sync ytdlp topaz files src brew caches)
+  local -a order=(sync ytdlp topaz runtime files src brew caches)
   local -A pid
   : > $CLEANUP_TMP/drop
   : > $CLEANUP_TMP/tips
@@ -697,7 +753,7 @@ list_main() {
 list_view() {
   case $1 in
     main) list_main ;;
-    topaz|files|src|ytdlp)
+    topaz|runtime|files|src|ytdlp)
       : > $CLEANUP_TMP/drop
       rm -f $CLEANUP_TMP/list.$1
       CLEANUP_NOTIPS=1 scan_$1 > /dev/null 2>&1
@@ -836,6 +892,63 @@ topaz_put() {  # sub paths…
   for f; do [[ -e $tdest/$sub${f:t} ]] || todo+=($f); done
   (( ! $#todo )) || has_room $todo || return 1
   for f; do copy_verified $f $tdest/$sub${f:t} $tname || return 1; done
+}
+
+# Publish only a complete, verified copy. A pre-existing pack must match
+# exactly, since two versions of a family can have different supporting files.
+runtime_copy() {
+  local src=$1 dest=$2 staging
+  if [[ -e $dest || -L $dest ]]; then
+    python3 $dotfiles/bin/lib/cleanup-safety.py verify $src $dest
+    return
+  fi
+  has_room $src || return 1
+  mkdir -p -- ${dest:h} || return 1
+  staging=$(mktemp -d "${dest:h}/.cleanup-runtime.XXXXXXXX") || return 1
+  local result=1
+  if copy_verified $src $staging/${dest:t} $tname &&
+     mv -n -- $staging/${dest:t} ${dest:h}/; then
+    if [[ ! -e $staging/${dest:t} ]]; then result=0
+    else python3 $dotfiles/bin/lib/cleanup-safety.py verify $src $dest && result=0; fi
+  fi
+  rm -rf -- $staging
+  return $result
+}
+
+runtime_action() {  # model path, source namespace
+  local p=$1 key=$2 root=${runtime_dirs[$2]} hsz mode dest holding troot tname ttower
+  [[ -n $root && ${p:h} == $root && ${p:t} != (.|..) && ! -L $root && ! -L $p &&
+     ( -d $p || -f $p ) && ${p:A} == $p ]] || fail "model path changed — rescan with ctrl-r"
+  kb_of $p; human $REPLY; hsz=$REPLY
+  choose "${p:t} ($hsz): [y] copy · [m] move and leave a symlink · [r] reveal in Finder · [c] cancel" y m r c
+  mode=$REPLY
+  [[ $mode == r ]] && { open -R $p; return 1 }
+  [[ $mode == [ym] ]] || return 1
+  if [[ $mode == m ]]; then pick_dest move || return 1
+  else pick_dest copy || return 1; fi
+  if (( ttower )); then dest=$archive/topaz-runtime/$key/${p:t}
+  else dest=$troot/$usb_runtime/$key/${p:t}; fi
+  [[ ${dest:A} != $p && ${dest:A} != $p/* ]] || fail "archive overlaps the local model"
+  runtime_copy $p $dest || fail "could not verify a copy of ${p:t} on $tname"
+  before=0; keep_row=1
+  msg="copied ${p:t} to $dest"
+  if [[ $mode == m ]]; then
+    holding=$(mktemp -d "$root/.cleanup-runtime.XXXXXXXX") || fail "could not stage the local model"
+    if ! mv -- $p $holding/; then
+      rmdir -- $holding
+      fail "could not move $p aside"
+    fi
+    if ! python3 -c 'import os, sys; os.symlink(*sys.argv[1:])' $dest $p; then
+      mv -n -- $holding/${p:t} $root/
+      rmdir -- $holding 2>/dev/null || fail "could not link $p; original is at $holding/${p:t}"
+      fail "could not link $p; original restored"
+    fi
+    trash $holding/${p:t} || fail "linked $p; original is at $holding/${p:t}"
+    rmdir -- $holding
+    msg="moved ${p:t} to $tname and linked its original path · $hsz in the Trash"
+  fi
+  CLEANUP_NOTIPS=1 scan_runtime >/dev/null
+  pause
 }
 
 # One Topaz model or store: copy it away, move it away, or delete it.
@@ -1108,6 +1221,16 @@ run() {
       pause
       ;;
 
+    runtime-model)
+      runtime_action $a1 $a2 || return
+      ;;
+
+    runtime-location)
+      [[ -e $a1 ]] || fail "$a1 is unavailable"
+      open -R $a1
+      return
+      ;;
+
     ytpart)
       ytpart_rec $a1 || fail "no record of ${a1:t} — rescan with ctrl-r"
       local url=$reply[4] fmt=$reply[5] alias=$reply[6] mtime=$reply[2] state=$reply[8] hsz mins ytdlp_base=
@@ -1318,7 +1441,8 @@ advice() {
     menu)
       print c
       case $a1 in
-        topaz) print -r -- 'Opens the list of Topaz models, one row each. Weights are re-downloaded on demand, so removing is recoverable — but only the app (or topaz-fetch-models) can fetch them.' ;;
+        topaz) print -r -- 'Opens the official Topaz Video and Photo model stores, including encrypted weights and compiled caches. Use the app or topaz-fetch-models to download supported weights again.' ;;
+        runtime) print -r -- 'Opens unencrypted Topaz model packs used by Abner and command-line tools. The total shows local disk usage. Models on mounted drives are listed with their locations.' ;;
         files) print -r -- "Opens the biggest files in ${(j:, :)big_nice}. Each can be moved to the Tower, trashed, or revealed in Finder." ;;
         ytdlp) print -r -- "Opens yt-dlp's temp dir, one row per download that died. Each can be resumed where it stopped, or deleted." ;;
         src)   print -r -- 'Opens your repos, worktrees and cargo target dirs. Repos with unpushed or uncommitted work are marked red and refuse to be removed.' ;;
@@ -1349,6 +1473,12 @@ advice() {
     trestore)
       print s
       print -r -- 'Copies the archived files back into the Topaz app. The copy on the Tower or drive stays. Check free space first.' ;;
+    runtime-model)
+      print c
+      print -r -- 'Copy keeps the local model. Move verifies the complete pack on the Tower or an external drive, links the original path to it, and trashes the local copy. Keep the destination mounted when using that path. Empty the Trash to reclaim the local space.' ;;
+    runtime-location)
+      print s
+      print -r -- 'Enter reveals this location in Finder when it is available.' ;;
     ytpart)
       print c
       print -r -- 'A download that died. Resume re-runs it through the alias that made it (dl-porn, --visuals), in the format it had chosen, and yt-dlp carries on from where the partial stops. Before downloading it checks that yt-dlp would use this same file name; if the title changed on the site, or the alias has a new template, it offers to rename the partial to match rather than start again from zero.'
@@ -1632,6 +1762,9 @@ preview() {
         print 'Directory is gone — enter drops its stale record from the repo.'
       fi
       ;;
+    runtime-model|runtime-location)
+      print -r -- $a1
+      [[ -d $a1 ]] && listing $a1 ;;
     cargo|dir|orphan|plain|data|tcache) [[ -d $a1 ]] && listing $a1 ;;
   esac
 }
@@ -1705,7 +1838,7 @@ for dep in fd fzf; do
 done
 
 case ${1:-main} in
-  main|topaz|files|src|ytdlp) view ${1:-main} ;;
-  *) print -u2 "cleanup: unknown view '$1' (main | topaz | files | src | ytdlp)"; exit 2 ;;
+  main|topaz|runtime|files|src|ytdlp) view ${1:-main} ;;
+  *) print -u2 "cleanup: unknown view '$1' (main | topaz | runtime | files | src | ytdlp)"; exit 2 ;;
 esac
 exit 0
