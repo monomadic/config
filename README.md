@@ -95,21 +95,37 @@ symlink to it).
 
 ### Find LAN web servers
 
-`lan-http` uses Python 3's standard library to scan the default interface's IPv4
-subnet with 256 concurrent probes, printing each responding URL and HTTP status.
-It checks ports 80, 443, 8000, 8008, 8080, 8081, 8443, 8888, 9000 and 9090, trying
-both HTTP and HTTPS on open ports and accepting self-signed certificates.
+`lan-http` scans local IPv4 networks with 256 concurrent probes, printing each
+responding URL, HTTP status and HTML page title. It discovers active interface
+subnets and explicit RFC 1918 routes (including VPN routes). When a discovered
+network is in `192.168.*.*`, it scans the entire `192.168.0.0/16` range: this also
+finds reachable downstream LANs such as `192.168.8.*` that aren't listed in the
+Mac's routing table. Duplicate/contained ranges are scanned only once.
 
 ```sh
-lan-http                              # common web ports, automatic subnet
-lan-http -i en0                       # choose a network interface
-lan-http 192.168.1.0/24 -p 80,443      # fastest, standard ports only
+lan-http                              # discover networks; common web ports + titles
+lan-http --list                       # show automatic targets without scanning
+lan-http -p 80,443                     # standard web ports only
+lan-http -i en0                        # restrict to en0's configured subnets
+lan-http 192.168.8.0/24 -p 80,443      # explicitly scan one subnet
 lan-http -p 1-65535                    # every TCP port (much slower)
-lan-http --timeout 2                  # allow slower devices to respond
+lan-http --timeout 2                   # allow slower devices to respond
+lan-http --no-title                    # skip page fetches
 ```
 
-The default timeout is 0.6 seconds per network operation. This is a quick discovery
-scan, not an exhaustive inventory: slow devices, IPv6-only servers and sites that
-require a particular hostname can be missed. No ping, DNS lookup, login or redirect
-following is needed. Protocol regression checks use loopback only:
+Requires Python 3 and macOS's built-in curl. The default ports are 80, 443, 8000,
+8008, 8080, 8081, 8443, 8888, 9000 and 9090. It tries HTTP and HTTPS on open
+ports and accepts self-signed certificates. Titles follow up to three HTTP(S)
+redirects, accept compressed/chunked responses, and read at most 128 KiB with a
+two-second deadline. Missing titles appear as `-`; JavaScript isn't executed.
+
+The default probe timeout is 0.6 seconds per network operation. A full /16 has
+65,534 addresses and can take several minutes, especially with more ports.
+Use `-i en0` for a quick scan of only the attached LAN. This is discovery, not an
+exhaustive inventory: slow devices, IPv6-only servers and hostname-only virtual
+hosts can be missed. Hidden `10.*` and `172.16–31.*` networks without an explicit
+route cannot be inferred; supply their CIDR to scan them. Broad VPN catch-all
+routes outside RFC 1918 (such as `100.64/10`) aren't expanded automatically,
+though interface addresses are included. No ping or login is needed. Title
+redirects may resolve hostnames. Tests use loopback and synthetic routing tables:
 `PYTHONDONTWRITEBYTECODE=1 python3 scripts/tests/test_lan_http.py`.

@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
-"""Find HTTP(S) servers on the default macOS interface's IPv4 subnet."""
+"""Find HTTP(S) servers on the reachable local IPv4 networks on macOS."""
 import argparse
 import asyncio
+from html.parser import HTMLParser
 import ipaddress
 import math
 import re
@@ -39,21 +40,145 @@ def positive_float(value):
     return number
 
 
-def local_network(interface):
-    if not interface:
-        route = subprocess.check_output(['/sbin/route', '-n', 'get', 'default'], text=True)
-        match = re.search(r'interface:\s+(\S+)', route)
-        if not match:
-            raise ValueError('no default interface; specify a CIDR or --interface')
-        interface = match[1]
-    config = subprocess.check_output(['/sbin/ifconfig', interface], text=True)
-    match = re.search(r'inet (\S+) netmask (\S+)', config)
-    if not match:
-        raise ValueError(f'{interface} has no IPv4 address')
-    address, mask = match.groups()
-    if mask.startswith('0x'):
-        mask = str(ipaddress.IPv4Address(int(mask, 16)))
-    return ipaddress.IPv4Network(f'{address}/{mask}', strict=False)
+PRIVATE_NETWORKS = tuple(ipaddress.IPv4Network(cidr) for cidr in
+                         ('10.0.0.0/8', '172.16.0.0/12', '192.168.0.0/16'))
+
+
+def interface_networks(config, interface=None):
+    networks = []
+    for block in re.split(r'(?=^\S+: flags=)', config, flags=re.M):
+        header = re.match(r'(\S+): flags=\w+<([^>]+)>', block)
+        if not header:
+            continue
+        name, flags = header.groups()
+        if interface and name != interface:
+            continue
+        if 'UP' not in flags.split(',') or 'LOOPBACK' in flags or 'status: inactive' in block:
+            continue
+        for address, mask in re.findall(r'inet (\S+)(?: --> \S+)? netmask (\S+)', block):
+            if mask.startswith('0x'):
+                mask = str(ipaddress.IPv4Address(int(mask, 16)))
+            networks.append(ipaddress.IPv4Network(f'{address}/{mask}', strict=False))
+    return networks
+
+
+def route_networks(routes):
+    networks = []
+    for line in routes.splitlines():
+        fields = line.split()
+        if len(fields) < 4:
+            continue
+        destination, _, flags, interface = fields[:4]
+        if 'U' not in flags or any(flag in flags for flag in 'Rb') or interface == 'lo0':
+            continue
+        # netstat abbreviates network destinations: 192.168.8, 10/8, etc.
+        address, _, prefix = destination.partition('/')
+        octets = address.split('.')
+        if not all(part.isdigit() for part in octets) or len(octets) > 4:
+            continue
+        prefix = prefix or str(32 if 'H' in flags else len(octets) * 8)
+        try:
+            network = ipaddress.IPv4Network('.'.join(octets + ['0'] * (4 - len(octets))) + '/' + prefix, strict=False)
+        except ValueError:
+            continue
+        if any(network.subnet_of(private) for private in PRIVATE_NETWORKS):
+            networks.append(network)
+    return networks
+
+
+def unique_networks(networks):
+    # Remove contained ranges, but don't merge adjacent subnets (their host
+    # boundaries differ). This also avoids scanning ARP host routes twice.
+    result = []
+    for network in sorted(set(networks), key=lambda n: (n.prefixlen, int(n.network_address))):
+        if not any(network.subnet_of(existing) for existing in result):
+            result.append(network)
+    return result
+
+
+def local_networks(interface=None):
+    config = subprocess.check_output(['/sbin/ifconfig', '-a'], text=True)
+    networks = interface_networks(config, interface)
+    if interface:
+        if not networks:
+            raise ValueError(f'{interface} has no active IPv4 network')
+    else:
+        routes = subprocess.check_output(['/usr/sbin/netstat', '-rn', '-f', 'inet'], text=True)
+        networks += route_networks(routes)
+        # Routers don't advertise downstream LANs to the Mac. Cover the common
+        # home-network block even when only one /24 appears in the routing table.
+        home = PRIVATE_NETWORKS[2]
+        if any(network.subnet_of(home) for network in networks):
+            networks.append(home)
+    if not networks:
+        raise ValueError('no local IPv4 networks found; specify a CIDR')
+    return unique_networks(networks)
+
+
+class TitleParser(HTMLParser):
+    def __init__(self):
+        super().__init__(convert_charrefs=True)
+        self.inside = False
+        self.done = False
+        self.parts = []
+
+    def handle_starttag(self, tag, attrs):
+        if tag == 'title' and not self.done:
+            self.inside = True
+
+    def handle_endtag(self, tag):
+        if tag == 'title' and self.inside:
+            self.inside = False
+            self.done = True
+
+    def handle_data(self, data):
+        if self.inside:
+            self.parts.append(data)
+
+
+def page_title(body):
+    encoding = re.search(rb'charset\s*=\s*["\']?([\w-]+)', body[:8192], re.I)
+    try:
+        text = body.decode(encoding[1].decode() if encoding else 'utf-8', errors='replace')
+    except LookupError:
+        text = body.decode('utf-8', errors='replace')
+    parser = TitleParser()
+    parser.feed(text)
+    # Keep terminal escape/control characters out of output and normalize spaces.
+    title = ''.join(c for c in ''.join(parser.parts) if c.isprintable() or c.isspace())
+    return ' '.join(title.split())[:240]
+
+
+async def fetch_title(url, timeout=2):
+    # macOS curl handles redirects, compression, chunked bodies and TLS. It
+    # bypasses proxy environment variables so discovery stays on direct routes.
+    process = await asyncio.create_subprocess_exec(
+        '/usr/bin/curl', '--silent', '--insecure', '--location', '--max-redirs', '3',
+        '--max-time', str(timeout), '--noproxy', '*', '--compressed',
+        '--proto', '=http,https', '--proto-redir', '=http,https', url,
+        stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.DEVNULL)
+    body = bytearray()
+    try:
+        async def read_body():
+            while len(body) < 131072:
+                chunk = await process.stdout.read(min(8192, 131072 - len(body)))
+                if not chunk:
+                    break
+                body.extend(chunk)
+                if re.search(rb'</title\s*>', body, re.I):
+                    break
+        try:
+            await asyncio.wait_for(read_body(), timeout + 0.2)
+        except asyncio.TimeoutError:
+            pass
+    finally:
+        if process.returncode is None:
+            try:
+                process.kill()
+            except ProcessLookupError:
+                pass
+        await process.communicate()
+    return page_title(bytes(body))
 
 
 async def close(writer):
@@ -100,11 +225,11 @@ async def probe(host, port, timeout, context):
             return result
 
 
-async def scan(network, ports, concurrency, timeout):
+async def scan(networks, ports, concurrency, timeout, titles=True):
     context = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
     context.check_hostname = False
     context.verify_mode = ssl.CERT_NONE  # Discovery includes self-signed LAN appliances.
-    jobs = ((str(host), port) for host in network.hosts() for port in ports)
+    jobs = ((str(host), port) for network in networks for host in network.hosts() for port in ports)
     found = 0
 
     async def worker():
@@ -113,7 +238,8 @@ async def scan(network, ports, concurrency, timeout):
             result = await probe(host, port, timeout, context)
             if result:
                 found += 1
-                print(f'{result[0]}\t{result[1]}', flush=True)
+                title = await fetch_title(result[0]) if titles else ''
+                print('\t'.join((*result, title or '-')) if titles else '\t'.join(result), flush=True)
 
     await asyncio.gather(*(worker() for _ in range(concurrency)))
     return found
@@ -121,22 +247,27 @@ async def scan(network, ports, concurrency, timeout):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__, epilog=(
-        'Prints URL and HTTP status as servers respond. No ping or DNS lookup. '
+        'Prints URL, HTTP status and page title. Includes active interfaces, private routes, and the full 192.168/16 block when in use. '
         'IPv4 only; hostname-only virtual hosts are not discovered. Short timeouts '
         'can miss slow devices; retry with --timeout 2. TLS certificates are not verified.'))
-    parser.add_argument('cidr', nargs='?', help='subnet or IP (default: default-route interface subnet)')
-    parser.add_argument('-i', '--interface', help='interface to scan, e.g. en0')
+    parser.add_argument('cidr', nargs='?', help='subnet or IP (default: discover local networks automatically)')
+    parser.add_argument('-i', '--interface', help='restrict scan to this interface’s configured subnets, e.g. en0')
     parser.add_argument('-p', '--ports', type=ports_arg, default=DEFAULT_PORTS,
                         help=f'comma-separated ports/ranges (default: {DEFAULT_PORTS}); all: 1-65535')
     parser.add_argument('-c', '--concurrency', type=int, default=256, help='parallel probes (default: 256)')
     parser.add_argument('-t', '--timeout', type=positive_float, default=0.6, help='seconds per network operation (default: 0.6)')
+    parser.add_argument('--no-title', action='store_true', help='skip page title fetches')
+    parser.add_argument('--list', action='store_true', help='print target networks without scanning')
     args = parser.parse_args()
     if args.concurrency < 1 or args.concurrency > 4096:
         parser.error('concurrency must be between 1 and 4096')
     if args.cidr and args.interface:
         parser.error('choose either CIDR or --interface')
     try:
-        network = ipaddress.IPv4Network(args.cidr, strict=False) if args.cidr else local_network(args.interface)
+        networks = [ipaddress.IPv4Network(args.cidr, strict=False)] if args.cidr else local_networks(args.interface)
+        if args.list:
+            print('\n'.join(map(str, networks)))
+            return
         # Reserve descriptors for the interpreter and event loop, and respect OS limits.
         soft, hard = resource.getrlimit(resource.RLIMIT_NOFILE)
         desired = args.concurrency + 64
@@ -147,9 +278,10 @@ def main():
                 pass
         soft, _ = resource.getrlimit(resource.RLIMIT_NOFILE)
         concurrency = min(args.concurrency, max(1, soft - 64)) if soft != resource.RLIM_INFINITY else args.concurrency
-        print(f'Scanning {network}, {len(args.ports)} ports, {concurrency} concurrent probes…', file=sys.stderr)
+        targets = ', '.join(map(str, networks))
+        print(f'Scanning {targets}, {len(args.ports)} ports, {concurrency} concurrent probes…', file=sys.stderr)
         started = time.monotonic()
-        found = asyncio.run(scan(network, args.ports, concurrency, args.timeout))
+        found = asyncio.run(scan(networks, args.ports, concurrency, args.timeout, not args.no_title))
         print(f'Found {found} servers in {time.monotonic() - started:.2f}s.', file=sys.stderr)
     except (ValueError, OSError, subprocess.CalledProcessError) as error:
         parser.exit(1, f'lan-http: {error}\n')
