@@ -50,6 +50,9 @@ Options:
   --print-start             Select a keyframe, print FLC_START=<seconds> to
                             stdout, and exit without cutting anything
   --mov-faststart           Enable MP4/MOV FastStart on the output
+  --drop-unsupported-subtitles
+                            Omit subtitle tracks FFmpeg cannot identify
+                            without asking
   --quantize-chapters       Snap surviving chapter marks to the nearest keyframe
   --skip-detection          Deprecated no-op; detection is off unless requested
   --detect-black-scenes     Auto-start after a leading black scene when found
@@ -68,6 +71,9 @@ boundary is exact; marks that collapse onto the same keyframe are merged away.
 In the keyframe selector, press `r` to edit the output filename in $EDITOR.
 The new name shows immediately in the preview but is only applied after a
 successful cut; saving an empty buffer or the unchanged name cancels it.
+
+If FFmpeg cannot identify a subtitle codec, the cutter asks before omitting
+that track. Audio, video, attachments and recognized subtitles stay mapped.
 
 Examples:
   ffmpeg-lossless-cut clip.mp4
@@ -889,6 +895,12 @@ chapter_stream_indices() {
   awk -F, '$2 == "data" && $3 == "text" { print $1 }'
 }
 
+unsupported_subtitle_indices() {
+  ffprobe -v error -select_streams s \
+    -show_entries stream=index,codec_name -of csv=p=0 -- "$1" |
+    awk -F, '$1 ~ /^[0-9]+$/ && ($2 == "unknown" || $2 == "N/A") { print $1 }'
+}
+
 nearest_keyframe() {
   local input_file="$1"
   local target="$2"
@@ -1192,6 +1204,7 @@ trim_copy() {
     -ss "$start_time" -i "$input_file" \
     "${flc_chapter_input[@]}" \
     -map 0 \
+    "${subtitle_drop_args[@]}" \
     "${flc_chapter_drop[@]}" \
     -map_metadata 0 \
     "${flc_chapter_map[@]}" \
@@ -1226,6 +1239,7 @@ trim_copy_reverse() {
     -i "$input_file" \
     "${flc_chapter_input[@]}" \
     -map 0 \
+    "${subtitle_drop_args[@]}" \
     "${flc_chapter_drop[@]}" \
     -map_metadata 0 \
     "${flc_chapter_map[@]}" \
@@ -1424,12 +1438,14 @@ keep_previews=false
 dry_run=false
 print_start=false
 mov_faststart=false
+drop_unsupported_subtitles=false
 quantize_chapters=false
 detect_black_leader=false
 black_leader_start_tolerance="${BLACK_LEADER_START_TOLERANCE:-0.25}"
 from_ts="0"
 
 typeset -a files=()
+typeset -a subtitle_drop_args=()
 
 while (( $# > 0 )); do
   case "$1" in
@@ -1475,6 +1491,10 @@ while (( $# > 0 )); do
       ;;
     --mov-faststart|--faststart)
       mov_faststart=true
+      shift
+      ;;
+    --drop-unsupported-subtitles)
+      drop_unsupported_subtitles=true
       shift
       ;;
     --quantize-chapters|--snap-chapters)
@@ -1630,6 +1650,32 @@ for input_file in "${files[@]}"; do
     print -P -- "  %F{magenta}name%f  %F{white}$(esc_prompt "$rename_to")%f"
   fi
 
+  subtitle_drop_args=()
+  if ! unsupported_subtitles="$(unsupported_subtitle_indices "$input_file")"; then
+    warn "could not inspect subtitle streams, skipping"
+    (( ++fail_count ))
+    continue
+  fi
+  if [[ -n "$unsupported_subtitles" ]]; then
+    warn "FFmpeg cannot identify the subtitle codec for input stream(s): ${(j:, :)${(f)unsupported_subtitles}}"
+    if [[ "$drop_unsupported_subtitles" != true ]]; then
+      if [[ "$dry_run" == true ]]; then
+        warn "this mapping requires confirmation or --drop-unsupported-subtitles"
+      elif [[ ! -t 0 ]]; then
+        warn "rerun with --drop-unsupported-subtitles to omit these tracks"
+        (( ++fail_count ))
+        continue
+      elif ! read -r "?Continue without these subtitle tracks? [y/N] " reply ||
+           [[ "$reply" != [Yy] && "$reply" != [Yy][Ee][Ss] ]]; then
+        (( ++skip_count ))
+        continue
+      fi
+    fi
+    for subtitle_idx in "${(f)unsupported_subtitles}"; do
+      subtitle_drop_args+=("-map" "-0:$subtitle_idx")
+    done
+  fi
+
   if [[ "$dry_run" == true ]]; then
     dry_run_movflags="use_metadata_tags"
     [[ "$mov_faststart" == true ]] && dry_run_movflags="+faststart+use_metadata_tags"
@@ -1637,10 +1683,10 @@ for input_file in "${files[@]}"; do
     dry_run_duration="$(video_duration_seconds "$input_file")"
     if [[ "$reverse_mode" == true ]]; then
       prepare_chapter_args "$input_file" reverse "$ts" "$dry_run_duration" "$quantize_chapters"
-      print -- "ffmpeg -hide_banner -y -i '$input_file' ${flc_chapter_input[*]} -map 0 ${flc_chapter_drop[*]} -map_metadata 0 ${flc_chapter_map[*]} -movflags '$dry_run_movflags' -to '$ts' -c copy '$work_output'"
+      print -- "ffmpeg -hide_banner -y -i '$input_file' ${flc_chapter_input[*]} -map 0 ${subtitle_drop_args[*]} ${flc_chapter_drop[*]} -map_metadata 0 ${flc_chapter_map[*]} -movflags '$dry_run_movflags' -to '$ts' -c copy '$work_output'"
     else
       prepare_chapter_args "$input_file" forward "$ts" "$dry_run_duration" "$quantize_chapters"
-      print -- "ffmpeg -hide_banner -y -ss '$ts' -i '$input_file' ${flc_chapter_input[*]} -map 0 ${flc_chapter_drop[*]} -map_metadata 0 ${flc_chapter_map[*]} -movflags '$dry_run_movflags' -copypriorss 0 -c copy '$work_output'"
+      print -- "ffmpeg -hide_banner -y -ss '$ts' -i '$input_file' ${flc_chapter_input[*]} -map 0 ${subtitle_drop_args[*]} ${flc_chapter_drop[*]} -map_metadata 0 ${flc_chapter_map[*]} -movflags '$dry_run_movflags' -copypriorss 0 -c copy '$work_output'"
     fi
     if [[ -n "$flc_chapter_meta" ]]; then
       print -- "quantized chapters written to '$flc_chapter_meta':"
