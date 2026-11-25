@@ -195,6 +195,7 @@ class FaphouseIE(InfoExtractor):
 
     def _real_extract(self, url):
         video_id = self._match_id(url)
+        has_request_cookies = bool(self._get_cookies(url))
         webpage = self._download_webpage_fallback(url, video_id)
 
         title = (
@@ -299,7 +300,7 @@ class FaphouseIE(InfoExtractor):
         # Structured metadata from the embedded view-state blob. This is present even
         # for paywalled videos the current account cannot watch, and is more reliable
         # than the HTML regexes above, so use it to fill any gaps.
-        vstate = traverse_obj(view_state, "video") or {}
+        vstate = traverse_obj(view_state, ("video", {dict})) or {}
 
         channel = channel or traverse_obj(vstate, "studioName")
         if not cast:
@@ -364,18 +365,20 @@ class FaphouseIE(InfoExtractor):
             # letting `--skip-download --ignore-no-formats-error` (or --write-info-json)
             # capture the metadata, while still failing by default when a download was
             # actually intended.
-            is_guest = (
-                traverse_obj(paywall, ("user", "isGuest"))
-                or traverse_obj(view_state, ("user", "currentUserId")) is None
-            )
-            has_access = traverse_obj(view_state, ("video", "videoViewAllowed"))
-            access_type = traverse_obj(view_state, ("video", "videoAccessTypeLabel"))
+            is_guest = traverse_obj(paywall, ("user", "isGuest", {bool}))
+            user = traverse_obj(view_state, ("user", {dict})) or {}
+            if is_guest is None and "currentUserId" in user:
+                is_guest = user["currentUserId"] is None
+
+            has_access = vstate.get("videoViewAllowed")
+            access_type = vstate.get("videoAccessTypeLabel")
             if is_guest:
-                msg = (
-                    "Faphouse returned a guest page for this request. "
-                    f"Sign in at {self._LOGIN_URL}, refresh the page in Brave, "
-                    "then retry with fresh browser cookies "
-                    "(for example, --cookies-from-browser brave)."
+                msg = "Faphouse returned a guest page for this request. "
+                if not has_request_cookies:
+                    msg += "yt-dlp had no cookies for the video URL before loading it. "
+                msg += (
+                    f"Sign in at {self._LOGIN_URL} in a regular Brave window, "
+                    "then retry with cookies from that profile."
                 )
             elif has_access is False:
                 msg = (
@@ -384,9 +387,8 @@ class FaphouseIE(InfoExtractor):
                 )
             else:
                 msg = (
-                    "Could not find any playable stream (no m3u8, no data-el-formats). "
-                    "Use browser DevTools Network to locate the JSON/XHR that returns the "
-                    "stream URL(s), then implement _download_json() here."
+                    "Faphouse listed a stream, but it yielded no playable formats."
+                    if m3u8 else "Could not find a playable stream in the Faphouse page."
                 )
             self.raise_no_formats(msg, expected=True, video_id=video_id)
 

@@ -413,7 +413,9 @@ typeset -gi PF_FIXED=24
 preflight() {
   local errf; errf="$(mktemp -t ytui-preflight)"
   local -a lines
-  lines=( "${(@f)$(yt-dlp --no-warnings --no-playlist --simulate --no-download-archive \
+  # stderr is shown only when preflight fails. Keep warnings here so cookie
+  # import and decryption errors are visible alongside the extraction error.
+  lines=( "${(@f)$(yt-dlp --no-playlist --simulate --no-download-archive \
     -I 1:1 \
     --print "filename" \
     --print "%(title)s" \
