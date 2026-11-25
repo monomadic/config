@@ -2,7 +2,7 @@
 # ============================================================
 # ffmpeg-lossless-cut
 # Select a keyframe in fzf, then write a trimmed copy beside the
-# source file using ffmpeg stream copy only.
+# source file without re-encoding.
 #
 # Workflow:
 # - always open keyframe selector
@@ -27,6 +27,7 @@
 # - fzf
 #
 # Optional:
+# - MKVToolNix (mkvmerge for Matroska WebVTT, mkvpropedit to quantize its chapters)
 # - ffmpeg-detect-black-scenes
 # - kitty, wezterm, imgcat, chafa
 # ============================================================
@@ -51,8 +52,8 @@ Options:
                             stdout, and exit without cutting anything
   --mov-faststart           Enable MP4/MOV FastStart on the output
   --drop-unsupported-subtitles
-                            Omit subtitle tracks FFmpeg cannot identify
-                            without asking
+                            Omit subtitle tracks FFmpeg cannot identify,
+                            even when MKVToolNix could keep them
   --quantize-chapters       Snap surviving chapter marks to the nearest keyframe
   --skip-detection          Deprecated no-op; detection is off unless requested
   --detect-black-scenes     Auto-start after a leading black scene when found
@@ -72,8 +73,9 @@ In the keyframe selector, press `r` to edit the output filename in $EDITOR.
 The new name shows immediately in the preview but is only applied after a
 successful cut; saving an empty buffer or the unchanged name cancels it.
 
-If FFmpeg cannot identify a subtitle codec, the cutter asks before omitting
-that track. Audio, video, attachments and recognized subtitles stay mapped.
+Matroska WebVTT tracks that FFmpeg cannot read are kept using MKVToolNix
+when available. Otherwise the cutter asks before omitting unsupported
+subtitle tracks. Audio, video, attachments and recognized subtitles stay mapped.
 
 Examples:
   ffmpeg-lossless-cut clip.mp4
@@ -901,6 +903,16 @@ unsupported_subtitle_indices() {
     awk -F, '$1 ~ /^[0-9]+$/ && ($2 == "unknown" || $2 == "N/A") { print $1 }'
 }
 
+mkv_webvtt_date() {
+  mkvmerge -J "${1:A}" 2>/dev/null |
+    python3 -c 'import json, sys
+data = json.load(sys.stdin)
+if not any(t["properties"].get("codec_id") == "S_TEXT/WEBVTT"
+           for t in data.get("tracks", [])):
+    sys.exit(1)
+print(data["container"]["properties"].get("date_utc", ""))' 2>/dev/null
+}
+
 nearest_keyframe() {
   local input_file="$1"
   local target="$2"
@@ -965,13 +977,15 @@ print("\n".join(f"{t:.6f}" for t in seen))
 PY
 }
 
-# Render the surviving chapters as ffmetadata in output time. Exits non-zero
-# when nothing survives, so the caller can fall back to ffmpeg's own copy.
+# Render the surviving chapters in output time. Exits non-zero when nothing
+# survives, so the muxer can copy the original chapters itself.
 build_chapter_metadata() {
-  python3 - "$1" "$2" "$3" "$4" "$5" <<'PY'
+  python3 - "$1" "$2" "$3" "$4" "$5" "$6" <<'PY'
 import json, sys
+from xml.etree import ElementTree as ET
 
 json_path, mode, snap_path = sys.argv[1], sys.argv[2], sys.argv[5]
+mkv = sys.argv[6] == "mkv"
 cut, dur = float(sys.argv[3]), float(sys.argv[4] or 0)
 lo = cut if mode == "forward" else 0.0
 hi = dur if mode == "forward" else cut
@@ -996,10 +1010,18 @@ def esc(s):
         s = s.replace(c, "\\" + c)
     return s
 
+def xml_timestamp(ms):
+    h, rest = divmod(ms, 3_600_000)
+    m, rest = divmod(rest, 60_000)
+    s, ms = divmod(rest, 1_000)
+    return f"{h:02}:{m:02}:{s:02}.{ms:03}"
+
 with open(json_path) as fh:
     chapters = json.load(fh).get("chapters", [])
 
 out = [";FFMETADATA1"]
+root = ET.Element("Chapters")
+edition = ET.SubElement(root, "EditionEntry")
 kept = 0
 for ch in chapters:
     try:
@@ -1013,14 +1035,22 @@ for ch in chapters:
     if ne - ns < 0.001:
         continue
     kept += 1
-    out += ["[CHAPTER]", "TIMEBASE=1/1000",
-            f"START={int(round(ns * 1000))}", f"END={int(round(ne * 1000))}"]
-    for k, v in (ch.get("tags") or {}).items():
+    start, end = round(ns * 1000), round(ne * 1000)
+    tags = ch.get("tags") or {}
+    if mkv:
+        atom = ET.SubElement(edition, "ChapterAtom")
+        ET.SubElement(atom, "ChapterTimeStart").text = xml_timestamp(start)
+        ET.SubElement(atom, "ChapterTimeEnd").text = xml_timestamp(end)
+        display = ET.SubElement(atom, "ChapterDisplay")
+        ET.SubElement(display, "ChapterString").text = tags.get("title", "")
+        continue
+    out += ["[CHAPTER]", "TIMEBASE=1/1000", f"START={start}", f"END={end}"]
+    for k, v in tags.items():
         out.append(f"{esc(str(k))}={esc(str(v))}")
 
 if not kept:
     sys.exit(1)
-print("\n".join(out))
+print(ET.tostring(root, encoding="unicode", xml_declaration=True) if mkv else "\n".join(out))
 PY
 }
 
@@ -1031,6 +1061,7 @@ prepare_chapter_args() {
   local cut_time="$3"
   local src_duration="$4"
   local quantize="$5"
+  local muxer="${6:-ffmpeg}"
   local idx boundary snapped json_file snap_file
 
   flc_chapter_input=()
@@ -1040,10 +1071,12 @@ prepare_chapter_args() {
 
   (( $(chapter_count "$input_file") > 0 )) || return 0
 
-  while IFS= read -r idx; do
-    [[ "$idx" == <-> ]] || continue
-    flc_chapter_drop+=("-map" "-0:${idx}")
-  done < <(chapter_stream_indices "$input_file")
+  if [[ "$muxer" == ffmpeg ]]; then
+    while IFS= read -r idx; do
+      [[ "$idx" == <-> ]] || continue
+      flc_chapter_drop+=("-map" "-0:${idx}")
+    done < <(chapter_stream_indices "$input_file")
+  fi
 
   [[ "$quantize" == true ]] || return 0
 
@@ -1067,9 +1100,11 @@ prepare_chapter_args() {
     fi
   done < <(chapter_boundaries "$json_file" "$mode" "$cut_time" "$src_duration")
 
-  if build_chapter_metadata "$json_file" "$mode" "$cut_time" "$src_duration" "$snap_file" > "$flc_chapter_meta"; then
-    flc_chapter_input=("-i" "$flc_chapter_meta")
-    flc_chapter_map=("-map_chapters" "1")
+  if build_chapter_metadata "$json_file" "$mode" "$cut_time" "$src_duration" "$snap_file" "$muxer" > "$flc_chapter_meta"; then
+    if [[ "$muxer" == ffmpeg ]]; then
+      flc_chapter_input=("-i" "$flc_chapter_meta")
+      flc_chapter_map=("-map_chapters" "1")
+    fi
     rm -f -- "$json_file" "$snap_file"
   else
     cleanup_chapter_meta
@@ -1253,6 +1288,44 @@ trim_copy_reverse() {
   return $rc
 }
 
+mkv_split_range() {
+  if [[ "$2" == reverse ]]; then
+    print -r -- "parts:-${1}s"
+  else
+    print -r -- "parts:${1}s-"
+  fi
+}
+
+trim_copy_mkv() {
+  local input_file="$1" cut_time="$2" output_file="$3" mode="$4"
+  local split log actual expected
+  integer rc=0
+
+  split="$(mkv_split_range "$cut_time" "$mode")"
+  log="$(mktemp "${TMPDIR:-/tmp}/flc-mkvmerge.XXXXXX")" || return 1
+  mkvmerge --ui-language en_US --gui-mode --output "${output_file:A}" \
+    --split "$split" "${mkv_date_args[@]}" "${input_file:A}" 2>&1 | tee "$log" | awk '
+      /^#GUI#progress / { printf "\r  MKVToolNix %s", $2; fflush(); progress = 1; next }
+      !/^#GUI#/ { if (progress) print ""; progress = 0; print; fflush() }
+      END { if (progress) print "" }
+    ' || rc=$?
+  actual="$(awk '/^#GUI#splitting_before_timestamp / { print $2 }' "$log")"
+  rm -f -- "$log"
+  (( rc == 0 )) || return "$rc"
+
+  # mkvmerge rounds up to a keyframe. Require the exact frame chosen in
+  # the selector (to ffprobe's microsecond precision) before replacing anything.
+  expected="$(format_ts "$cut_time")"
+  if [[ ! -s "$output_file" || "${actual%???}" != "$expected" ]]; then
+    warn "MKVToolNix could not split at $expected (reported: ${actual:-no split})"
+    return 1
+  fi
+
+  if [[ -n "$flc_chapter_meta" ]]; then
+    mkvpropedit "${output_file:A}" --chapters "$flc_chapter_meta" || return $?
+  fi
+}
+
 confirm_overwrite() {
   local output_file="$1"
   local reply=""
@@ -1416,10 +1489,12 @@ perform_cut() {
 
   check_free_space "$input_file" "$output_file" "$total" "$dur" || return 1
 
-  prepare_chapter_args "$input_file" "$mode" "$cut_time" "$dur" "$quantize"
+  prepare_chapter_args "$input_file" "$mode" "$cut_time" "$dur" "$quantize" "$cut_muxer"
 
   print
-  if [[ "$reverse_mode" == true ]]; then
+  if [[ "$cut_muxer" == mkv ]]; then
+    trim_copy_mkv "$input_file" "$cut_time" "$output_file" "$mode" || rc=$?
+  elif [[ "$reverse_mode" == true ]]; then
     trim_copy_reverse "$input_file" "$cut_time" "$output_file" "$mov_faststart" "$total" "$cols" || rc=$?
   else
     trim_copy "$input_file" "$cut_time" "$output_file" "$mov_faststart" "$total" "$cols" || rc=$?
@@ -1446,6 +1521,7 @@ from_ts="0"
 
 typeset -a files=()
 typeset -a subtitle_drop_args=()
+typeset -a mkv_date_args=()
 
 while (( $# > 0 )); do
   case "$1" in
@@ -1651,13 +1727,33 @@ for input_file in "${files[@]}"; do
   fi
 
   subtitle_drop_args=()
+  mkv_date_args=()
+  cut_muxer=ffmpeg
   if ! unsupported_subtitles="$(unsupported_subtitle_indices "$input_file")"; then
     warn "could not inspect subtitle streams, skipping"
     (( ++fail_count ))
     continue
   fi
-  if [[ -n "$unsupported_subtitles" ]]; then
+  if [[ -n "$unsupported_subtitles" && "$drop_unsupported_subtitles" != true &&
+        "${input_file:e:l}" == mkv ]] && have mkvmerge &&
+        mkv_date="$(mkv_webvtt_date "$input_file")"; then
+    cut_muxer=mkv
+    if [[ -n "$mkv_date" ]]; then
+      mkv_date_args=(--date "$mkv_date")
+    else
+      mkv_date_args=(--no-date)
+    fi
+    if [[ "$quantize_chapters" == true ]] && ! have mkvpropedit; then
+      warn "mkvpropedit is required to quantize chapters while keeping WebVTT"
+      (( ++fail_count ))
+      continue
+    fi
+    info "Using MKVToolNix to keep WebVTT subtitles"
+  elif [[ -n "$unsupported_subtitles" ]]; then
     warn "FFmpeg cannot identify the subtitle codec for input stream(s): ${(j:, :)${(f)unsupported_subtitles}}"
+    if [[ "${input_file:e:l}" == mkv && "$drop_unsupported_subtitles" != true ]] && ! have mkvmerge; then
+      warn "install MKVToolNix to keep Matroska WebVTT subtitles"
+    fi
     if [[ "$drop_unsupported_subtitles" != true ]]; then
       if [[ "$dry_run" == true ]]; then
         warn "this mapping requires confirmation or --drop-unsupported-subtitles"
@@ -1681,11 +1777,17 @@ for input_file in "${files[@]}"; do
     [[ "$mov_faststart" == true ]] && dry_run_movflags="+faststart+use_metadata_tags"
 
     dry_run_duration="$(video_duration_seconds "$input_file")"
-    if [[ "$reverse_mode" == true ]]; then
-      prepare_chapter_args "$input_file" reverse "$ts" "$dry_run_duration" "$quantize_chapters"
+    cut_mode=forward
+    [[ "$reverse_mode" == true ]] && cut_mode=reverse
+    prepare_chapter_args "$input_file" "$cut_mode" "$ts" "$dry_run_duration" "$quantize_chapters" "$cut_muxer"
+    if [[ "$cut_muxer" == mkv ]]; then
+      print -- "mkvmerge --output '$work_output' --split '$(mkv_split_range "$ts" "$cut_mode")' ${mkv_date_args[*]} '$input_file'"
+      if [[ -n "$flc_chapter_meta" ]]; then
+        print -- "mkvpropedit '$work_output' --chapters '$flc_chapter_meta'"
+      fi
+    elif [[ "$reverse_mode" == true ]]; then
       print -- "ffmpeg -hide_banner -y -i '$input_file' ${flc_chapter_input[*]} -map 0 ${subtitle_drop_args[*]} ${flc_chapter_drop[*]} -map_metadata 0 ${flc_chapter_map[*]} -movflags '$dry_run_movflags' -to '$ts' -c copy '$work_output'"
     else
-      prepare_chapter_args "$input_file" forward "$ts" "$dry_run_duration" "$quantize_chapters"
       print -- "ffmpeg -hide_banner -y -ss '$ts' -i '$input_file' ${flc_chapter_input[*]} -map 0 ${subtitle_drop_args[*]} ${flc_chapter_drop[*]} -map_metadata 0 ${flc_chapter_map[*]} -movflags '$dry_run_movflags' -copypriorss 0 -c copy '$work_output'"
     fi
     if [[ -n "$flc_chapter_meta" ]]; then
