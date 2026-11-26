@@ -62,10 +62,16 @@ ytdlp_has_impersonation() {
 }
 
 if ytdlp_has_impersonation "$UV_BIN"; then
-  echo "yt-dlp (uv) already has impersonation support"
+  echo "Checking for yt-dlp updates via uv..."
+  uv tool upgrade yt-dlp
 else
   echo "Installing yt-dlp with curl_cffi via uv..."
-  uv tool install --force yt-dlp --with curl_cffi
+  uv tool install --upgrade --force yt-dlp --with curl_cffi
+fi
+
+if ! ytdlp_has_impersonation "$UV_BIN"; then
+  echo "Error: $UV_BIN still reports no impersonation targets" >&2
+  exit 1
 fi
 
 # Drop the Homebrew symlink if the keg is installed and currently linked, then
@@ -104,11 +110,6 @@ else
 fi
 
 resolved="$(command -v yt-dlp || true)"
-
-if ! ytdlp_has_impersonation "$UV_BIN"; then
-  echo "Error: $UV_BIN still reports no impersonation targets" >&2
-  exit 1
-fi
 
 # `-ef` not a string compare: resolving via the shim is the expected outcome, so
 # what matters is that PATH lands on the same file, not on the same spelling.
